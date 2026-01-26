@@ -1,0 +1,75 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@layer base {
+    :root {
+        --font-sans: 'Raleway', ui-sans-serif, system-ui, sans-serif;
+        --color-primary-50: 255 251 235;
+        --color-primary-100: 254 243 199;
+        --color-primary-200: 253 230 138;
+        --color-primary-300: 252 211 77;
+        --color-primary-400: 251 191 36;
+        --color-primary-500: 245 158 11;
+        --color-primary-600: 217 119 6;
+        --color-primary-700: 180 83 9;
+        --color-primary-800: 146 64 14;
+        --color-primary-900: 120 53 15;
+        --color-primary-950: 69 26 3;
+        font-size: 0.8rem !important;
+        @apply bg-neutral-500;
+    }
+}
+
+@layer components {
+    .fi-ta{
+        margin-top: -2rem !important;
+    }
+    .fi-ta-table > thead > tr {
+        @apply bg-sky-600;
+    }
+    .fi-ta-table > thead > tr > th,
+    .fi-ta-table > thead > tr > td {
+        @apply text-white;
+    }
+
+    .fi-ta-table > tbody > tr > td {
+        @apply text-green-600;
+    }
+
+    .dark .fi-ta-table > tbody > tr > td {
+        @apply text-black;
+    }
+
+    .fi-ta-table > thead > tr.fi-ta-table-head-groups-row {
+        @apply bg-sky-300;
+    }
+
+    .fi-ta-table > tbody > tr:nth-child(odd) {
+        @apply bg-sky-50;
+    }
+
+    .fi-ta-table > tbody > tr:nth-child(even) {
+        @apply bg-sky-100;
+    }
+
+    .fi-ta-table > tbody > tr:active {
+        @apply bg-amber-500;
+    }
+
+    .fi-header .fi-breadcrumbs {
+        margin-top: -1.5rem;
+    }
+    .fi-header .fi-header-heading {
+        margin-top: 0.5rem;
+    }
+
+    /* Reduce row height by tightening cell padding in tables. */
+    .fi-ta-text:not(.fi-inline) {
+        @apply px-2 py-1;
+    }
+
+    .fi-ta-cell:has(.fi-ta-actions),
+    .fi-ta-cell:has(.fi-ta-record-checkbox),
+    .fi-ta-cell.fi-ta-selection-cell {
+        @apply py-1;
+    }
+}
