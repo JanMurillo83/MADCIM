@@ -30,6 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('/')
             ->login()
             ->font('sans')
+            ->favicon(asset('/images/ICON.png'))
             ->topNavigation()
             ->maxContentWidth('full')
             ->colors([

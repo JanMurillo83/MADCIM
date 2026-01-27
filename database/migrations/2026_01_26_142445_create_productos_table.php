@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('linea');
             $table->decimal('largo',18,8)->default(0);
             $table->decimal('ancho',18,8)->default(0);
+            $table->string('imagen')->nullable();
             $table->timestamps();
         });
     }

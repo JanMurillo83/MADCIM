@@ -4,11 +4,11 @@ namespace App\Filament\Resources\Productos\Schemas;
 
 use App\Models\Grupos;
 use App\Models\Lineas;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput\Mask;
-use Filament\Support\RawJs;
+
 
 class ProductosForm
 {
@@ -66,6 +66,11 @@ class ProductosForm
                     ->required()
                     ->numeric()
                     ->default(0.0),
+                FileUpload::make('imagen')
+                    ->disk('public')
+                    ->image()
+                    ->directory('productos')
+                    ->downloadable()
             ])->columns(5);
     }
 }
