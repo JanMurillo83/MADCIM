@@ -18,7 +18,7 @@ class ClientesResource extends Resource
 {
     protected static ?string $model = Clientes::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'fas-users';
 
     public static function form(Schema $schema): Schema
     {
@@ -41,8 +41,8 @@ class ClientesResource extends Resource
     {
         return [
             'index' => ListClientes::route('/'),
-            'create' => CreateClientes::route('/create'),
-            'edit' => EditClientes::route('/{record}/edit'),
+            //'create' => CreateClientes::route('/create'),
+            //'edit' => EditClientes::route('/{record}/edit'),
         ];
     }
 }

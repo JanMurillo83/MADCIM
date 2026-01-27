@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\Clientes\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -71,10 +73,25 @@ class ClientesTable
             ->recordActions([
                 EditAction::make(),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->headerActions([
+                CreateAction::make()
+                    ->createAnother(false)
+                    ->label('Nuevo')
+                    ->icon('fas-circle-plus')
+                    ->modalWidth('7xl')
+                    ->modalSubmitAction(function ($action) {
+                        $action->icon('fas-floppy-disk');
+                        $action->label('Guardar');
+                        $action->extraAttributes(['style' => 'width: 150px !important;']);
+                        $action->color('success');
+                        return $action;
+                    })->modalCancelAction(function ($action) {
+                        $action->icon('fas-ban');
+                        $action->label('Cancelar');
+                        $action->extraAttributes(['style' => 'width: 150px !important;']);
+                        $action->color('danger');
+                        return $action;
+                    }),
+            ],HeaderActionsPosition::Bottom);
     }
 }
