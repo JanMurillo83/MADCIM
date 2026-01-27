@@ -31,6 +31,9 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->font('sans')
             ->favicon(asset('/images/ICON.png'))
+            ->brandName('MADCIM')
+            ->brandLogo(asset('/images/LOGO.png'))
+            ->brandLogoHeight('100px')
             ->topNavigation()
             ->maxContentWidth('full')
             ->colors([
