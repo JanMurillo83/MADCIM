@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('cotizaciones', function (Blueprint $table) {
             //$table->integer('dias_renta')->nullable()->after('fecha_emision');
-            $table->date('fecha_vencimiento')->nullable()->after('dias_renta');
+            //$table->date('fecha_vencimiento')->nullable()->after('dias_renta');
         });
     }
 
