@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('notas_venta_renta', function (Blueprint $table) {
-            $table->date('fecha_vencimiento')->nullable()->after('fecha_emision');
-        });
+        if (!Schema::hasColumn('notas_venta_renta', 'fecha_vencimiento')) {
+            Schema::table('notas_venta_renta', function (Blueprint $table) {
+                $table->date('fecha_vencimiento')->nullable()->after('fecha_emision');
+            });
+        }
     }
 
     /**
