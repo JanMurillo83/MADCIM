@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('cotizaciones', function (Blueprint $table) {
-            $table->integer('dias_renta')->nullable()->after('fecha_emision');
+            //$table->integer('dias_renta')->nullable()->after('fecha_emision');
             $table->date('fecha_vencimiento')->nullable()->after('dias_renta');
         });
     }
