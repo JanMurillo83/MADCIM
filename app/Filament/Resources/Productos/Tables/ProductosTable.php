@@ -23,18 +23,6 @@ class ProductosTable
                     ->searchable(),
                 TextColumn::make('descripcion')
                     ->searchable(),
-                TextColumn::make('m2_cubre')
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->alignRight()
-                    ->sortable(),
-                TextColumn::make('precio_venta')
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->prefix('$')->alignRight()
-                    ->sortable(),
-                TextColumn::make('precio_renta_mes')
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->prefix('$')->alignRight()
-                    ->sortable(),
                 TextColumn::make('precio_renta_dia')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
@@ -42,6 +30,18 @@ class ProductosTable
                 TextColumn::make('precio_renta_semana')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
+                    ->sortable(),
+                TextColumn::make('precio_renta_mes')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
+                    ->sortable(),
+                TextColumn::make('precio_venta')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
+                    ->sortable(),
+                TextColumn::make('m2_cubre')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->alignRight()
                     ->sortable(),
                 TextColumn::make('existencia')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')

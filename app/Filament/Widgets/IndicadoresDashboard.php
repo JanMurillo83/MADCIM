@@ -2,8 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\TipoDocumento;
-use App\Models\Documentos;
+use App\Models\FacturasCfdi;
+use App\Models\NotasVentaRenta;
+use App\Models\NotasVentaVenta;
 use App\Models\Productos;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -16,38 +17,36 @@ class IndicadoresDashboard extends StatsOverviewWidget
         $inicioMes = $now->copy()->startOfMonth();
         $finMes = $now->copy()->endOfMonth();
 
-        $ventasDelMes = Documentos::query()
-            ->whereIn('tipo', [
-                TipoDocumento::NotaVentaVenta->value,
-                TipoDocumento::FacturaCfdi->value,
-            ])
+        $ventasNotas = NotasVentaVenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
             ->sum('total');
 
-        $rentasDelMes = Documentos::query()
-            ->where('tipo', TipoDocumento::NotaVentaRenta->value)
+        $ventasFacturas = FacturasCfdi::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
             ->sum('total');
 
-        $diasVencimientoRenta = 30;
+        $ventasDelMes = $ventasNotas + $ventasFacturas;
+
+        $rentasDelMes = NotasVentaRenta::query()
+            ->whereBetween('fecha_emision', [$inicioMes, $finMes])
+            ->sum('total');
+
         $diasPorVencer = 7;
 
-        $rentasBase = Documentos::query()
-            ->where('tipo', TipoDocumento::NotaVentaRenta->value)
-            ->whereNotNull('fecha_emision')
-            ->whereDoesntHave('documentosRelacionados', function ($query) {
-                $query->where('tipo', TipoDocumento::DevolucionRenta->value);
-            });
+        // Rentas activas (no devueltas ni canceladas)
+        $rentasBase = NotasVentaRenta::query()
+            ->whereNotNull('fecha_vencimiento')
+            ->whereIn('estatus', ['Activa', 'Pagada']);
 
-        $fechaLimiteVencidas = $now->copy()->subDays($diasVencimientoRenta);
+        // Rentas vencidas: fecha_vencimiento ya pasó
         $rentasVencidas = (clone $rentasBase)
-            ->where('fecha_emision', '<=', $fechaLimiteVencidas)
+            ->where('fecha_vencimiento', '<', $now->toDateString())
             ->count();
 
-        $fechaInicioPorVencer = $now->copy()->subDays($diasVencimientoRenta);
-        $fechaFinPorVencer = $now->copy()->addDays($diasPorVencer)->subDays($diasVencimientoRenta);
+        // Rentas por vencer: fecha_vencimiento en los próximos 7 días
+        $fechaFinPorVencer = $now->copy()->addDays($diasPorVencer);
         $rentasPorVencer = (clone $rentasBase)
-            ->whereBetween('fecha_emision', [$fechaInicioPorVencer, $fechaFinPorVencer])
+            ->whereBetween('fecha_vencimiento', [$now->toDateString(), $fechaFinPorVencer->toDateString()])
             ->count();
 
         $valorInventario = Productos::query()
@@ -63,10 +62,12 @@ class IndicadoresDashboard extends StatsOverviewWidget
                 ->icon('heroicon-o-receipt-refund'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
                 ->description('Rentas sin devolucion')
-                ->icon('heroicon-o-exclamation-triangle'),
+                ->icon('heroicon-o-exclamation-triangle')
+                ->color('danger'),
             Stat::make('Rentas por vencer', (string) $rentasPorVencer)
                 ->description('Proximas ' . $diasPorVencer . ' dias')
-                ->icon('heroicon-o-clock'),
+                ->icon('heroicon-o-clock')
+                ->color('warning'),
             Stat::make('Valor inventario actual', $this->formatCurrency((float) $valorInventario))
                 ->description('Existencia x precio de venta')
                 ->icon('heroicon-o-archive-box'),

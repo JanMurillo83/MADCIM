@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Filament\Resources\NotasVentaRenta;
+
+use App\Filament\Resources\NotasVentaRenta\Pages\CreateNotasVentaRenta;
+use App\Filament\Resources\NotasVentaRenta\Pages\EditNotasVentaRenta;
+use App\Filament\Resources\NotasVentaRenta\Pages\ListNotasVentaRenta;
+use App\Filament\Resources\NotasVentaRenta\Schemas\NotasVentaRentaForm;
+use App\Filament\Resources\NotasVentaRenta\Tables\NotasVentaRentaTable;
+use App\Models\NotasVentaRenta;
+use BackedEnum;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Tables\Table;
+
+class NotasVentaRentaResource extends Resource
+{
+    protected static ?string $model = NotasVentaRenta::class;
+
+    protected static string|BackedEnum|null $navigationIcon = 'fas-file-invoice-dollar';
+
+    protected static ?string $navigationLabel = 'Notas de venta (renta)';
+
+    protected static ?string $pluralLabel = 'Notas de venta (renta)';
+    protected static string|null|\UnitEnum $navigationGroup = 'Notas de venta';
+
+    public static function form(Schema $schema): Schema
+    {
+        return NotasVentaRentaForm::configure($schema);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return NotasVentaRentaTable::configure($table);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ListNotasVentaRenta::route('/'),
+            'create' => CreateNotasVentaRenta::route('/create'),
+            'edit' => EditNotasVentaRenta::route('/{record}/edit'),
+        ];
+    }
+}
