@@ -20,4 +20,9 @@ class Clientes extends Model
         return $this->hasMany(ClienteDireccionEntrega::class, 'cliente_id')
             ->where('activa', true);
     }
+
+    public function notasVentaRenta(): HasMany
+    {
+        return $this->hasMany(NotasVentaRenta::class, 'cliente_id');
+    }
 }

@@ -16,6 +16,7 @@ class RegistroRenta extends Model
         'cliente_direccion',
         'producto_id',
         'cantidad',
+        'cantidad_devuelta',
         'dias_renta',
         'fecha_renta',
         'fecha_vencimiento',

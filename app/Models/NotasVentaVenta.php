@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasDocumentoSerieFolio;
+use App\Models\NotaEnvio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,6 +15,8 @@ class NotasVentaVenta extends Model
     protected $table = 'notas_venta_venta';
     protected $fillable = [
         'cliente_id',
+        'sucursal_id',
+        'user_id',
         'serie',
         'folio',
         'fecha_emision',
@@ -24,6 +27,7 @@ class NotasVentaVenta extends Model
         'total',
         'saldo_pendiente',
         'estatus',
+        'estatus_envio',
         'uso_cfdi',
         'forma_pago',
         'metodo_pago',
@@ -44,6 +48,16 @@ class NotasVentaVenta extends Model
         return $this->belongsTo(Clientes::class, 'cliente_id');
     }
 
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function partidas(): HasMany
     {
         return $this->hasMany(NotaVentaVentaPartidas::class, 'nota_venta_venta_id');
@@ -57,6 +71,11 @@ class NotasVentaVenta extends Model
     public function documentosRelacionados(): HasMany
     {
         return $this->hasMany(self::class, 'documento_origen_id');
+    }
+
+    public function notasEnvio(): HasMany
+    {
+        return $this->hasMany(NotaEnvio::class, 'nota_venta_venta_id');
     }
 
     public function devoluciones(): HasMany

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaVenta\Tables;
 
+use App\Models\NotasVentaVenta;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
@@ -19,21 +20,13 @@ class NotasVentaVentaTable
         return $table
             ->columns([
                 TextColumn::make('serie')
-                    ->searchable(),
-                TextColumn::make('folio')
-                    ->searchable(),
+                ->label('Nota Origen')->getStateUsing(fn ($record) => $record->serie.$record->folio),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
-                    ->sortable(),
-                TextColumn::make('moneda')
-                    ->searchable(),
-                TextColumn::make('tipo_cambio')
-                    ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
-                    ->prefix('$')
                     ->sortable(),
                 TextColumn::make('subtotal')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
@@ -53,16 +46,26 @@ class NotasVentaVentaTable
                     ->prefix('$')
                     ->sortable()
                     ->color(fn ($state) => $state > 0 ? 'warning' : 'success'),
-                TextColumn::make('estatus')
-                    ->searchable()
+                TextColumn::make('estatus_pago')
+                    ->label('Estatus Pago')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'Activa' => 'warning',
-                        'Pagada' => 'success',
-                        'Cancelada' => 'danger',
-                        'Borrador' => 'gray',
-                        default => 'gray',
-                    }),
+                    ->getStateUsing(function (NotasVentaVenta $record) {
+                        if ($record->estatus === 'Cancelada') return 'Cancelada';
+                        if ((float)$record->saldo_pendiente <= 0) return 'Pagada';
+                        return 'Crédito';
+                    })
+                    ->colors([
+                        'success' => 'Pagada',
+                        'warning' => 'Crédito',
+                        'danger' => 'Cancelada',
+                    ]),
+                TextColumn::make('estatus_envio')
+                    ->label('Estatus Envío')
+                    ->badge()
+                    ->colors([
+                        'danger' => 'Pendiente de Envío',
+                        'success' => 'Enviada',
+                    ]),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -115,6 +118,23 @@ class NotasVentaVentaTable
                         ->color('info')
                         ->url(fn ($record) => route('notas-venta-venta.pdf.carta', $record->id))
                         ->openUrlInNewTab(),
+                    Action::make('marcar_enviada')
+                        ->label('Marcar Enviada')
+                        ->icon('heroicon-o-truck')
+                        ->color('success')
+                        ->visible(fn (NotasVentaVenta $record) => ($record->estatus_envio ?? 'Pendiente de Envío') === 'Pendiente de Envío' && $record->estatus !== 'Cancelada')
+                        ->requiresConfirmation()
+                        ->modalHeading(fn (NotasVentaVenta $record) => 'Marcar Enviada - Nota ' . $record->serie . $record->folio)
+                        ->modalDescription('¿Confirma que esta nota ha sido enviada?')
+                        ->modalSubmitActionLabel('Confirmar')
+                        ->action(function (NotasVentaVenta $record) {
+                            $record->update(['estatus_envio' => 'Enviada']);
+                            Notification::make()
+                                ->title('Estatus actualizado')
+                                ->body('La nota ' . $record->serie . $record->folio . ' ha sido marcada como Enviada.')
+                                ->success()
+                                ->send();
+                        }),
                     Action::make('cancelar')
                         ->label('Cancelar Nota')
                         ->icon('fas-times-circle')

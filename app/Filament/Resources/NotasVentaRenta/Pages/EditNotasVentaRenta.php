@@ -16,4 +16,6 @@ class EditNotasVentaRenta extends EditRecord
             DeleteAction::make(),
         ];
     }
+
+    // Los registros de renta se crean desde las Notas de Envío
 }

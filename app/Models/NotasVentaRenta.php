@@ -15,10 +15,14 @@ class NotasVentaRenta extends Model
     protected $fillable = [
         'cliente_id',
         'direccion_entrega_id',
+        'sucursal_id',
+        'user_id',
         'serie',
         'folio',
         'fecha_emision',
         'dias_renta',
+        'tipo_renta',
+        'condicion_pago',
         'fecha_vencimiento',
         'moneda',
         'tipo_cambio',
@@ -54,6 +58,16 @@ class NotasVentaRenta extends Model
         return $this->belongsTo(ClienteDireccionEntrega::class, 'direccion_entrega_id');
     }
 
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function partidas(): HasMany
     {
         return $this->hasMany(NotaVentaRentaPartidas::class, 'nota_venta_renta_id');
@@ -77,5 +91,10 @@ class NotasVentaRenta extends Model
     public function registrosRenta(): HasMany
     {
         return $this->hasMany(RegistroRenta::class, 'nota_venta_renta_id');
+    }
+
+    public function notasEnvio(): HasMany
+    {
+        return $this->hasMany(NotaEnvio::class, 'nota_venta_renta_id');
     }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
+use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
+use App\Models\Sucursal;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -18,6 +20,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class NotasVentaRentaForm
 {
@@ -38,28 +41,40 @@ class NotasVentaRentaForm
         $partidas = $get('../../partidas');
         $subtotal = 0.0;
         $impuestos = 0.0;
+        $subtotalMadera = 0.0;
 
         if (!is_array($partidas)) {
             $set('../../subtotal', 0.0);
             $set('../../impuestos_total', 0.0);
             $set('../../total', 0.0);
             $set('../../saldo_pendiente', 0.0);
+            $set('../../deposito', 0.0);
             return;
         }
 
         foreach ($partidas as $partida) {
             $subtotal += (float) ($partida['subtotal'] ?? 0);
             $impuestos += (float) ($partida['impuestos'] ?? 0);
+
+            // Sumar subtotal de items de línea MADERA
+            $itemId = $partida['item'] ?? null;
+            if ($itemId) {
+                $producto = Productos::find($itemId);
+                if ($producto && trim($producto->linea) === 'MADERA') {
+                    $subtotalMadera += (float) ($partida['subtotal'] ?? 0);
+                }
+            }
         }
 
-        // Obtener depósito actual (SIN IVA)
-        $deposito = (float) $get('../../deposito');
+        // Depósito = 10% del subtotal de items de línea MADERA
+        $deposito = round($subtotalMadera * 0.10, 2);
 
         // Total = Subtotal Partidas + IVA Partidas + Depósito (sin IVA)
         $total = $subtotal + $impuestos + $deposito;
 
         $set('../../subtotal', $subtotal);
         $set('../../impuestos_total', $impuestos);
+        $set('../../deposito', $deposito);
         $set('../../total', $total);
         $set('../../saldo_pendiente', $total);
     }
@@ -91,22 +106,58 @@ class NotasVentaRentaForm
                         DatePicker::make('fecha_emision')
                             ->default(Carbon::now()->format('Y-m-d'))
                             ->format('Y-m-d'),
-                        Select::make('moneda')
+                        Hidden::make('moneda')
+                            ->default('MXN'),
+                        Hidden::make('tipo_cambio')->default(1.0),
+                        Select::make('tipo_renta')
+                            ->label('Tipo de Renta')
                             ->required()
-                            ->default('MXN')
-                            ->live(onBlur: true)
-                            ->options(['MXN' => 'MXN', 'USD' => 'USD'])
+                            ->default('dia')
+                            ->options([
+                                'dia' => 'Por Día',
+                                'semana' => 'Por Semana',
+                                'mes' => 'Por Mes',
+                            ])
+                            ->live()
                             ->afterStateUpdated(function (Get $get, Set $set) {
-                                if ($get('moneda') == 'MXN')
-                                    $set('tipo_cambio', 1.0);
+                                // Recalcular precios de todas las partidas al cambiar tipo de renta
+                                $partidas = $get('partidas');
+                                if (!is_array($partidas)) return;
+                                $tipoRenta = $get('tipo_renta');
+                                $cambiadas = false;
+                                foreach ($partidas as $key => $partida) {
+                                    $itemId = $partida['item'] ?? null;
+                                    if ($itemId) {
+                                        $producto = Productos::find($itemId);
+                                        if ($producto) {
+                                            $precio = match ($tipoRenta) {
+                                                'semana' => (float) $producto->precio_renta_semana,
+                                                'mes' => (float) $producto->precio_renta_mes,
+                                                default => (float) $producto->precio_renta_dia,
+                                            };
+                                            $cantidad = (float) ($partida['cantidad'] ?? 1);
+                                            $subtotal = $cantidad * $precio;
+                                            $impuestos = $subtotal * 0.16;
+                                            $partidas[$key]['valor_unitario'] = $precio;
+                                            $partidas[$key]['subtotal'] = $subtotal;
+                                            $partidas[$key]['impuestos'] = $impuestos;
+                                            $partidas[$key]['total'] = $subtotal + $impuestos;
+                                            $cambiadas = true;
+                                        }
+                                    }
+                                }
+                                if ($cambiadas) {
+                                    $set('partidas', $partidas);
+                                }
                             }),
-                        TextInput::make('tipo_cambio')
+                        Select::make('condicion_pago')
+                            ->label('Condición de Pago')
                             ->required()
-                            ->readOnly(function (Get $get) {
-                                return $get('moneda') == 'MXN';
-                            })
-                            ->numeric()
-                            ->default(1.0),
+                            ->default('contado')
+                            ->options([
+                                'contado' => 'Contado',
+                                'credito' => 'Crédito',
+                            ]),
                         Hidden::make('estatus')
                             ->required()
                             ->default('Activa'),
@@ -125,7 +176,14 @@ class NotasVentaRentaForm
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 // Reset dirección de entrega cuando cambia el cliente
                                 $set('direccion_entrega_id', null);
-                            }),
+                            })->columnSpan(2),
+                        Select::make('sucursal_id')
+                            ->label('Sucursal')
+                            ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
+                            ->searchable()
+                            ->preload(),
+                        Hidden::make('user_id')
+                            ->default(fn () => Auth::id()),
                         Select::make('direccion_entrega_id')
                             ->label('Dirección de Entrega')
                             ->options(function (Get $get) {
@@ -150,8 +208,79 @@ class NotasVentaRentaForm
                             })
                             ->searchable()
                             ->preload()
-                            ->helperText('Seleccione la dirección donde se entregará el producto')
-                            ->visible(fn (Get $get) => $get('cliente_id') !== null),
+                            ->helperText('Seleccione la dirección donde se entregará el producto o cree una nueva')
+                            ->visible(fn (Get $get) => $get('cliente_id') !== null)
+                            ->createOptionForm([
+                                TextInput::make('nombre_direccion')
+                                    ->label('Nombre de la Dirección')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->placeholder('Ej: Oficina principal, Bodega, Obra...'),
+                                TextInput::make('calle')
+                                    ->label('Calle')
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('numero_exterior')
+                                    ->label('Número Exterior')
+                                    ->required()
+                                    ->maxLength(20),
+                                TextInput::make('numero_interior')
+                                    ->label('Número Interior')
+                                    ->maxLength(20),
+                                TextInput::make('colonia')
+                                    ->label('Colonia')
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('municipio')
+                                    ->label('Municipio')
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('estado')
+                                    ->label('Estado')
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('codigo_postal')
+                                    ->label('Código Postal')
+                                    ->required()
+                                    ->maxLength(10),
+                                TextInput::make('pais')
+                                    ->label('País')
+                                    ->default('México')
+                                    ->maxLength(255),
+                                Textarea::make('referencias')
+                                    ->label('Referencias')
+                                    ->rows(2)
+                                    ->maxLength(500),
+                                TextInput::make('contacto_nombre')
+                                    ->label('Nombre de Contacto')
+                                    ->maxLength(255),
+                                TextInput::make('contacto_telefono')
+                                    ->label('Teléfono de Contacto')
+                                    ->maxLength(20),
+                            ])
+                            ->createOptionUsing(function (array $data, Get $get) {
+                                $clienteId = $get('cliente_id');
+                                if (!$clienteId) return null;
+
+                                $direccion = ClienteDireccionEntrega::create([
+                                    'cliente_id' => $clienteId,
+                                    'nombre_direccion' => $data['nombre_direccion'],
+                                    'calle' => $data['calle'],
+                                    'numero_exterior' => $data['numero_exterior'],
+                                    'numero_interior' => $data['numero_interior'] ?? null,
+                                    'colonia' => $data['colonia'],
+                                    'municipio' => $data['municipio'],
+                                    'estado' => $data['estado'],
+                                    'codigo_postal' => $data['codigo_postal'],
+                                    'pais' => $data['pais'] ?? 'México',
+                                    'referencias' => $data['referencias'] ?? null,
+                                    'contacto_nombre' => $data['contacto_nombre'] ?? null,
+                                    'contacto_telefono' => $data['contacto_telefono'] ?? null,
+                                    'activa' => true,
+                                ]);
+
+                                return $direccion->id;
+                            }),
                         Placeholder::make('direccion_cliente')
                             ->label('Direccion cliente')
                             ->content(function (Get $get) {
@@ -192,8 +321,8 @@ class NotasVentaRentaForm
                                 Repeater\TableColumn::make('Cantidad'),
                                 Repeater\TableColumn::make('Item'),
                                 Repeater\TableColumn::make('Precio'),
-                                Repeater\TableColumn::make('Subtotal'),
-                                Repeater\TableColumn::make('Impuestos'),
+                                //Repeater\TableColumn::make('Subtotal'),
+                                //Repeater\TableColumn::make('Impuestos'),
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
@@ -223,7 +352,13 @@ class NotasVentaRentaForm
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
-                                        $set('valor_unitario', $producto->precio_venta);
+                                        $tipoRenta = $get('../../tipo_renta') ?? 'dia';
+                                        $precio = match ($tipoRenta) {
+                                            'semana' => (float) $producto->precio_renta_semana,
+                                            'mes' => (float) $producto->precio_renta_mes,
+                                            default => (float) $producto->precio_renta_dia,
+                                        };
+                                        $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),
@@ -239,18 +374,8 @@ class NotasVentaRentaForm
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),
-                                TextInput::make('subtotal')
-                                    ->columnSpan(1)
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0.0)
-                                    ->readOnly(),
-                                TextInput::make('impuestos')
-                                    ->columnSpan(1)
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0.0)
-                                    ->readOnly(),
+                                Hidden::make('subtotal')->default(0.0),
+                                Hidden::make('impuestos')->default(0.0),
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -259,6 +384,17 @@ class NotasVentaRentaForm
                                     ->readOnly()
                                     ->extraAttributes([
                                         'style' => 'background-color: #fff59d; font-weight: bold;',
+                                    ])
+                                    ->extraInputAttributes([
+                                        'x-on:keydown.insert.prevent' => "
+                                            const repeater = \$el.closest('.fi-fo-repeater');
+                                            if (repeater) {
+                                                const addBtn = repeater.querySelector('.fi-fo-repeater-add-action-btn, [wire\\\\:click*=\"addItem\"], .fi-ac-btn-action');
+                                                if (addBtn) { addBtn.click(); return; }
+                                                const allBtns = repeater.querySelectorAll('button');
+                                                if (allBtns.length) allBtns[allBtns.length - 1].click();
+                                            }
+                                        ",
                                     ]),
                             ])
                             ->defaultItems(1)
@@ -300,24 +436,12 @@ class NotasVentaRentaForm
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
                         TextInput::make('deposito')
-                            ->label('Depósito')
+                            ->label('Depósito (10% Madera)')
                             ->required()
                             ->numeric()
                             ->default(0.0)
                             ->prefix('$')
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(function (Get $get, Set $set) {
-                                // Recalcular total cuando cambia el depósito (SIN IVA)
-                                $subtotal = (float) $get('subtotal');
-                                $deposito = (float) $get('deposito');
-                                $impuestosPartidas = (float) $get('impuestos_total');
-
-                                // Total = Subtotal + IVA Partidas + Depósito (sin IVA)
-                                $total = $subtotal + $impuestosPartidas + $deposito;
-
-                                $set('total', $total);
-                                $set('saldo_pendiente', $total);
-                            })
+                            ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),

@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\NotasVentaRenta\Tables;
 
+use App\Models\NotaEnvio;
+use App\Models\NotaEnvioPartida;
+use App\Models\NotasVentaRenta;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
@@ -20,21 +24,18 @@ class NotasVentaRentaTable
         return $table
             ->columns([
                 TextColumn::make('serie')
-                    ->searchable(),
-                TextColumn::make('folio')
-                    ->searchable(),
+                    ->label('Nota Origen')
+                    ->searchable(
+                        query: fn($query, $searchTerm) => $query->where('serie', 'like', "%{$searchTerm}%")
+                            ->orWhere('folio', 'like', "%{$searchTerm}%"),
+                    )
+                ->getStateUsing(fn ($record) => $record->serie.$record->folio),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
-                    ->sortable(),
-                TextColumn::make('moneda')
-                    ->searchable(),
-                TextColumn::make('tipo_cambio')
-                    ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
-                    ->prefix('$')
                     ->sortable(),
                 TextColumn::make('subtotal')
                     ->label('Subtotal Partidas')
@@ -64,16 +65,75 @@ class NotasVentaRentaTable
                     ->prefix('$')
                     ->sortable()
                     ->color(fn ($state) => $state > 0 ? 'warning' : 'success'),
-                TextColumn::make('estatus')
-                    ->searchable()
+                TextColumn::make('estatus_pago')
+                    ->label('Estatus Pago')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'Activa' => 'warning',
-                        'Pagada' => 'success',
-                        'Cancelada' => 'danger',
-                        'Borrador' => 'gray',
-                        default => 'gray',
-                    }),
+                    ->getStateUsing(function (NotasVentaRenta $record) {
+                        if ($record->estatus === 'Cancelada') return 'Cancelada';
+                        if ((float)$record->saldo_pendiente <= 0) return 'Pagada';
+                        return 'Crédito';
+                    })
+                    ->colors([
+                        'success' => 'Pagada',
+                        'warning' => 'Crédito',
+                        'danger' => 'Cancelada',
+                    ]),
+                TextColumn::make('estatus_envio')
+                    ->label('Estatus Envío')
+                    ->badge()
+                    ->getStateUsing(function (NotasVentaRenta $record) {
+                        $partidas = $record->partidas;
+                        if ($partidas->isEmpty()) return 'Sin partidas';
+
+                        $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
+                        if ($envios->isEmpty()) return 'Pendiente.';
+
+                        // Calcular cantidades enviadas
+                        $totalOriginal = 0;
+                        $totalEnviado = 0;
+                        foreach ($partidas as $partida) {
+                            $totalOriginal += (float)$partida->cantidad;
+                            $enviado = NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($record) {
+                                $q->where('nota_venta_renta_id', $record->id);
+                            })->where('producto_id', $partida->item)->sum('cantidad');
+                            $totalEnviado += (float)$enviado;
+                        }
+
+                        if ($totalEnviado <= 0) return 'Pendiente.';
+
+                        $envioCompleto = $totalEnviado >= $totalOriginal;
+
+                        // Verificar estatus de entrega de las notas de envío
+                        $totalEnvios = $envios->count();
+                        $entregadas = $envios->where('estatus', 'Entregada')->count();
+
+                        if ($envioCompleto && $entregadas >= $totalEnvios) return 'Entregada';
+                        if ($entregadas > 0 && $entregadas < $totalEnvios) return 'Entregada Parcial';
+                        if ($envioCompleto) return 'Pendiente';
+                        return 'Envío Parcial';
+                    })
+                    ->colors([
+                        'danger' => 'Pendiente.',
+                        'warning' => 'Envío Parcial',
+                        'info' => 'Pendiente',
+                        'primary' => 'Entregada Parcial',
+                        'success' => 'Entregada',
+                        'gray' => 'Sin partidas',
+                    ]),
+                TextColumn::make('estatus_renta')
+                    ->label('Estatus Renta')
+                    ->badge()
+                    ->getStateUsing(function (NotasVentaRenta $record) {
+                        $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
+                        if ($envios->isEmpty()) return 'Vigente';
+
+                        $todasDevueltas = $envios->every(fn ($e) => $e->estado_renta === 'Devuelta');
+                        return $todasDevueltas ? 'Devuelta' : 'Vigente';
+                    })
+                    ->colors([
+                        'success' => 'Vigente',
+                        'gray' => 'Devuelta',
+                    ]),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -116,9 +176,10 @@ class NotasVentaRentaTable
                     EditAction::make(),
                     Action::make('devolucion')
                         ->label('Registrar Devolución')
+                        ->visible(false)
                         ->icon('fas-undo')
                         ->color('success')
-                        ->visible(fn ($record) => $record->estatus === 'Activa' || $record->estatus === 'Pagada')
+                        //->visible(fn ($record) => $record->estatus === 'Activa' || $record->estatus === 'Pagada')
                         ->url(fn ($record) => route('notas-venta-renta.devolucion', $record->id)),
                     Action::make('imprimir_ticket')
                         ->label('Imprimir Ticket')
@@ -137,7 +198,7 @@ class NotasVentaRentaTable
                         ->icon('fas-dollar-sign')
                         ->color('success')
                         ->modalHeading(fn ($record) => "Registrar pago — {$record->serie}-{$record->folio}")
-                        ->visible(fn ($record) => $record->estatus !== 'Cancelada' && $record->saldo_pendiente > 0)
+                        ->visible(false)
                         ->form([
                             \Filament\Forms\Components\DatePicker::make('fecha_pago')->label('Fecha de pago')->default(now())->required(),
                             \Filament\Forms\Components\Select::make('metodo_pago')->label('Método de pago')->options([
@@ -182,6 +243,64 @@ class NotasVentaRentaTable
                                 ->body('Se registró el pago correctamente.')
                                 ->success()->send();
                         }),
+                    Action::make('consultar_envios')
+                        ->label('Consultar Envíos')
+                        ->icon('heroicon-o-truck')
+                        ->color('info')
+                        ->modalHeading(fn ($record) => 'Consulta de Envíos — Nota ' . $record->serie . '-' . $record->folio)
+                        ->modalWidth('7xl')
+                        ->modalContent(function ($record) {
+                            $notaId = $record->id;
+
+                            // Notas de envío vinculadas
+                            $todosEnvios = NotaEnvio::where('nota_venta_renta_id', $notaId)
+                                ->with(['partidas.producto'])
+                                ->get();
+
+                            // Vigentes: verificar desde nota_envio_partidas
+                            $envioPartidasCount = NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($notaId) {
+                                $q->where('nota_venta_renta_id', $notaId);
+                            })->count();
+                            $envioPartidasNoDevueltas = NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($notaId) {
+                                $q->where('nota_venta_renta_id', $notaId);
+                            })->where('estado', '!=', 'Devuelto')->count();
+                            $todosRegistrosDevueltos = $envioPartidasCount > 0 && $envioPartidasNoDevueltas === 0;
+
+                            if ($todosRegistrosDevueltos) {
+                                $enviosVigentes = collect();
+                                $enviosDevueltos = $todosEnvios;
+                            } else {
+                                $enviosVigentes = $todosEnvios;
+                                $enviosDevueltos = collect();
+                            }
+
+                            // Partidas pendientes de envío
+                            $partidas = $record->partidas;
+                            $pendientes = collect();
+                            foreach ($partidas as $partida) {
+                                $yaEnviado = NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($notaId) {
+                                    $q->where('nota_venta_renta_id', $notaId);
+                                })->where('producto_id', $partida->item)->sum('cantidad');
+
+                                $pendiente = (float)$partida->cantidad - (float)$yaEnviado;
+                                if ($pendiente > 0) {
+                                    $pendientes->push([
+                                        'descripcion' => $partida->descripcion,
+                                        'cantidad_original' => (float)$partida->cantidad,
+                                        'cantidad_enviada' => (float)$yaEnviado,
+                                        'cantidad_pendiente' => $pendiente,
+                                    ]);
+                                }
+                            }
+
+                            return view('filament.resources.notas-venta-renta.consulta-envios', [
+                                'enviosVigentes' => $enviosVigentes,
+                                'pendientes' => $pendientes,
+                                'enviosDevueltos' => $enviosDevueltos,
+                            ]);
+                        })
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar'),
                     Action::make('cancelar')
                         ->label('Cancelar Nota')
                         ->icon('fas-times-circle')

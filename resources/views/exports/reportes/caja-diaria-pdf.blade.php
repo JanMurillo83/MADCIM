@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Caja Diaria</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #333; }
+        h1 { font-size: 16px; text-align: center; margin-bottom: 6px; }
+        .info { text-align: center; font-size: 10px; color: #666; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #4a5568; color: #fff; padding: 5px 8px; text-align: left; font-size: 10px; }
+        td { padding: 4px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
+        .text-right { text-align: right; }
+        .totales { margin-top: 12px; }
+        .totales table { width: 45%; margin-left: auto; }
+        .totales th { background: #2d3748; }
+        .totales td { font-weight: bold; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <h1>Caja Diaria</h1>
+    <p class="info">Periodo: {{ $fecha_inicio }} a {{ $fecha_fin }} | Generado: {{ now()->format('d/m/Y H:i') }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Caja</th>
+                <th>Usuario</th>
+                <th class="text-right">Ingresos</th>
+                <th class="text-right">Egresos</th>
+                <th class="text-right">Neto</th>
+                <th class="text-right">Movimientos</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($resumen as $row)
+                <tr>
+                    <td>{{ $row['fecha'] }}</td>
+                    <td>{{ $row['caja'] }}</td>
+                    <td>{{ $row['usuario'] }}</td>
+                    <td class="text-right">${{ number_format($row['ingresos'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['egresos'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['neto'], 2) }}</td>
+                    <td class="text-right">{{ $row['movimientos'] }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+    <div class="totales">
+        <table>
+            <tr>
+                <th>Concepto</th>
+                <th class="text-right">Importe</th>
+            </tr>
+            <tr>
+                <td>Total ingresos</td>
+                <td class="text-right">${{ number_format($totals['ingresos'], 2) }}</td>
+            </tr>
+            <tr>
+                <td>Total egresos</td>
+                <td class="text-right">${{ number_format($totals['egresos'], 2) }}</td>
+            </tr>
+            <tr>
+                <td>Total neto</td>
+                <td class="text-right">${{ number_format($totals['neto'], 2) }}</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

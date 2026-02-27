@@ -5,6 +5,7 @@ namespace App\Filament\Resources\FacturasCfdi\Schemas;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
+use App\Models\Sucursal;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -18,6 +19,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class FacturasCfdiForm
 {
@@ -116,6 +118,13 @@ class FacturasCfdiForm
                             ->relationship('cliente', 'nombre')
                             ->searchable()
                             ->preload(),
+                        Select::make('sucursal_id')
+                            ->label('Sucursal')
+                            ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
+                            ->searchable()
+                            ->preload(),
+                        Hidden::make('user_id')
+                            ->default(fn () => Auth::id()),
                         Placeholder::make('direccion_cliente')
                             ->label('Direccion cliente')
                             ->content(function (Get $get) {

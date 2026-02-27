@@ -229,6 +229,9 @@
             .toolbar {
                 display: none;
             }
+            #pagoModal {
+                display: none !important;
+            }
             .preview-container {
                 margin-top: 0;
                 padding: 0;
@@ -250,7 +253,7 @@
             <button class="btn btn-primary" onclick="printDocument()">
                 🖨️ Imprimir
             </button>
-            <a href="{{ route('filament.admin.pages.ayuda-page') }}" class="btn btn-secondary">
+            <a href="{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}" class="btn btn-secondary">
                 ← Volver a Lista
             </a>
         </div>
@@ -374,13 +377,136 @@
         </div>
     </div>
 
+    {{-- Modal de Pago de Contado --}}
+    @if(strtolower($notaVenta->condicion_pago ?? '') === 'contado' && $notaVenta->saldo_pendiente > 0)
+    <div id="pagoModal" style="display:flex; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:30px; width:450px; max-width:95%; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <h2 style="margin:0 0 20px; font-size:20px; text-align:center; color:#2c3e50;">💰 Registro de Pago — Contado</h2>
+            <p style="text-align:center; color:#666; margin-bottom:20px;">Nota: {{ $notaVenta->serie }}-{{ $notaVenta->folio }}</p>
+
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#333;">Total de la Nota</label>
+                <input type="text" id="pagoTotal" value="${{ number_format($notaVenta->total, 2) }}" readonly
+                    style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; background:#f5f5f5; font-size:18px; font-weight:bold; text-align:right;">
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#333;">Método de Pago</label>
+                <select id="pagoMetodo" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                    <option value="Cheque">Cheque</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#333;">Pago Recibido</label>
+                <input type="number" id="pagoRecibido" step="0.01" min="0" value="{{ $notaVenta->total }}"
+                    oninput="calcularCambio()"
+                    style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:18px; text-align:right;">
+            </div>
+
+            <div id="cambioCont" style="margin-bottom:20px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#333;">Cambio</label>
+                <input type="text" id="pagoCambio" value="$0.00" readonly
+                    style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; background:#e8f5e9; font-size:18px; font-weight:bold; text-align:right; color:#2e7d32;">
+            </div>
+
+            <div id="pagoError" style="display:none; color:#c62828; background:#ffebee; padding:10px; border-radius:6px; margin-bottom:15px; text-align:center;"></div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="procesarPago()" id="btnPagar"
+                    style="flex:1; padding:12px; background:#27ae60; color:#fff; border:none; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer;">
+                    ✅ Registrar Pago
+                </button>
+                <button onclick="omitirPago()"
+                    style="flex:1; padding:12px; background:#95a5a6; color:#fff; border:none; border-radius:6px; font-size:16px; cursor:pointer;">
+                    Omitir
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <script>
+        var totalNota = {{ (float) $notaVenta->total }};
+
+        function calcularCambio() {
+            var recibido = parseFloat(document.getElementById('pagoRecibido').value) || 0;
+            var cambio = recibido - totalNota;
+            document.getElementById('pagoCambio').value = '$' + (cambio >= 0 ? cambio.toFixed(2) : '0.00');
+
+            var metodo = document.getElementById('pagoMetodo') ? document.getElementById('pagoMetodo').value : 'Efectivo';
+            var cambioCont = document.getElementById('cambioCont');
+            if (cambioCont) {
+                cambioCont.style.display = (metodo === 'Efectivo') ? 'block' : 'none';
+            }
+        }
+
+        if (document.getElementById('pagoMetodo')) {
+            document.getElementById('pagoMetodo').addEventListener('change', function() {
+                calcularCambio();
+                if (this.value !== 'Efectivo') {
+                    document.getElementById('pagoRecibido').value = totalNota.toFixed(2);
+                    calcularCambio();
+                }
+            });
+        }
+
+        function procesarPago() {
+            var recibido = parseFloat(document.getElementById('pagoRecibido').value) || 0;
+            var metodo = document.getElementById('pagoMetodo') ? document.getElementById('pagoMetodo').value : 'Efectivo';
+
+            if (recibido < totalNota && metodo === 'Efectivo') {
+                document.getElementById('pagoError').style.display = 'block';
+                document.getElementById('pagoError').textContent = 'El pago recibido no puede ser menor al total de la nota.';
+                return;
+            }
+
+            document.getElementById('btnPagar').disabled = true;
+            document.getElementById('btnPagar').textContent = 'Procesando...';
+            document.getElementById('pagoError').style.display = 'none';
+
+            fetch("{{ route('notas-venta-renta.registrar-pago', $notaVenta->id) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    importe: totalNota,
+                    metodo_pago: metodo,
+                })
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    document.getElementById('pagoModal').style.display = 'none';
+                } else {
+                    document.getElementById('pagoError').style.display = 'block';
+                    document.getElementById('pagoError').textContent = data.message || 'Error al registrar el pago.';
+                    document.getElementById('btnPagar').disabled = false;
+                    document.getElementById('btnPagar').textContent = '✅ Registrar Pago';
+                }
+            })
+            .catch(function(err) {
+                document.getElementById('pagoError').style.display = 'block';
+                document.getElementById('pagoError').textContent = 'Error de conexión: ' + err.message;
+                document.getElementById('btnPagar').disabled = false;
+                document.getElementById('btnPagar').textContent = '✅ Registrar Pago';
+            });
+        }
+
+        function omitirPago() {
+            document.getElementById('pagoModal').style.display = 'none';
+        }
+
         function printDocument() {
             window.print();
-
-            // Redirigir a AyudaPage después de que se cierre el diálogo de impresión
             setTimeout(function() {
-                window.location.href = "{{ route('filament.admin.pages.ayuda-page') }}";
+                window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}";
             }, 1000);
         }
 
@@ -395,11 +521,14 @@
             };
 
             html2pdf().set(opt).from(element).save().then(function() {
-                // Redirigir a AyudaPage después de descargar
                 setTimeout(function() {
-                    window.location.href = "{{ route('filament.admin.pages.ayuda-page') }}";
+                    window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}";
                 }, 500);
             });
+        }
+
+        if (document.getElementById('pagoRecibido')) {
+            calcularCambio();
         }
     </script>
 </body>

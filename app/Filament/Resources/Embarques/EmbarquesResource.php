@@ -18,9 +18,9 @@ class EmbarquesResource extends Resource
     protected static ?string $model = Embarque::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-truck-fast';
-    protected static string|null|\UnitEnum $navigationGroup = 'Logística';
     protected static ?string $navigationLabel = 'Embarques';
     protected static ?string $pluralLabel = 'Embarques';
+    protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Schema $schema): Schema
     {

@@ -20,9 +20,11 @@ class CreateNotasVentaRenta extends CreateRecord
         return $data;
     }
 
+    // Los registros de renta se crean desde las Notas de Envío
+
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return route('notas-venta-renta.preview', ['id' => $this->record->id]);
     }
 
     protected function getCreateAnotherFormAction(): \Filament\Actions\Action

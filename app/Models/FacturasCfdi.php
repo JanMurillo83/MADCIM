@@ -14,6 +14,8 @@ class FacturasCfdi extends Model
     protected $table = 'facturas_cfdi';
     protected $fillable = [
         'cliente_id',
+        'sucursal_id',
+        'user_id',
         'serie',
         'folio',
         'fecha_emision',
@@ -42,6 +44,16 @@ class FacturasCfdi extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Clientes::class, 'cliente_id');
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function partidas(): HasMany

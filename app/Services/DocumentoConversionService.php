@@ -24,6 +24,8 @@ class DocumentoConversionService
             $notaVenta = NotasVentaRenta::create([
                 'serie' => $serieDefault,
                 'folio' => null, // Se asignará automáticamente por el trait
+                'sucursal_id' => $cotizacion->sucursal_id ?? null,
+                'user_id' => auth()->id(),
                 'fecha_emision' => now(),
                 'moneda' => $cotizacion->moneda,
                 'tipo_cambio' => $cotizacion->tipo_cambio,
@@ -71,6 +73,8 @@ class DocumentoConversionService
             $notaVenta = NotasVentaVenta::create([
                 'serie' => $serieDefault,
                 'folio' => null, // Se asignará automáticamente por el trait
+                'sucursal_id' => $cotizacion->sucursal_id ?? null,
+                'user_id' => auth()->id(),
                 'fecha_emision' => now(),
                 'moneda' => $cotizacion->moneda,
                 'tipo_cambio' => $cotizacion->tipo_cambio,

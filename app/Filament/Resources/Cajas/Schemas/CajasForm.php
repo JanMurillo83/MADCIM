@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Cajas\Schemas;
 
+use App\Models\Sucursal;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -14,6 +15,11 @@ class CajasForm
     {
         return $schema->schema([
             TextInput::make('nombre')->label('Nombre')->maxLength(255),
+            Select::make('sucursal_id')
+                ->label('Sucursal')
+                ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
+                ->searchable()
+                ->preload(),
             TextInput::make('saldo_inicial_cash')->label('Saldo inicial (efectivo)')->numeric()->minValue(0)->step(0.01),
             Select::make('estatus')->options([
                 'Abierta' => 'Abierta',

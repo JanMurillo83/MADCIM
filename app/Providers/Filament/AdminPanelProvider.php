@@ -2,11 +2,16 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
+use App\Filament\Resources\NotasVentaRenta\NotasVentaRentaResource;
+use App\Filament\Resources\NotasVentaVenta\NotasVentaVentaResource;
+use App\Models\NotasVentaRenta;
 use Filament\Enums\ThemeMode;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;

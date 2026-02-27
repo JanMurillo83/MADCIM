@@ -60,7 +60,7 @@ class NotasRentadasResource extends Resource
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('estatus')
-                    ->label('Estatus')
+                    ->label('Estatus Pago')
                     ->badge()
                     ->colors([
                         'success' => 'Activa',
@@ -68,6 +68,58 @@ class NotasRentadasResource extends Resource
                         'warning' => 'Devuelta',
                     ])
                     ->sortable(),
+                Tables\Columns\TextColumn::make('estado_renta')
+                    ->label('Estado Renta')
+                    ->badge()
+                    ->getStateUsing(function (NotasVentaRenta $record) {
+                        $registros = $record->registrosRenta;
+                        if ($registros->isEmpty()) {
+                            return 'Sin registros';
+                        }
+                        $todosDevueltos = $registros->every(fn ($r) => $r->estado === 'Devuelto');
+                        if ($todosDevueltos) {
+                            return 'Devuelto';
+                        }
+                        $fechaVencimiento = $record->fecha_vencimiento ?? $record->fecha_emision?->addDays($record->dias_renta ?? 30);
+                        if ($fechaVencimiento && Carbon::parse($fechaVencimiento)->lt(Carbon::today())) {
+                            return 'Vencido';
+                        }
+                        return 'Vigente';
+                    })
+                    ->colors([
+                        'success' => 'Vigente',
+                        'danger' => 'Vencido',
+                        'warning' => 'Devuelto',
+                        'gray' => 'Sin registros',
+                    ])
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('estatus_surtido')
+                    ->label('Estatus Surtido')
+                    ->badge()
+                    ->getStateUsing(function (NotasVentaRenta $record) {
+                        $partidas = $record->partidas;
+                        if ($partidas->isEmpty()) {
+                            return 'Sin partidas';
+                        }
+                        $totalOriginal = 0;
+                        $totalEnviado = 0;
+                        foreach ($partidas as $partida) {
+                            $totalOriginal += (float)$partida->cantidad;
+                            $enviado = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($record) {
+                                $q->where('nota_venta_renta_id', $record->id);
+                            })->where('producto_id', $partida->item)->sum('cantidad');
+                            $totalEnviado += (float)$enviado;
+                        }
+                        if ($totalEnviado <= 0) return 'Pendiente';
+                        if ($totalEnviado >= $totalOriginal) return 'Surtida';
+                        return 'Parcial';
+                    })
+                    ->colors([
+                        'danger' => 'Pendiente',
+                        'warning' => 'Parcial',
+                        'success' => 'Surtida',
+                        'gray' => 'Sin partidas',
+                    ]),
                 Tables\Columns\TextColumn::make('fecha_vencimiento')
                     ->label('Fecha Vencimiento')
                     ->date('d/m/Y')
@@ -97,43 +149,41 @@ class NotasRentadasResource extends Resource
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
                 Action::make('devolver')
-                    ->label('Devolver')
+                    ->label('Devolución Parcial')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
                     ->visible(fn (NotasVentaRenta $record) => $record->estatus !== 'Devuelta')
-                    ->modalHeading(fn (NotasVentaRenta $record) => 'Devolución de Renta - Folio ' . $record->folio)
-                    ->modalDescription(fn (NotasVentaRenta $record) => 'Depósito registrado: $' . number_format((float)$record->deposito, 2))
+                    ->modalHeading(fn (NotasVentaRenta $record) => 'Devolución Parcial - Folio ' . $record->folio)
+                    ->modalDescription(fn (NotasVentaRenta $record) => 'Registre las cantidades que se devuelven en esta entrega parcial.')
                     ->modalWidth('7xl')
-                    ->modalSubmitActionLabel('Procesar Devolución')
+                    ->modalSubmitActionLabel('Registrar Devolución Parcial')
                     ->form(function (NotasVentaRenta $record): array {
                         $items = RegistroRenta::where('nota_venta_renta_id', $record->id)
+                            ->where('estado', '!=', 'Devuelto')
                             ->with('producto')
                             ->get();
 
                         $fields = [];
 
                         $fields[] = Section::make('Material a devolver')
-                            ->description('Ingrese la cantidad devuelta por cada item. Si hay faltantes se descontarán del depósito a precio de venta.')
+                            ->description('Ingrese la cantidad que se devuelve en esta entrega. Puede hacer múltiples devoluciones parciales antes del cierre.')
                             ->schema(
                                 $items->flatMap(function ($item) {
                                     $precioVenta = $item->producto ? (float)$item->producto->precio_venta : 0;
+                                    $pendiente = (float)$item->cantidad - (float)$item->cantidad_devuelta;
                                     return [
                                         Placeholder::make('desc_' . $item->id)
                                             ->label($item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item'))
-                                            ->content('Cantidad rentada: ' . $item->cantidad . ' | Precio venta unitario: $' . number_format($precioVenta, 2))
+                                            ->content('Rentado: ' . $item->cantidad . ' | Ya devuelto: ' . (float)$item->cantidad_devuelta . ' | Pendiente: ' . $pendiente . ' | P.V. unit: $' . number_format($precioVenta, 2))
                                             ->columnSpan(2),
                                         Hidden::make('item_id_' . $item->id)
                                             ->default($item->id),
-                                        Hidden::make('cantidad_original_' . $item->id)
-                                            ->default($item->cantidad),
-                                        Hidden::make('precio_venta_' . $item->id)
-                                            ->default($precioVenta),
                                         TextInput::make('cantidad_devuelta_' . $item->id)
-                                            ->label('Cantidad devuelta')
+                                            ->label('Cantidad a devolver ahora')
                                             ->numeric()
                                             ->minValue(0)
-                                            ->maxValue($item->cantidad)
-                                            ->default($item->cantidad)
+                                            ->maxValue($pendiente)
+                                            ->default(0)
                                             ->required()
                                             ->columnSpan(1),
                                     ];
@@ -148,6 +198,100 @@ class NotasRentadasResource extends Resource
                     })
                     ->action(function (NotasVentaRenta $record, array $data) {
                         $items = RegistroRenta::where('nota_venta_renta_id', $record->id)
+                            ->where('estado', '!=', 'Devuelto')
+                            ->with('producto')
+                            ->get();
+
+                        $totalDevueltoAhora = 0;
+
+                        foreach ($items as $item) {
+                            $cantidadAhora = (float)($data['cantidad_devuelta_' . $item->id] ?? 0);
+                            if ($cantidadAhora > 0) {
+                                $nuevaCantidadDevuelta = (float)$item->cantidad_devuelta + $cantidadAhora;
+                                $estado = $nuevaCantidadDevuelta >= (float)$item->cantidad ? 'Devuelto' : 'Activo';
+                                $item->update([
+                                    'cantidad_devuelta' => $nuevaCantidadDevuelta,
+                                    'estado' => $estado,
+                                ]);
+                                $totalDevueltoAhora += $cantidadAhora;
+                            }
+                        }
+
+                        if ($totalDevueltoAhora == 0) {
+                            Notification::make()
+                                ->title('Sin cambios')
+                                ->body('No se registró ninguna devolución.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
+                        // Verificar si todos los items ya fueron devueltos completamente
+                        $pendientes = RegistroRenta::where('nota_venta_renta_id', $record->id)
+                            ->where('estado', '!=', 'Devuelto')
+                            ->count();
+
+                        $mensaje = 'Devolución parcial registrada exitosamente.';
+                        if ($pendientes === 0) {
+                            $mensaje .= ' Todos los items han sido devueltos. Puede proceder al cierre de devolución.';
+                        } else {
+                            $mensaje .= ' Quedan ' . $pendientes . ' item(s) con material pendiente por devolver.';
+                        }
+
+                        Notification::make()
+                            ->title('Devolución parcial registrada')
+                            ->body($mensaje)
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('cerrar_devolucion')
+                    ->label('Cerrar Devolución')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('danger')
+                    ->visible(fn (NotasVentaRenta $record) => $record->estatus !== 'Devuelta')
+                    ->modalHeading(fn (NotasVentaRenta $record) => 'Cierre de Devolución - Folio ' . $record->folio)
+                    ->modalWidth('7xl')
+                    ->modalSubmitActionLabel('Confirmar Cierre de Devolución')
+                    ->form(function (NotasVentaRenta $record): array {
+                        $items = RegistroRenta::where('nota_venta_renta_id', $record->id)
+                            ->with('producto')
+                            ->get();
+
+                        $deposito = (float)$record->deposito;
+                        $totalDescuento = 0;
+                        $resumenRows = [];
+
+                        foreach ($items as $item) {
+                            $cantidadOriginal = (float)$item->cantidad;
+                            $cantidadDevuelta = (float)$item->cantidad_devuelta;
+                            $faltante = $cantidadOriginal - $cantidadDevuelta;
+                            $precioVenta = $item->producto ? (float)$item->producto->precio_venta : 0;
+                            $descuento = $faltante * $precioVenta;
+                            $totalDescuento += $descuento;
+
+                            $nombre = $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item');
+                            $resumenRows[] = $nombre . ': Rentado=' . $cantidadOriginal . ', Devuelto=' . $cantidadDevuelta . ', Faltante=' . $faltante . ($faltante > 0 ? ' (Cargo: $' . number_format($descuento, 2) . ')' : '');
+                        }
+
+                        $importeDevolver = max(0, $deposito - $totalDescuento);
+
+                        $resumen = implode("\n", $resumenRows);
+                        $resumen .= "\n\n--- Resumen ---";
+                        $resumen .= "\nDepósito: $" . number_format($deposito, 2);
+                        $resumen .= "\nCargo por faltantes: $" . number_format($totalDescuento, 2);
+                        $resumen .= "\nDepósito a devolver: $" . number_format($importeDevolver, 2);
+
+                        return [
+                            Placeholder::make('resumen')
+                                ->label('Resumen de Devolución')
+                                ->content($resumen),
+                            Textarea::make('observaciones')
+                                ->label('Observaciones')
+                                ->rows(3),
+                        ];
+                    })
+                    ->action(function (NotasVentaRenta $record, array $data) {
+                        $items = RegistroRenta::where('nota_venta_renta_id', $record->id)
                             ->with('producto')
                             ->get();
 
@@ -156,7 +300,7 @@ class NotasRentadasResource extends Resource
 
                         foreach ($items as $item) {
                             $cantidadOriginal = (float)$item->cantidad;
-                            $cantidadDevuelta = (float)($data['cantidad_devuelta_' . $item->id] ?? $cantidadOriginal);
+                            $cantidadDevuelta = (float)$item->cantidad_devuelta;
                             $faltante = $cantidadOriginal - $cantidadDevuelta;
 
                             if ($faltante > 0) {
@@ -171,7 +315,7 @@ class NotasRentadasResource extends Resource
                                 ];
                             }
 
-                            // Actualizar estado del registro de renta
+                            // Marcar todos como Devuelto al cerrar
                             $item->update(['estado' => 'Devuelto']);
                         }
 
@@ -217,7 +361,7 @@ class NotasRentadasResource extends Resource
                                     'fuente' => 'Devolución depósito renta',
                                     'metodo_pago' => 'Efectivo',
                                     'importe' => $importeDevolver,
-                                    'referencia' => 'Devolución Folio ' . $record->serie . '-' . $record->folio,
+                                    'referencia' => 'Cierre Devolución Folio ' . $record->serie . '-' . $record->folio,
                                     'observaciones' => $data['observaciones'] ?? null,
                                     'user_id' => Auth::id(),
                                     'fecha' => now(),
@@ -234,18 +378,18 @@ class NotasRentadasResource extends Resource
                         // Actualizar estatus de la nota
                         $record->update(['estatus' => 'Devuelta']);
 
-                        $mensaje = 'Devolución procesada. ';
+                        $mensaje = 'Cierre de devolución procesado. ';
                         if ($totalDescuento > 0) {
-                            $mensaje .= 'Descuento por faltantes: $' . number_format($totalDescuento, 2) . '. ';
+                            $mensaje .= 'Cargo por faltantes: $' . number_format($totalDescuento, 2) . '. ';
                         }
-                        $mensaje .= 'Depósito a devolver: $' . number_format($importeDevolver, 2);
+                        $mensaje .= 'Depósito devuelto: $' . number_format($importeDevolver, 2);
 
                         if ($importeDevolver > 0 && !Caja::where('estatus', 'Abierta')->exists()) {
                             $mensaje .= ' (⚠ No se encontró caja abierta para registrar el egreso)';
                         }
 
                         Notification::make()
-                            ->title('Devolución procesada')
+                            ->title('Cierre de devolución procesado')
                             ->body($mensaje)
                             ->success()
                             ->persistent()

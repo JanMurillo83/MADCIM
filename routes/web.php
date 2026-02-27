@@ -3,6 +3,7 @@
 use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\NotaVentaRentaPdfController;
+use App\Http\Controllers\NotaEnvioPdfController;
 use App\Http\Controllers\NotaVentaVentaPdfController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('notas-venta-renta.descargar.carta');
     Route::get('/notas-venta-renta/{id}/hoja-embarque', [NotaVentaRentaPdfController::class, 'hojaEmbarque'])
         ->name('notas-venta-renta.hoja-embarque');
+    Route::post('/notas-venta-renta/{id}/registrar-pago', [NotaVentaRentaPdfController::class, 'registrarPago'])
+        ->name('notas-venta-renta.registrar-pago');
 
     // Rutas para devolución de renta
     Route::get('/notas-venta-renta/{id}/devolucion', [DevolucionRentaController::class, 'mostrarFormulario'])
@@ -40,6 +43,14 @@ Route::middleware(['auth'])->group(function () {
         ->name('notas-venta-renta.devolucion.procesar');
     Route::get('/notas-venta-renta/{id}/devolucion/pdf', [DevolucionRentaController::class, 'generarPDF'])
         ->name('notas-venta-renta.devolucion.pdf');
+});
+
+// Rutas para impresión de notas de envío
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notas-envio/{id}/pdf/ticket', [NotaEnvioPdfController::class, 'ticket'])
+        ->name('notas-envio.pdf.ticket');
+    Route::get('/notas-envio/{id}/cierre-devolucion-ticket', [NotaEnvioPdfController::class, 'cierreDevolucionTicket'])
+        ->name('notas-envio.cierre-devolucion-ticket');
 });
 
 // Rutas para impresión de notas de venta venta

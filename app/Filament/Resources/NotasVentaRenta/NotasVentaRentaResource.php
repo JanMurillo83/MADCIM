@@ -19,11 +19,11 @@ class NotasVentaRentaResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-file-invoice-dollar';
 
-    protected static ?string $navigationLabel = 'Notas de venta (renta)';
+    protected static ?string $navigationLabel = 'Notas de Renta';
 
-    protected static ?string $pluralLabel = 'Notas de venta (renta)';
-    protected static string|null|\UnitEnum $navigationGroup = 'Notas de venta';
-
+    protected static ?string $pluralLabel = 'Notas de Renta';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Notas de venta';
+    protected static ?int $navigationSort = 4;
     public static function form(Schema $schema): Schema
     {
         return NotasVentaRentaForm::configure($schema);

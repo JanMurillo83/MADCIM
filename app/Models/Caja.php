@@ -39,6 +39,11 @@ class Caja extends Model
         return $this->hasMany(CajaMovimiento::class, 'caja_id');
     }
 
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
     public function usuarioApertura(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_apertura_id');
