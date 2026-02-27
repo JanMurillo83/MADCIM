@@ -12,9 +12,11 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class PagosResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = Pagos::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-money-bill-wave';

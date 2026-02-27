@@ -13,9 +13,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class VentasPorPeriodo extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Ventas y Rentas por Periodo';
     protected static ?string $title = 'Ventas y Rentas por Periodo';

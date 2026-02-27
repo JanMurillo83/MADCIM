@@ -25,9 +25,11 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class NotasRentadasResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = NotasVentaRenta::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-file-contract';

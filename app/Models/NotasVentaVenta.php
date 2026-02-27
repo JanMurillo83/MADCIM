@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSucursalScope;
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use App\Models\NotaEnvio;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class NotasVentaVenta extends Model
 {
     use HasDocumentoSerieFolio;
+    use BelongsToSucursalScope;
 
     protected $table = 'notas_venta_venta';
     protected $fillable = [

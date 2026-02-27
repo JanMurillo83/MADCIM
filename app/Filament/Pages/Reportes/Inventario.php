@@ -8,9 +8,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class Inventario extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
     protected static ?string $navigationLabel = 'Inventario';
     protected static ?string $title = 'Inventario';

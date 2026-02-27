@@ -41,9 +41,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\HtmlString;
 use Livewire\Component;
 use function Termwind\style;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class AyudaPage extends Page implements HasActions
 {
+    use HasRolePageAccess;
     use InteractsWithActions;
 
     protected static ?string $title = 'Cotizador';

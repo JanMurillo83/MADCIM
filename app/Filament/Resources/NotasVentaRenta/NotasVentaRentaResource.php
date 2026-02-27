@@ -12,9 +12,11 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class NotasVentaRentaResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = NotasVentaRenta::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-file-invoice-dollar';

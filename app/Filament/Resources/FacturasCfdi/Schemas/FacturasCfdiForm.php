@@ -122,7 +122,9 @@ class FacturasCfdiForm
                             ->label('Sucursal')
                             ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->default(fn () => auth()->user()?->sucursal_id)
+                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
                         Hidden::make('user_id')
                             ->default(fn () => Auth::id()),
                         Placeholder::make('direccion_cliente')

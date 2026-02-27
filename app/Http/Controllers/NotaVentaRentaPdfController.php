@@ -16,7 +16,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function preview($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
 
         return view('notas-venta-renta.preview', [
             'notaVenta' => $notaVenta
@@ -28,7 +28,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function ticket($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', [
             'notaVenta' => $notaVenta
@@ -45,7 +45,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function carta($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', [
             'notaVenta' => $notaVenta
@@ -62,7 +62,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function descargarTicket($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', [
             'notaVenta' => $notaVenta
@@ -78,7 +78,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function descargarCarta($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', [
             'notaVenta' => $notaVenta

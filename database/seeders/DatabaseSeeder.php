@@ -17,10 +17,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+
+
         User::create([
             'name' => 'Administrador',
             'email' => 'admin@madcim.com',
-            'password'=> Hash::make('admin')
+            'password'=> Hash::make('admin'),
+            'role' => 'Administrador',
+            'sucursal_id' => null,
         ]);
         DB::table('grupos')->insert(['nombre'=>'ANDAMIO']);
         DB::table('grupos')->insert(['nombre'=>'BAILARINA']);
@@ -79,5 +83,9 @@ class DatabaseSeeder extends Seeder
             $firstline = false;
         }
         fclose($csvFile);
+        $this->call([
+            DocumentoSeriesComprasSeeder::class,
+            SucursalesSeeder::class,
+        ]);
     }
 }

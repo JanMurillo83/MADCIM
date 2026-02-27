@@ -13,9 +13,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class DetallePorCliente extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Detalle por Cliente';
     protected static ?string $title = 'Detalle por Cliente';

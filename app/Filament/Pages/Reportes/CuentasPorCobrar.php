@@ -13,9 +13,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class CuentasPorCobrar extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $navigationLabel = 'Cuentas por Cobrar';
     protected static ?string $title = 'Cuentas por Cobrar';

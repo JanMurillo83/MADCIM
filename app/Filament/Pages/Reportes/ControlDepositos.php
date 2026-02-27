@@ -11,9 +11,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class ControlDepositos extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-lock-closed';
     protected static ?string $navigationLabel = 'Control de Depositos';
     protected static ?string $title = 'Control de Depositos';

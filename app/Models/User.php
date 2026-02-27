@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\RolePermissions;
 
 class User extends Authenticatable
 {
@@ -21,6 +23,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'sucursal_id',
     ];
 
     /**
@@ -44,5 +48,25 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'Administrador';
+    }
+
+    public function canAccessResource(string $resourceClass): bool
+    {
+        return RolePermissions::canAccessResource($resourceClass, $this->role);
+    }
+
+    public function canAccessPage(string $pageClass): bool
+    {
+        return RolePermissions::canAccessPage($pageClass, $this->role);
     }
 }

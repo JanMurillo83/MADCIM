@@ -11,9 +11,11 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use UnitEnum;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class DevolucionesRentaResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = DevolucionesRenta::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-file-invoice-dollar';

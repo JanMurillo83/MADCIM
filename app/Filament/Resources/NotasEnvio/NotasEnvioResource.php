@@ -12,9 +12,11 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class NotasEnvioResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = NotaEnvio::class;
     protected static string|BackedEnum|null $navigationIcon = 'fas-truck-loading';
 

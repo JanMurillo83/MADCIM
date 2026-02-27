@@ -19,7 +19,9 @@ class CajasForm
                 ->label('Sucursal')
                 ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
                 ->searchable()
-                ->preload(),
+                ->preload()
+                ->default(fn () => auth()->user()?->sucursal_id)
+                ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
             TextInput::make('saldo_inicial_cash')->label('Saldo inicial (efectivo)')->numeric()->minValue(0)->step(0.01),
             Select::make('estatus')->options([
                 'Abierta' => 'Abierta',

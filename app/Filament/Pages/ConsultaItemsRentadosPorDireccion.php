@@ -10,9 +10,11 @@ use BackedEnum;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use App\Filament\Concerns\HasRolePageAccess;
 
 class ConsultaItemsRentadosPorDireccion extends Page
 {
+    use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-map-pin';
     protected static ?string $navigationLabel = 'Items Rentados por Dirección';
     protected static ?string $title = 'Items Rentados por Dirección de Entrega';

@@ -10,12 +10,15 @@
             padding: 0;
             box-sizing: border-box;
         }
+        @page {
+            margin: 0;
+        }
         body {
             font-family: 'Courier New', monospace;
             font-size: 10px;
             width: 80mm;
             margin: 0 auto;
-            padding: 5mm;
+            padding: 5mm 7mm 5mm 5mm;
         }
         .header {
             text-align: center;
@@ -37,6 +40,12 @@
             display: flex;
             justify-content: space-between;
             margin: 3px 0;
+            flex-wrap: wrap;
+            gap: 2px;
+        }
+        .info-row-block {
+            flex-direction: column;
+            align-items: flex-start;
         }
         .label {
             font-weight: bold;
@@ -108,6 +117,17 @@
             border-top: 1px dashed #000;
             padding-top: 10px;
             font-size: 9px;
+            margin-left: 0.1rem;
+            margin-right: 1rem;
+            max-width: 90%;
+        }
+        .legend {
+            margin-top: 6px;
+            font-size: 7px;
+            text-align: justify;
+            text-justify: inter-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
         .text-right {
             text-align: right;
@@ -117,7 +137,7 @@
 <body>
     <div class="header">
         <div class="company-name">MADCIM</div>
-        <div>NOTA DE VENTA RENTA</div>
+        <div>NOTA DE RENTA</div>
     </div>
 
     <div class="info-section">
@@ -139,6 +159,12 @@
             <span>{{ $notaVenta->cliente->telefono }}</span>
         </div>
         @endif
+        @if($notaVenta->direccionEntrega)
+        <div class="info-row info-row-block">
+            <span class="label">Direccion de entrega:</span>
+            <span>{{ $notaVenta->direccionEntrega->direccion_completa }}</span>
+        </div>
+        @endif
     </div>
 
     <div class="items-table">
@@ -150,39 +176,21 @@
         <div class="item-row">
             <div class="item-desc">{{ $partida->descripcion }}</div>
             <div class="item-details">
-                <span>{{ $partida->cantidad }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
                 <span>${{ number_format($partida->total, 2) }}</span>
             </div>
         </div>
         @endforeach
     </div>
 
-    @if($notaVenta->registrosRenta && $notaVenta->registrosRenta->count() > 0)
-    <div class="rental-items">
-        <div class="section-title">DETALLE DE ITEMS EN RENTA</div>
-        @foreach($notaVenta->registrosRenta as $registro)
-        <div class="rental-item">
-            <div style="font-weight: bold;">{{ $registro->observaciones }}</div>
-            <div style="display: flex; justify-content: space-between;">
-                <span>Cantidad: {{ $registro->cantidad }}</span>
-                <span>D�as: {{ $registro->dias_renta }}</span>
-            </div>
-            <div style="font-size: 8px; color: #666;">
-                Vence: {{ $registro->fecha_vencimiento->format('d/m/Y') }}
-            </div>
-        </div>
-        @endforeach
-    </div>
-    @endif
-
     <div class="totals">
+        @php
+            $impuestosTotal = $notaVenta->impuestos_total ?? 0;
+            $subtotalConImpuestos = ($notaVenta->subtotal ?? 0) + $impuestosTotal;
+        @endphp
         <div class="total-row">
             <span class="total-label">Subtotal Partidas:</span>
-            <span>${{ number_format($notaVenta->subtotal, 2) }}</span>
-        </div>
-        <div class="total-row">
-            <span class="total-label">IVA (16%):</span>
-            <span>${{ number_format($notaVenta->impuestos_total, 2) }}</span>
+            <span>${{ number_format($subtotalConImpuestos, 2) }}</span>
         </div>
         <div class="total-row" style="background: #f0f0f0;">
             <span class="total-label">Depósito:</span>
@@ -196,8 +204,8 @@
 
     <div class="footer">
         <div>�Gracias por su preferencia!</div>
-        <div style="margin-top: 5px; font-size: 8px;">
-            Favor de verificar la devoluci�n de materiales en la fecha indicada
+        <div class="legend">
+            Recibi de MADERERIA MADCIM la MADERA o EQUIPO aquí especificada (o) en calidad de ARRENDAMIENTO por el tiempo especificado en este documento. Asi mismo me obligo a cuidarla (o) y devolverla (o) en buen estado en tiempo y forma, de lo contrario en caso de EXTRAVIARLA (o) o NO DEVOLVERLA (o) me OBLIGO a pagar el monto en dinero que cubra el valor de la  MADERA o EQUIPO NO DEVUELTO.
         </div>
     </div>
 </body>

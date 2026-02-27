@@ -13,9 +13,11 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class ProductosResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = Productos::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-warehouse';

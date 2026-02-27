@@ -8,9 +8,11 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use App\Filament\Concerns\HasRoleResourceAccess;
 
 class ItemsEnRentaResource extends Resource
 {
+    use HasRoleResourceAccess;
     protected static ?string $model = RegistroRenta::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-boxes-packing';

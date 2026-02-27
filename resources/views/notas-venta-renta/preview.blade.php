@@ -96,7 +96,7 @@
         .ticket {
             background: white;
             width: 80mm;
-            padding: 5mm;
+            padding: 5mm 7mm 5mm 5mm;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
             font-size: 11px;
         }
@@ -125,6 +125,12 @@
             justify-content: space-between;
             margin: 3px 0;
             font-size: 10px;
+            flex-wrap: wrap;
+            gap: 2px;
+        }
+        .info-row-block {
+            flex-direction: column;
+            align-items: flex-start;
         }
 
         .label {
@@ -220,6 +226,14 @@
             padding-top: 10px;
             font-size: 9px;
         }
+        .legend {
+            margin-top: 6px;
+            font-size: 7px;
+            text-align: justify;
+            text-justify: inter-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
 
         .text-right {
             text-align: right;
@@ -253,7 +267,7 @@
             <button class="btn btn-primary" onclick="printDocument()">
                 🖨️ Imprimir
             </button>
-            <a href="{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}" class="btn btn-secondary">
+            <a href="{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.index') }}" class="btn btn-secondary">
                 ← Volver a Lista
             </a>
         </div>
@@ -263,7 +277,7 @@
         <div class="ticket" id="ticket">
             <div class="header">
                 <div class="company-name">MADCIM</div>
-                <div>NOTA DE VENTA RENTA</div>
+                <div>NOTA DE RENTA</div>
             </div>
 
             <div class="info-section">
@@ -279,32 +293,16 @@
                     <span class="label">Cliente:</span>
                     <span>{{ $notaVenta->cliente->nombre ?? 'N/A' }}</span>
                 </div>
-                @if($notaVenta->direccionEntrega)
-                <div class="info-row">
-                    <span class="label">Entrega:</span>
-                    <span>
-                        @if($notaVenta->direccionEntrega->nombre_direccion)
-                            {{ $notaVenta->direccionEntrega->nombre_direccion }} —
-                        @endif
-                        {{ $notaVenta->direccionEntrega->direccion_completa }}
-                    </span>
-                </div>
-                @if($notaVenta->direccionEntrega->contacto_nombre || $notaVenta->direccionEntrega->contacto_telefono)
-                <div class="info-row">
-                    <span class="label">Contacto:</span>
-                    <span>
-                        {{ $notaVenta->direccionEntrega->contacto_nombre }}
-                        @if($notaVenta->direccionEntrega->contacto_telefono)
-                            — {{ $notaVenta->direccionEntrega->contacto_telefono }}
-                        @endif
-                    </span>
-                </div>
-                @endif
-                @endif
                 @if($notaVenta->cliente && $notaVenta->cliente->telefono)
                 <div class="info-row">
                     <span class="label">Teléfono:</span>
                     <span>{{ $notaVenta->cliente->telefono }}</span>
+                </div>
+                @endif
+                @if($notaVenta->direccionEntrega)
+                <div class="info-row info-row-block">
+                    <span class="label">Direccion de entrega:</span>
+                    <span>{{ $notaVenta->direccionEntrega->direccion_completa }}</span>
                 </div>
                 @endif
                 @if($notaVenta->dias_renta)
@@ -324,40 +322,22 @@
                 <div class="item-row">
                     <div class="item-desc">{{ $partida->descripcion }}</div>
                     <div class="item-details">
-                        <span>{{ number_format($partida->cantidad,2) }} x ${{ number_format($partida->valor_unitario * 1.16, 2) }}</span>
-                        <span>${{ number_format($partida->valor_unitario * 1.16, 2) }}</span>
+                        <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                        <span>${{ number_format($partida->total, 2) }}</span>
                     </div>
                 </div>
                 @endforeach
             </div>
-
-            @if($notaVenta->registrosRenta && $notaVenta->registrosRenta->count() > 0)
-            <div class="rental-items">
-                <div class="section-title">DETALLE DE ITEMS EN RENTA</div>
-                @foreach($notaVenta->registrosRenta as $registro)
-                <div class="rental-item">
-                    <div style="font-weight: bold;">{{ $registro->observaciones }}</div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>Cantidad: {{ $registro->cantidad }}</span>
-                        <span>Días: {{ $registro->dias_renta }}</span>
-                    </div>
-                    <div style="font-size: 8px; color: #666;">
-                        Vence: {{ $registro->fecha_vencimiento->format('d/m/Y') }}
-                    </div>
-                </div>
-                @endforeach
-            </div>
-            @endif
 
             <div class="totals">
+                @php
+                    $impuestosTotal = $notaVenta->impuestos_total ?? 0;
+                    $subtotalConImpuestos = ($notaVenta->subtotal ?? 0) + $impuestosTotal;
+                @endphp
                 <div class="total-row">
-                    <span class="total-label">Total de Renta:</span>
-                    <span>${{ number_format($notaVenta->subtotal * 1.16, 2) }}</span>
+                    <span class="total-label">Subtotal Partidas:</span>
+                    <span>${{ number_format($subtotalConImpuestos, 2) }}</span>
                 </div>
-                <!--<div class="total-row">
-                    <span class="total-label">IVA (16%):</span>
-                    <span>${{ number_format($notaVenta->impuestos_total, 2) }}</span>
-                </div>-->
                 <div class="total-row deposito-row">
                     <span class="total-label">Depósito:</span>
                     <span>${{ number_format($notaVenta->deposito, 2) }}</span>
@@ -370,8 +350,8 @@
 
             <div class="footer">
                 <div>¡Gracias por su preferencia!</div>
-                <div style="margin-top: 5px; font-size: 8px;">
-                    Favor de verificar la devolución de materiales en la fecha indicada
+                <div class="legend">
+                    Recibi de MADERERIA MADCIM la MADERA o EQUIPO aqui especificada (o) en calidad de ARRENDAMIENTO por el tiempo especificado en este documento. Asi mismo me obligo a cuidarla (o) y devolverla (o) en buen estado en tiempo y forma, de lo contrario en caso de EXTRAVIARLA (o) o NO DEVOLVERLA (o) me OBLIGO a pagar el monto en dinero que cubra el valor de la MADERA o EQUIPO NO DEVUELTO.
                 </div>
             </div>
         </div>
@@ -506,7 +486,7 @@
         function printDocument() {
             window.print();
             setTimeout(function() {
-                window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}";
+                window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.index') }}";
             }, 1000);
         }
 
@@ -522,7 +502,7 @@
 
             html2pdf().set(opt).from(element).save().then(function() {
                 setTimeout(function() {
-                    window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.create') }}";
+                    window.location.href = "{{ route('filament.admin.resources.notas-venta-renta.notas-venta-rentas.index') }}";
                 }, 500);
             });
         }

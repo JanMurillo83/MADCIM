@@ -5,6 +5,9 @@ use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
 use App\Http\Controllers\NotaVentaVentaPdfController;
+use App\Http\Controllers\OrdenCompraPdfController;
+use App\Http\Controllers\RecepcionCompraPdfController;
+use App\Http\Controllers\RequisicionCompraPdfController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas para impresión de cotizaciones
@@ -63,4 +66,40 @@ Route::middleware(['auth'])->group(function () {
         ->name('notas-venta-venta.descargar.ticket');
     Route::get('/notas-venta-venta/{id}/descargar/carta', [NotaVentaVentaPdfController::class, 'descargarCarta'])
         ->name('notas-venta-venta.descargar.carta');
+});
+
+// Rutas para impresión de requisiciones de compra
+Route::middleware(['auth'])->group(function () {
+    Route::get('/requisiciones-compra/{id}/pdf/ticket', [RequisicionCompraPdfController::class, 'ticket'])
+        ->name('requisiciones-compra.pdf.ticket');
+    Route::get('/requisiciones-compra/{id}/pdf/carta', [RequisicionCompraPdfController::class, 'carta'])
+        ->name('requisiciones-compra.pdf.carta');
+    Route::get('/requisiciones-compra/{id}/descargar/ticket', [RequisicionCompraPdfController::class, 'descargarTicket'])
+        ->name('requisiciones-compra.descargar.ticket');
+    Route::get('/requisiciones-compra/{id}/descargar/carta', [RequisicionCompraPdfController::class, 'descargarCarta'])
+        ->name('requisiciones-compra.descargar.carta');
+});
+
+// Rutas para impresión de ordenes de compra
+Route::middleware(['auth'])->group(function () {
+    Route::get('/ordenes-compra/{id}/pdf/ticket', [OrdenCompraPdfController::class, 'ticket'])
+        ->name('ordenes-compra.pdf.ticket');
+    Route::get('/ordenes-compra/{id}/pdf/carta', [OrdenCompraPdfController::class, 'carta'])
+        ->name('ordenes-compra.pdf.carta');
+    Route::get('/ordenes-compra/{id}/descargar/ticket', [OrdenCompraPdfController::class, 'descargarTicket'])
+        ->name('ordenes-compra.descargar.ticket');
+    Route::get('/ordenes-compra/{id}/descargar/carta', [OrdenCompraPdfController::class, 'descargarCarta'])
+        ->name('ordenes-compra.descargar.carta');
+});
+
+// Rutas para impresión de recepciones de compra
+Route::middleware(['auth'])->group(function () {
+    Route::get('/recepciones-compra/{id}/pdf/ticket', [RecepcionCompraPdfController::class, 'ticket'])
+        ->name('recepciones-compra.pdf.ticket');
+    Route::get('/recepciones-compra/{id}/pdf/carta', [RecepcionCompraPdfController::class, 'carta'])
+        ->name('recepciones-compra.pdf.carta');
+    Route::get('/recepciones-compra/{id}/descargar/ticket', [RecepcionCompraPdfController::class, 'descargarTicket'])
+        ->name('recepciones-compra.descargar.ticket');
+    Route::get('/recepciones-compra/{id}/descargar/carta', [RecepcionCompraPdfController::class, 'descargarCarta'])
+        ->name('recepciones-compra.descargar.carta');
 });
