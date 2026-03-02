@@ -20,39 +20,65 @@
 }
 
 @layer components {
+    .fi-sidebar .fi-icon,
+    .fi-topbar .fi-icon {
+        color: #68590D;
+    }
+
+    .fi-sidebar .fi-active .fi-icon,
+    .fi-sidebar .fi-sidebar-item-has-active-child-items .fi-icon,
+    .fi-topbar .fi-active .fi-icon {
+        color: #139043;
+    }
+
     .fi-ta{
         margin-top: -2rem !important;
     }
     .fi-ta-table > thead > tr {
-        @apply bg-sky-600;
+        background-color: #b7d8c2;
     }
     .fi-ta-table > thead > tr > th,
     .fi-ta-table > thead > tr > td {
-        @apply text-white;
+        color: #1b3a24;
     }
 
     .fi-ta-table > tbody > tr > td {
-        @apply text-green-600;
+        color: #1b3a24;
     }
 
     .dark .fi-ta-table > tbody > tr > td {
-        @apply text-black;
+        color: #1b3a24;
     }
 
     .fi-ta-table > thead > tr.fi-ta-table-head-groups-row {
-        @apply bg-sky-300;
+        background-color: #d8cbb7;
     }
 
     .fi-ta-table > tbody > tr:nth-child(odd) {
-        @apply bg-sky-50;
+        background-color: #f1f7f3;
     }
 
     .fi-ta-table > tbody > tr:nth-child(even) {
-        @apply bg-sky-100;
+        background-color: #f6f1e8;
+    }
+
+    .fi-ta-table > tbody > tr:hover > td {
+        background-color: #b7d8c2;
+    }
+
+    .fi-ta-table > tbody > tr.fi-selected > td {
+        background-color: #139043;
+        color: #ffffff;
+    }
+
+    .fi-ta-table > tbody > tr.fi-selected a,
+    .fi-ta-table > tbody > tr.fi-selected span,
+    .fi-ta-table > tbody > tr.fi-selected div {
+        color: #ffffff;
     }
 
     .fi-ta-table > tbody > tr:active {
-        @apply bg-amber-500;
+        background-color: #139043;
     }
 
     .fi-header .fi-breadcrumbs {

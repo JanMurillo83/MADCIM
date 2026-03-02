@@ -24,7 +24,7 @@ class NotasEnvioResource extends Resource
 
     protected static ?string $pluralLabel = 'Notas de Envío';
 
-    //protected static string|null|\UnitEnum $navigationGroup = 'Notas de venta';
+    protected static string|null|\UnitEnum $navigationGroup = 'Ventas';
     protected static ?int $navigationSort = 5;
 
     public static function form(Schema $schema): Schema

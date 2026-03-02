@@ -25,6 +25,8 @@ class CotizacionesResource extends Resource
 
     protected static ?string $pluralLabel = 'Cotizaciones';
 
+    protected static string|null|\UnitEnum $navigationGroup = 'Ventas';
+
     public static function form(Schema $schema): Schema
     {
         return CotizacionesForm::configure($schema);

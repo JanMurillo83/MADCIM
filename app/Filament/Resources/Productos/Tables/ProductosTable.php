@@ -35,6 +35,10 @@ class ProductosTable
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
+                TextColumn::make('costo')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
+                    ->sortable(),
                 TextColumn::make('precio_venta')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()

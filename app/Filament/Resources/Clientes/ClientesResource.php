@@ -22,6 +22,8 @@ class ClientesResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-users';
 
+    protected static string|null|\UnitEnum $navigationGroup = 'Catalogos';
+
     public static function form(Schema $schema): Schema
     {
         return ClientesForm::configure($schema);

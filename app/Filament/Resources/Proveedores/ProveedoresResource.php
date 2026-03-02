@@ -23,7 +23,7 @@ class ProveedoresResource extends Resource
 
     protected static ?string $pluralLabel = 'Proveedores';
 
-    protected static string|null|\UnitEnum $navigationGroup = 'Compras';
+    protected static string|null|\UnitEnum $navigationGroup = 'Catalogos';
 
     protected static ?int $navigationSort = 0;
 

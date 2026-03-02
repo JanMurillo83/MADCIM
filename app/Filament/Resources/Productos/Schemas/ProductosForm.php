@@ -24,6 +24,12 @@ class ProductosForm
                     ->required()
                     ->numeric()
                     ->default(0.0),
+                TextInput::make('costo')
+                    ->label('Costo')
+                    ->prefix('$')
+                    ->required()
+                    ->numeric()
+                    ->default(0.0),
                 TextInput::make('precio_venta')
                     ->label('Precio de Venta')
                     ->prefix('$')

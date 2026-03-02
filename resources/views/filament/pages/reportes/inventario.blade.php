@@ -54,7 +54,7 @@
                             <th class="px-4 py-2 text-left text-gray-600">Linea</th>
                             <th class="px-4 py-2 text-left text-gray-600">Grupo</th>
                             <th class="px-4 py-2 text-right text-gray-600">Existencia</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Precio venta</th>
+                            <th class="px-4 py-2 text-right text-gray-600">Costo</th>
                             <th class="px-4 py-2 text-right text-gray-600">Valor inventario</th>
                         </tr>
                     </thead>
@@ -66,7 +66,7 @@
                                 <td class="px-4 py-2">{{ $row['linea'] }}</td>
                                 <td class="px-4 py-2">{{ $row['grupo'] }}</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($row['existencia'], 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format($row['precio_venta'], 2) }}</td>
+                                <td class="px-4 py-2 text-right">${{ number_format($row['costo'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['valor'], 2) }}</td>
                             </tr>
                         @empty

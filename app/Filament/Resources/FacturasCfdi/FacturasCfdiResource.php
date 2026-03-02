@@ -20,7 +20,7 @@ class FacturasCfdiResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'fas-file-invoice-dollar';
 
     protected static ?string $navigationLabel = 'Facturas CFDI';
-
+    protected static string|null|\UnitEnum $navigationGroup = 'Ventas';
     protected static ?string $pluralLabel = 'Facturas CFDI';
 
     public static function form(Schema $schema): Schema

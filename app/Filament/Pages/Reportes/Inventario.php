@@ -60,14 +60,14 @@ class Inventario extends Page
             ->orderBy('descripcion')
             ->get()
             ->map(function ($row) {
-                $valor = (float) $row->existencia * (float) $row->precio_venta;
+                $valor = (float) $row->existencia * (float) $row->costo;
                 return [
                     'clave' => $row->clave,
                     'descripcion' => $row->descripcion,
                     'linea' => $row->linea,
                     'grupo' => $row->grupo,
                     'existencia' => (float) $row->existencia,
-                    'precio_venta' => (float) $row->precio_venta,
+                    'costo' => (float) $row->costo,
                     'valor' => $valor,
                 ];
             });
@@ -106,7 +106,7 @@ class Inventario extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Existencia', 'Precio venta', 'Valor inventario'];
+        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Existencia', 'Costo', 'Valor inventario'];
 
         foreach ($this->items as $row) {
             $rows[] = [
@@ -115,7 +115,7 @@ class Inventario extends Page
                 $row['linea'],
                 $row['grupo'],
                 number_format($row['existencia'], 2, '.', ''),
-                number_format($row['precio_venta'], 2, '.', ''),
+                number_format($row['costo'], 2, '.', ''),
                 number_format($row['valor'], 2, '.', ''),
             ];
         }
