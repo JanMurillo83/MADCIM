@@ -11,6 +11,7 @@ use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
+use App\Services\RecepcionCompraInventoryService;
 
 class RecepcionesCompraTable
 {
@@ -74,12 +75,20 @@ class RecepcionesCompraTable
                         ->requiresConfirmation()
                         ->visible(fn ($record) => $record->estatus === 'Nueva')
                         ->action(function ($record) {
-                            $record->update(['estatus' => 'Cerrada']);
+                            try {
+                                app(RecepcionCompraInventoryService::class)->cerrar($record);
 
-                            Notification::make()
-                                ->title('Recepcion cerrada')
-                                ->success()
-                                ->send();
+                                Notification::make()
+                                    ->title('Recepcion cerrada')
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('No se pudo cerrar la recepcion')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
                         }),
                     Action::make('cancelar')
                         ->label('Cancelar')
@@ -88,12 +97,20 @@ class RecepcionesCompraTable
                         ->requiresConfirmation()
                         ->visible(fn ($record) => $record->estatus !== 'Cancelada')
                         ->action(function ($record) {
-                            $record->update(['estatus' => 'Cancelada']);
+                            try {
+                                app(RecepcionCompraInventoryService::class)->cancelar($record);
 
-                            Notification::make()
-                                ->title('Recepcion cancelada')
-                                ->success()
-                                ->send();
+                                Notification::make()
+                                    ->title('Recepcion cancelada')
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('No se pudo cancelar la recepcion')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
                         }),
                 ]),
             ], RecordActionsPosition::BeforeColumns)

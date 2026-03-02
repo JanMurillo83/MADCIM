@@ -39,6 +39,11 @@ class RecepcionesCompraResource extends Resource
         return RecepcionesCompraTable::configure($table);
     }
 
+    public static function canEdit($record): bool
+    {
+        return !in_array($record->estatus, ['Cerrada', 'Cancelada'], true);
+    }
+
     public static function getPages(): array
     {
         return [

@@ -165,7 +165,14 @@ class RequisicionesCompraForm
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
-                                        $set('precio_unitario', $producto->precio_venta);
+                                        $precio = (float) ($producto->ultimo_costo ?? 0);
+                                        if ($precio <= 0) {
+                                            $precio = (float) ($producto->costo ?? 0);
+                                        }
+                                        if ($precio <= 0) {
+                                            $precio = (float) $producto->precio_venta;
+                                        }
+                                        $set('precio_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),

@@ -29,7 +29,8 @@
                 <th>Linea</th>
                 <th>Grupo</th>
                 <th class="text-right">Existencia</th>
-                <th class="text-right">Costo</th>
+                <th class="text-right">Costo promedio</th>
+                <th class="text-right">Ultimo costo</th>
                 <th class="text-right">Valor inventario</th>
             </tr>
         </thead>
@@ -42,6 +43,7 @@
                     <td>{{ $row['grupo'] }}</td>
                     <td class="text-right">{{ number_format($row['existencia'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['costo'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['ultimo_costo'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['valor'], 2) }}</td>
                 </tr>
             @endforeach

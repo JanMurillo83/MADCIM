@@ -36,6 +36,12 @@ class ProductosTable
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('costo')
+                    ->label('Costo promedio')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
+                    ->sortable(),
+                TextColumn::make('ultimo_costo')
+                    ->label('Ultimo costo')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),

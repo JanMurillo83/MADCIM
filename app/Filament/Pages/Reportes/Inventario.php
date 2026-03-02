@@ -68,6 +68,7 @@ class Inventario extends Page
                     'grupo' => $row->grupo,
                     'existencia' => (float) $row->existencia,
                     'costo' => (float) $row->costo,
+                    'ultimo_costo' => (float) ($row->ultimo_costo ?? 0),
                     'valor' => $valor,
                 ];
             });
@@ -106,7 +107,7 @@ class Inventario extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Existencia', 'Costo', 'Valor inventario'];
+        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Existencia', 'Costo promedio', 'Ultimo costo', 'Valor inventario'];
 
         foreach ($this->items as $row) {
             $rows[] = [
@@ -116,12 +117,13 @@ class Inventario extends Page
                 $row['grupo'],
                 number_format($row['existencia'], 2, '.', ''),
                 number_format($row['costo'], 2, '.', ''),
+                number_format($row['ultimo_costo'], 2, '.', ''),
                 number_format($row['valor'], 2, '.', ''),
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalExistencia, 2, '.', ''), '', number_format($this->totalValor, 2, '.', '')];
+        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalExistencia, 2, '.', ''), '', '', number_format($this->totalValor, 2, '.', '')];
 
         $filename = 'inventario_' . now()->format('Ymd_His') . '.csv';
 

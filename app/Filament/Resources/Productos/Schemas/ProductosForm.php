@@ -25,7 +25,13 @@ class ProductosForm
                     ->numeric()
                     ->default(0.0),
                 TextInput::make('costo')
-                    ->label('Costo')
+                    ->label('Costo promedio')
+                    ->prefix('$')
+                    ->required()
+                    ->numeric()
+                    ->default(0.0),
+                TextInput::make('ultimo_costo')
+                    ->label('Ultimo costo')
                     ->prefix('$')
                     ->required()
                     ->numeric()

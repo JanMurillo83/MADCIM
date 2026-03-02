@@ -54,7 +54,8 @@
                             <th class="px-4 py-2 text-left text-gray-600">Linea</th>
                             <th class="px-4 py-2 text-left text-gray-600">Grupo</th>
                             <th class="px-4 py-2 text-right text-gray-600">Existencia</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Costo</th>
+                            <th class="px-4 py-2 text-right text-gray-600">Costo promedio</th>
+                            <th class="px-4 py-2 text-right text-gray-600">Ultimo costo</th>
                             <th class="px-4 py-2 text-right text-gray-600">Valor inventario</th>
                         </tr>
                     </thead>
@@ -67,11 +68,12 @@
                                 <td class="px-4 py-2">{{ $row['grupo'] }}</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($row['existencia'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['costo'], 2) }}</td>
+                                <td class="px-4 py-2 text-right">${{ number_format($row['ultimo_costo'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['valor'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="7">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="8">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
