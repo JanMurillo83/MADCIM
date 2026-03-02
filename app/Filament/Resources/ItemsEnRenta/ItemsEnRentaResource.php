@@ -17,9 +17,9 @@ class ItemsEnRentaResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'fas-boxes-packing';
 
-    protected static ?string $navigationLabel = 'Items en Renta';
+    protected static ?string $navigationLabel = 'Productos en Renta';
 
-    protected static ?string $pluralLabel = 'Items en Renta';
+    protected static ?string $pluralLabel = 'Productos en Renta';
     protected static string|null|\UnitEnum $navigationGroup = 'Consultas';
 
     public static function table(Table $table): Table
