@@ -12,7 +12,7 @@
         }
         body {
             font-family: 'Courier New', monospace;
-            font-size: 10px;
+            font-size: 12px;
             width: 80mm;
             margin: 0 auto;
             padding: 5mm;
@@ -24,7 +24,7 @@
             padding-bottom: 10px;
         }
         .company-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             margin-bottom: 5px;
         }
@@ -43,7 +43,7 @@
         }
         .section-title {
             font-weight: bold;
-            font-size: 11px;
+            font-size: 13px;
             margin-top: 10px;
             margin-bottom: 5px;
             border-bottom: 2px solid #000;
@@ -73,7 +73,7 @@
         .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 9px;
+            font-size: 11px;
         }
         .direccion-section {
             margin-bottom: 10px;
@@ -90,7 +90,7 @@
             width: 80%;
         }
         .firma-label {
-            font-size: 9px;
+            font-size: 10px;
             font-weight: bold;
         }
         .footer {
@@ -98,7 +98,7 @@
             margin-top: 15px;
             border-top: 1px dashed #000;
             padding-top: 10px;
-            font-size: 9px;
+            font-size: 10px;
         }
     </style>
 </head>

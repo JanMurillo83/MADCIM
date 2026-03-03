@@ -1,17 +1,17 @@
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 <div class="space-y-4">
     @if($items->isEmpty())
-        <p class="text-sm text-gray-500 dark:text-gray-400">No hay items registrados en renta para esta nota.</p>
+        <p class="text-sm text-gray-700 dark:text-gray-300">No hay items registrados en renta para esta nota.</p>
     @else
-        <table class="w-full text-sm text-left rtl:text-right text-body">
+        <table class="w-full text-sm text-left rtl:text-right text-gray-900 dark:text-gray-100">
             <thead class="bg-neutral-secondary-soft border-b border-default">
                 <tr>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300">Producto</th>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300 text-center">Cantidad</th>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300 text-center">Devuelto</th>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300 text-center">Pendiente</th>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300">Observaciones</th>
-                    <th class="px-8 py-2 font-medium text-gray-600 dark:text-gray-300 text-center">Estado</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100">Producto</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100 text-center">Cantidad</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100 text-center">Devuelto</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100 text-center">Pendiente</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100">Observaciones</th>
+                    <th class="px-8 py-2 font-medium text-gray-900 dark:text-gray-100 text-center">Estado</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-600">

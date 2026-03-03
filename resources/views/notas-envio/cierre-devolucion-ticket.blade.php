@@ -12,7 +12,7 @@
         }
         body {
             font-family: 'Courier New', monospace;
-            font-size: 10px;
+            font-size: 12px;
             width: 80mm;
             margin: 0 auto;
             padding: 5mm;
@@ -24,12 +24,12 @@
             padding-bottom: 10px;
         }
         .company-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             margin-bottom: 5px;
         }
         .doc-title {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
             margin-top: 5px;
         }
@@ -48,7 +48,7 @@
         }
         .section-title {
             font-weight: bold;
-            font-size: 11px;
+            font-size: 13px;
             margin-top: 10px;
             margin-bottom: 5px;
             border-bottom: 2px solid #000;
@@ -65,7 +65,7 @@
         .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 9px;
+            font-size: 11px;
         }
         .totals-section {
             margin-top: 10px;
@@ -78,14 +78,14 @@
             margin: 3px 0;
         }
         .total-row.grand {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
             border-top: 1px solid #000;
             padding-top: 5px;
             margin-top: 5px;
         }
         .total-row.highlight {
-            font-size: 11px;
+            font-size: 13px;
             font-weight: bold;
         }
         .footer {
@@ -93,14 +93,14 @@
             margin-top: 15px;
             border-top: 1px dashed #000;
             padding-top: 10px;
-            font-size: 9px;
+            font-size: 10px;
         }
         .nota-venta-info {
             margin-top: 8px;
             padding: 5px;
             border: 1px solid #000;
             text-align: center;
-            font-size: 9px;
+            font-size: 10px;
         }
         .toolbar {
             position: fixed;
