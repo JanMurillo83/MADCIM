@@ -167,12 +167,8 @@ class DevolucionesRentaForm
                                     ->required()
                                     ->default(0.0)
                                     ->readOnly(),
-                                TextInput::make('impuestos')
-                                    ->columnSpan(1)
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0.0)
-                                    ->readOnly(),
+                                Hidden::make('impuestos')
+                                    ->default(0.0),
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -219,13 +215,8 @@ class DevolucionesRentaForm
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
-                        TextInput::make('impuestos_total')
-                            ->required()
-                            ->numeric()
-                            ->default(0.0)
-                            ->extraAttributes([
-                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
-                            ]),
+                        Hidden::make('impuestos_total')
+                            ->default(0.0),
                         TextInput::make('total')
                             ->required()
                             ->numeric()

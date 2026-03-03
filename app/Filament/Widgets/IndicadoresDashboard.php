@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\CajaMovimiento;
 use App\Models\FacturasCfdi;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
@@ -29,10 +30,24 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         $ventasDelMes = $ventasNotas + $ventasFacturas;
 
-        $rentasDelMes = NotasVentaRenta::query()
+        $depositosCobradosDelMes = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
             ->where('estatus', '!=', 'Cancelada')
-            ->sum('total');
+            ->sum('deposito');
+
+        $depositosDevueltosDelMes = CajaMovimiento::query()
+            ->whereBetween('fecha', [$inicioMes, $finMes])
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->sum('importe');
+
+        $depositosNetosDelMes = $depositosCobradosDelMes - $depositosDevueltosDelMes;
+
+        $rentasSinDepositoDelMes = NotasVentaRenta::query()
+            ->whereBetween('fecha_emision', [$inicioMes, $finMes])
+            ->where('estatus', '!=', 'Cancelada')
+            ->selectRaw('SUM(total - deposito) as total')
+            ->value('total') ?? 0;
 
         $diasPorVencer = 7;
 
@@ -60,9 +75,12 @@ class IndicadoresDashboard extends StatsOverviewWidget
             Stat::make('Ventas del mes', $this->formatCurrency($ventasDelMes))
                 ->description('Notas de venta y facturas del mes')
                 ->icon('heroicon-o-banknotes'),
-            Stat::make('Rentas del mes', $this->formatCurrency($rentasDelMes))
-                ->description('Notas de renta del mes')
+            Stat::make('Rentas del mes', $this->formatCurrency((float) $rentasSinDepositoDelMes))
+                ->description('Notas de renta del mes (sin depósito)')
                 ->icon('heroicon-o-receipt-refund'),
+            Stat::make('Depósitos del mes', $this->formatCurrency((float) $depositosNetosDelMes))
+                ->description('Depósitos cobrados menos devoluciones del mes')
+                ->icon('heroicon-o-shield-check'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
                 ->description('Rentas sin devolucion')
                 ->icon('heroicon-o-exclamation-triangle')

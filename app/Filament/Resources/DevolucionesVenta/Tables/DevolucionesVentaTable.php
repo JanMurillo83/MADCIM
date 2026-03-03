@@ -30,9 +30,6 @@ class DevolucionesVentaTable
                 TextColumn::make('subtotal')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('impuestos_total')
-                    ->numeric()
-                    ->sortable(),
                 TextColumn::make('total')
                     ->numeric()
                     ->sortable(),

@@ -34,10 +34,6 @@ class RequisicionesCompraTable
                     ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
                     ->prefix('$')
                     ->sortable(),
-                TextColumn::make('impuestos_total')
-                    ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
-                    ->prefix('$')
-                    ->sortable(),
                 TextColumn::make('total')
                     ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
                     ->prefix('$')

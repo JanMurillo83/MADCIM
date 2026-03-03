@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
+use App\Support\Impuestos;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
@@ -28,12 +29,12 @@ class NotasVentaRentaForm
     {
         $cantidad = (float) $get('cantidad');
         $valorUnitario = (float) $get('valor_unitario');
-        $subtotal = $cantidad * $valorUnitario;
-        $impuestos = $subtotal * 0.16; // IVA 16%
+        $totalConIva = round($cantidad * $valorUnitario, 2);
+        $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
 
-        $set('subtotal', $subtotal);
-        $set('impuestos', $impuestos);
-        $set('total', $subtotal + $impuestos);
+        $set('subtotal', $desglose['subtotal']);
+        $set('impuestos', $desglose['iva']);
+        $set('total', $totalConIva);
     }
 
     private static function recalculateDocumentoTotales(Get $get, Set $set): void
@@ -440,7 +441,7 @@ class NotasVentaRentaForm
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
                         TextInput::make('deposito')
-                            ->label('Depósito (50% Madera + IVA)')
+                            ->label('Depósito (50% Madera)')
                             ->required()
                             ->numeric()
                             ->default(0.0)
@@ -449,15 +450,8 @@ class NotasVentaRentaForm
                             ->extraAttributes([
                                 'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
-                        TextInput::make('impuestos_total')
-                            ->label('IVA Partidas')
-                            ->required()
-                            ->numeric()
-                            ->default(0.0)
-                            ->readOnly()
-                            ->extraAttributes([
-                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
-                            ]),
+                        Hidden::make('impuestos_total')
+                            ->default(0.0),
                         TextInput::make('total')
                             ->label('Total a Pagar')
                             ->required()

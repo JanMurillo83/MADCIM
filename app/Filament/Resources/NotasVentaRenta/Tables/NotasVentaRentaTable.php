@@ -48,12 +48,6 @@ class NotasVentaRentaTable
                     ->prefix('$')
                     ->sortable()
                     ->toggleable(),
-                TextColumn::make('impuestos_total')
-                    ->label('IVA Partidas')
-                    ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
-                    ->prefix('$')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('total')
                     ->label('Total')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')

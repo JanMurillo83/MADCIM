@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaVenta\Schemas;
 
+use App\Support\Impuestos;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
@@ -27,12 +28,12 @@ class NotasVentaVentaForm
     {
         $cantidad = (float) $get('cantidad');
         $valorUnitario = (float) $get('valor_unitario');
-        $subtotal = $cantidad * $valorUnitario;
-        $impuestos = $subtotal * 0.16; // IVA 16%
+        $totalConIva = round($cantidad * $valorUnitario, 2);
+        $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
 
-        $set('subtotal', $subtotal);
-        $set('impuestos', $impuestos);
-        $set('total', $subtotal + $impuestos);
+        $set('subtotal', $desglose['subtotal']);
+        $set('impuestos', $desglose['iva']);
+        $set('total', $totalConIva);
     }
 
     private static function recalculateDocumentoTotales(Get $get, Set $set): void
@@ -169,7 +170,6 @@ class NotasVentaVentaForm
                                 Repeater\TableColumn::make('Item'),
                                 Repeater\TableColumn::make('Precio'),
                                 Repeater\TableColumn::make('Subtotal'),
-                                Repeater\TableColumn::make('Impuestos'),
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
@@ -221,12 +221,8 @@ class NotasVentaVentaForm
                                     ->required()
                                     ->default(0.0)
                                     ->readOnly(),
-                                TextInput::make('impuestos')
-                                    ->columnSpan(1)
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0.0)
-                                    ->readOnly(),
+                                Hidden::make('impuestos')
+                                    ->default(0.0),
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -273,13 +269,8 @@ class NotasVentaVentaForm
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
-                        TextInput::make('impuestos_total')
-                            ->required()
-                            ->numeric()
-                            ->default(0.0)
-                            ->extraAttributes([
-                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
-                            ]),
+                        Hidden::make('impuestos_total')
+                            ->default(0.0),
                         TextInput::make('total')
                             ->required()
                             ->numeric()
