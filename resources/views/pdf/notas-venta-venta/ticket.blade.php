@@ -12,7 +12,7 @@
         }
         body {
             font-family: 'Courier New', monospace;
-            font-size: 10px;
+            font-size: 12px;
             width: 80mm;
             margin: 0 auto;
             padding: 5mm;
@@ -24,7 +24,7 @@
             padding-bottom: 10px;
         }
         .company-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             margin-bottom: 5px;
         }
@@ -65,7 +65,7 @@
         .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 9px;
+            font-size: 11px;
         }
         .totals {
             margin-top: 10px;
@@ -79,7 +79,7 @@
             font-weight: bold;
         }
         .grand-total {
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
             border-top: 2px solid #000;
             border-bottom: 2px solid #000;
@@ -91,7 +91,7 @@
             margin-top: 15px;
             border-top: 1px dashed #000;
             padding-top: 10px;
-            font-size: 9px;
+            font-size: 10px;
         }
         .text-right {
             text-align: right;
