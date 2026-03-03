@@ -19,16 +19,19 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         $ventasNotas = NotasVentaVenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
+            ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
 
         $ventasFacturas = FacturasCfdi::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
+            ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
 
         $ventasDelMes = $ventasNotas + $ventasFacturas;
 
         $rentasDelMes = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
+            ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
 
         $diasPorVencer = 7;

@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use App\Filament\Concerns\HasRoleResourceAccess;
+use Illuminate\Database\Eloquent\Model;
 
 class NotasVentaVentaResource extends Resource
 {
@@ -50,5 +51,10 @@ class NotasVentaVentaResource extends Resource
             'create' => CreateNotasVentaVenta::route('/create'),
             'edit' => EditNotasVentaVenta::route('/{record}/edit'),
         ];
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return parent::canEdit($record) && $record->estatus !== 'Cancelada';
     }
 }

@@ -173,7 +173,8 @@ class NotasVentaRentaTable
             ])
             ->recordActions([
                 ActionGroup::make([
-                    EditAction::make(),
+                    EditAction::make()
+                        ->visible(fn (NotasVentaRenta $record) => $record->estatus !== 'Cancelada'),
                     Action::make('devolucion')
                         ->label('Registrar Devolución')
                         ->visible(false)

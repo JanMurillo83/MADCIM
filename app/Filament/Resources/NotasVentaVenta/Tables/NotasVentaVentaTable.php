@@ -105,7 +105,8 @@ class NotasVentaVentaTable
             ])
             ->recordActions([
                 ActionGroup::make([
-                    EditAction::make(),
+                    EditAction::make()
+                        ->visible(fn (NotasVentaVenta $record) => $record->estatus !== 'Cancelada'),
                     Action::make('imprimir_ticket')
                         ->label('Imprimir Ticket')
                         ->icon('fas-receipt')
