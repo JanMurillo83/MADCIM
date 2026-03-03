@@ -42,6 +42,7 @@ class NotasVentaRentaForm
         $subtotal = 0.0;
         $impuestos = 0.0;
         $subtotalMadera = 0.0;
+        $impuestosMadera = 0.0;
 
         if (!is_array($partidas)) {
             $set('../../subtotal', 0.0);
@@ -62,12 +63,13 @@ class NotasVentaRentaForm
                 $producto = Productos::find($itemId);
                 if ($producto && trim($producto->linea) === 'MADERA') {
                     $subtotalMadera += (float) ($partida['subtotal'] ?? 0);
+                    $impuestosMadera += (float) ($partida['impuestos'] ?? 0);
                 }
             }
         }
 
-        // Depósito = 10% del subtotal de items de línea MADERA
-        $deposito = round($subtotalMadera * 0.10, 2);
+        // Depósito = 50% del total con IVA de items de línea MADERA
+        $deposito = round(($subtotalMadera + $impuestosMadera) * 0.50, 2);
 
         // Total = Subtotal Partidas + IVA Partidas + Depósito (sin IVA)
         $total = $subtotal + $impuestos + $deposito;
@@ -438,7 +440,7 @@ class NotasVentaRentaForm
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
                         TextInput::make('deposito')
-                            ->label('Depósito (10% Madera)')
+                            ->label('Depósito (50% Madera + IVA)')
                             ->required()
                             ->numeric()
                             ->default(0.0)

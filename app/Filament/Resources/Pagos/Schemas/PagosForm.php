@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class PagosForm
 {
@@ -116,15 +117,15 @@ class PagosForm
                         Select::make('forma_pago')
                             ->label('Forma de pago')
                             ->required()
-                            ->options([
-                                'Efectivo' => 'Efectivo',
-                                'Tarjeta Débito' => 'Tarjeta Débito',
-                                'Tarjeta Crédito' => 'Tarjeta Crédito',
-                                'Transferencia' => 'Transferencia',
-                                'Cheque' => 'Cheque',
-                                'Otro' => 'Otro',
-                            ])
-                            ->default('Efectivo'),
+                            ->searchable()
+                            ->options(function () {
+                                return DB::table('sat_forma_pago')
+                                    ->orderBy('clave')
+                                    ->get()
+                                    ->mapWithKeys(fn ($row) => [$row->clave => $row->clave . ' - ' . $row->descripcion])
+                                    ->all();
+                            })
+                            ->default('01'),
                         TextInput::make('importe')
                             ->label('Importe')
                             ->required()

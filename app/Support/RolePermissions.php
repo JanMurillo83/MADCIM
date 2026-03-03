@@ -14,6 +14,7 @@ class RolePermissions
     public const RESOURCES = [
         'App\\Filament\\Resources\\Usuarios\\UsuariosResource' => [self::ROLE_ADMIN],
         'App\\Filament\\Resources\\Sucursales\\SucursalesResource' => [self::ROLE_ADMIN],
+        'App\\Filament\\Resources\\Configuracion\\ConfiguracionResource' => [self::ROLE_ADMIN],
 
         'App\\Filament\\Resources\\Clientes\\ClientesResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR],
         'App\\Filament\\Resources\\ClienteDireccionEntregas\\ClienteDireccionEntregaResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR],

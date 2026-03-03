@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class FacturaCfdiPartidas extends Model
 {
@@ -11,9 +12,15 @@ class FacturaCfdiPartidas extends Model
         'factura_cfdi_id',
         'cantidad',
         'item',
+        'clave_prod_serv',
+        'no_identificacion',
+        'clave_unidad',
+        'unidad',
         'descripcion',
+        'objeto_imp',
         'valor_unitario',
         'subtotal',
+        'descuento',
         'impuestos',
         'total',
     ];
@@ -21,5 +28,10 @@ class FacturaCfdiPartidas extends Model
     public function documento(): BelongsTo
     {
         return $this->belongsTo(FacturasCfdi::class, 'factura_cfdi_id');
+    }
+
+    public function impuestos(): MorphMany
+    {
+        return $this->morphMany(CfdiPartidaImpuesto::class, 'partida');
     }
 }

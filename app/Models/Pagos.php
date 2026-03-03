@@ -9,21 +9,57 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Pagos extends Model
 {
     protected $fillable = [
+        'serie',
+        'folio',
+        'fecha_emision',
         'documento_tipo',
         'documento_id',
         'cliente_id',
         'fecha_pago',
+        'fecha_pago_hora',
         'forma_pago',
         'metodo_pago',
+        'moneda',
+        'tipo_cambio',
+        'tipo_comprobante',
+        'exportacion',
+        'lugar_expedicion',
+        'rfc_emisor',
+        'nombre_emisor',
+        'rfc_receptor',
+        'nombre_receptor',
+        'regimen_fiscal_receptor',
+        'domicilio_fiscal_receptor',
+        'uso_cfdi',
         'importe',
         'referencia',
         'user_id',
         'caja_id',
         'observaciones',
+        'cfdi_uuid',
+        'cfdi_version',
+        'cfdi_xml',
+        'cfdi_pdf',
+        'cfdi_no_certificado',
+        'cfdi_certificado',
+        'cfdi_sello',
+        'cfdi_cadena_original',
+        'cfdi_fecha_timbrado',
+        'cfdi_fecha_cancelacion',
+        'cfdi_motivo_cancelacion',
+        'cfdi_folio_sustitucion',
+        'cfdi_estatus_sat',
+        'cfdi_es_cancelable',
+        'cfdi_estatus_cancelacion',
+        'estatus_cfdi',
     ];
 
     protected $casts = [
         'fecha_pago' => 'date',
+        'fecha_emision' => 'datetime',
+        'fecha_pago_hora' => 'datetime',
+        'cfdi_fecha_timbrado' => 'datetime',
+        'cfdi_fecha_cancelacion' => 'datetime',
         'importe' => 'decimal:2',
     ];
 
@@ -143,5 +179,10 @@ class Pagos extends Model
     public function documento(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function cfdiDoctos()
+    {
+        return $this->hasMany(CfdiPagoDocto::class, 'pago_id');
     }
 }
