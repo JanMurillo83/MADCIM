@@ -211,7 +211,7 @@ class VentasPorPeriodo extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Tipo', 'Serie/Folio', 'Fecha', 'Cliente', 'Subtotal', 'Impuestos', 'Total', 'Saldo pendiente', 'Estatus'];
+        $rows[] = ['Tipo', 'Serie/Folio', 'Fecha', 'Cliente', 'Subtotal', 'Total', 'Saldo pendiente', 'Estatus'];
 
         foreach ($this->ventas as $venta) {
             $rows[] = [
@@ -220,7 +220,6 @@ class VentasPorPeriodo extends Page
                 $venta['fecha_emision'],
                 $venta['cliente'],
                 number_format($venta['subtotal'], 2, '.', ''),
-                number_format($venta['impuestos_total'], 2, '.', ''),
                 number_format($venta['total'], 2, '.', ''),
                 number_format($venta['saldo_pendiente'], 2, '.', ''),
                 $venta['estatus'],
@@ -228,7 +227,7 @@ class VentasPorPeriodo extends Page
         }
 
         $rows[] = [];
-        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalSubtotal, 2, '.', ''), number_format($this->totalImpuestos, 2, '.', ''), number_format($this->totalGeneral, 2, '.', ''), '', ''];
+        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalSubtotal, 2, '.', ''), number_format($this->totalGeneral, 2, '.', ''), '', ''];
 
         $filename = 'ventas_por_periodo_' . now()->format('Ymd_His') . '.csv';
 

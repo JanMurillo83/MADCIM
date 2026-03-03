@@ -79,7 +79,7 @@ class RecepcionesPorProveedor extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Serie/Folio', 'Fecha', 'Proveedor', 'Subtotal', 'Impuestos', 'Total', 'Estatus'];
+        $rows[] = ['Serie/Folio', 'Fecha', 'Proveedor', 'Subtotal', 'Total', 'Estatus'];
 
         foreach ($this->recepciones as $recepcion) {
             $rows[] = [
@@ -87,14 +87,13 @@ class RecepcionesPorProveedor extends Page
                 optional($recepcion->fecha_emision)->format('Y-m-d'),
                 $recepcion->proveedor?->nombre ?? 'N/A',
                 number_format($recepcion->subtotal, 2, '.', ''),
-                number_format($recepcion->impuestos_total, 2, '.', ''),
                 number_format($recepcion->total, 2, '.', ''),
                 $recepcion->estatus,
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', 'TOTALES', '', '', number_format($this->totalMonto, 2, '.', ''), ''];
+        $rows[] = ['', '', 'TOTALES', '', number_format($this->totalMonto, 2, '.', ''), ''];
 
         $filename = 'recepciones_por_proveedor_' . now()->format('Ymd_His') . '.csv';
 

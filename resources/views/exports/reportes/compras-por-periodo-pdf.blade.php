@@ -29,7 +29,6 @@
                 <th>Fecha</th>
                 <th>Proveedor</th>
                 <th class="text-right">Subtotal</th>
-                <th class="text-right">Impuestos</th>
                 <th class="text-right">Total</th>
                 <th>Estatus</th>
             </tr>
@@ -42,7 +41,6 @@
                     <td>{{ $row['fecha_emision'] }}</td>
                     <td>{{ $row['proveedor'] }}</td>
                     <td class="text-right">${{ number_format($row['subtotal'], 2) }}</td>
-                    <td class="text-right">${{ number_format($row['impuestos_total'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['total'], 2) }}</td>
                     <td>{{ $row['estatus'] }}</td>
                 </tr>
@@ -59,10 +57,6 @@
             <tr>
                 <td>Subtotal</td>
                 <td class="text-right">${{ number_format($totals['subtotal'], 2) }}</td>
-            </tr>
-            <tr>
-                <td>Impuestos</td>
-                <td class="text-right">${{ number_format($totals['impuestos'], 2) }}</td>
             </tr>
             <tr>
                 <td>Total</td>

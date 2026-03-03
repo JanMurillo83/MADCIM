@@ -83,7 +83,6 @@
                             <th class="px-4 py-2 text-left text-gray-600">Fecha</th>
                             <th class="px-4 py-2 text-left text-gray-600">Cliente</th>
                             <th class="px-4 py-2 text-right text-gray-600">Subtotal</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Impuestos</th>
                             <th class="px-4 py-2 text-right text-gray-600">Total</th>
                             <th class="px-4 py-2 text-right text-gray-600">Saldo</th>
                             <th class="px-4 py-2 text-left text-gray-600">Estatus</th>
@@ -97,14 +96,13 @@
                                 <td class="px-4 py-2">{{ $venta['fecha_emision'] }}</td>
                                 <td class="px-4 py-2">{{ $venta['cliente'] }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($venta['subtotal'], 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format($venta['impuestos_total'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($venta['total'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($venta['saldo_pendiente'], 2) }}</td>
                                 <td class="px-4 py-2">{{ $venta['estatus'] }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="9">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="8">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -112,14 +110,10 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Subtotal</p>
                 <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalSubtotal, 2) }}</p>
-            </div>
-            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
-                <p class="text-sm text-gray-500">Impuestos</p>
-                <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalImpuestos, 2) }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Total</p>

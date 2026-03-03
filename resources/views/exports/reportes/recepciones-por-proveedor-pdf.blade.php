@@ -24,7 +24,6 @@
                 <th>Fecha</th>
                 <th>Proveedor</th>
                 <th class="text-right">Subtotal</th>
-                <th class="text-right">Impuestos</th>
                 <th class="text-right">Total</th>
                 <th>Estatus</th>
             </tr>
@@ -36,7 +35,6 @@
                     <td>{{ optional($recepcion->fecha_emision)->format('Y-m-d') }}</td>
                     <td>{{ $recepcion->proveedor?->nombre ?? 'N/A' }}</td>
                     <td class="text-right">${{ number_format($recepcion->subtotal, 2) }}</td>
-                    <td class="text-right">${{ number_format($recepcion->impuestos_total, 2) }}</td>
                     <td class="text-right">${{ number_format($recepcion->total, 2) }}</td>
                     <td>{{ $recepcion->estatus }}</td>
                 </tr>
