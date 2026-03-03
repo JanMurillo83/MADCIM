@@ -85,6 +85,8 @@ class DatabaseSeeder extends Seeder
         fclose($csvFile);
         $this->call([
             DocumentoSeriesComprasSeeder::class,
+            SatCatalogsSeeder::class,
+            SatRegimenFiscalSeeder::class,
             SucursalesSeeder::class,
         ]);
     }

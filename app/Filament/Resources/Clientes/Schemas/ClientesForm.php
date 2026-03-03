@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Clientes\Schemas;
 
+use App\Models\SatRegimenFiscal;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -23,7 +25,17 @@ class ClientesForm
                             ->required()->columnSpan(3),
                         TextInput::make('rfc')
                             ->required(),
-                        TextInput::make('regimen')
+                        Select::make('regimen')
+                            ->label('Régimen fiscal')
+                            ->options(fn () => SatRegimenFiscal::query()
+                                ->orderBy('clave')
+                                ->get()
+                                ->mapWithKeys(fn (SatRegimenFiscal $regimen) => [
+                                    $regimen->clave => "{$regimen->clave} - {$regimen->descripcion}",
+                                ])
+                                ->all())
+                            ->preload()
+                            ->searchable()
                             ->required(),
                         TextInput::make('telefono')
                             ->tel()

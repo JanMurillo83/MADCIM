@@ -120,10 +120,20 @@ class NotaVentaRentaPdfController extends Controller
         $notaVenta = NotasVentaRenta::findOrFail($id);
         $userId = Auth::id();
         $metodoPago = $request->input('metodo_pago', 'Efectivo');
+        $formaPago = match ($metodoPago) {
+            'Efectivo' => '01',
+            'Cheque' => '02',
+            'Transferencia' => '03',
+            'Tarjeta',
+            'Tarjeta Crédito' => '04',
+            'Tarjeta Debito',
+            'Tarjeta Débito' => '28',
+            default => $metodoPago,
+        };
         $importe = (float) $request->input('importe');
 
         $cajaId = null;
-        if ($metodoPago === 'Efectivo') {
+        if ($formaPago === '01') {
             $caja = Caja::where('estatus', 'Abierta')
                 ->where('usuario_apertura_id', $userId)
                 ->first();
@@ -135,8 +145,7 @@ class NotaVentaRentaPdfController extends Controller
             'documento_id' => $notaVenta->id,
             'cliente_id' => $notaVenta->cliente_id,
             'fecha_pago' => now(),
-            'forma_pago' => $metodoPago,
-            'metodo_pago' => $metodoPago,
+            'forma_pago' => $formaPago,
             'importe' => $importe,
             'referencia' => 'Pago de contado al crear nota',
             'user_id' => $userId,

@@ -203,10 +203,11 @@ class NotasVentaRentaTable
                         ->form([
                             \Filament\Forms\Components\DatePicker::make('fecha_pago')->label('Fecha de pago')->default(now())->required(),
                             \Filament\Forms\Components\Select::make('metodo_pago')->label('Método de pago')->options([
-                                'Efectivo' => 'Efectivo',
-                                'Transferencia' => 'Transferencia',
-                                'Tarjeta' => 'Tarjeta',
-                                'Cheque' => 'Cheque',
+                                '01' => '01 - Efectivo',
+                                '03' => '03 - Transferencia electrónica de fondos',
+                                '04' => '04 - Tarjeta de crédito',
+                                '28' => '28 - Tarjeta de débito',
+                                '02' => '02 - Cheque nominativo',
                             ])->required()->live(),
                             \Filament\Forms\Components\TextInput::make('importe')->label('Importe')->numeric()->required()->default(fn($record) => (float) $record->saldo_pendiente),
                             \Filament\Forms\Components\TextInput::make('referencia')->label('Referencia')->maxLength(255),
@@ -214,7 +215,7 @@ class NotasVentaRentaTable
                         ->action(function ($record, array $data) {
                             $userId = Auth::id();
                             $cajaId = null;
-                            if (($data['metodo_pago'] ?? null) === 'Efectivo') {
+                            if (($data['metodo_pago'] ?? null) === '01') {
                                 // Buscar caja abierta del usuario
                                 $cajaId = \App\Models\Caja::where('estatus', 'Abierta')
                                     ->where('usuario_apertura_id', $userId)
@@ -233,7 +234,6 @@ class NotasVentaRentaTable
                                 'cliente_id' => $record->cliente_id,
                                 'fecha_pago' => $data['fecha_pago'] ?? now(),
                                 'forma_pago' => $data['metodo_pago'],
-                                'metodo_pago' => $data['metodo_pago'],
                                 'importe' => (float) $data['importe'],
                                 'referencia' => $data['referencia'] ?? null,
                                 'user_id' => $userId,

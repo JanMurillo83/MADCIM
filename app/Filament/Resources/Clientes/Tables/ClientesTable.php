@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Clientes\Tables;
 
+use App\Models\SatRegimenFiscal;
 use App\Services\ClientesImportService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -39,6 +40,19 @@ class ClientesTable
                 TextColumn::make('rfc')
                     ->searchable(),
                 TextColumn::make('regimen')
+                    ->label('Régimen fiscal')
+                    ->formatStateUsing(function (?string $state): ?string {
+                        if ($state === null || $state === '') {
+                            return $state;
+                        }
+
+                        static $map = null;
+                        $map ??= SatRegimenFiscal::query()->pluck('descripcion', 'clave')->all();
+
+                        $descripcion = $map[$state] ?? null;
+
+                        return $descripcion ? "{$state} - {$descripcion}" : $state;
+                    })
                     ->searchable(),
                 TextColumn::make('codigo')
                     ->searchable(),
