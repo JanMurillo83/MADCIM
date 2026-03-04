@@ -15,10 +15,10 @@
         }
         body {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             width: 80mm;
             margin: 0 auto;
-            padding: 5mm 7mm 5mm 5mm;
+            padding: 5mm 2mm 5mm 2mm;
         }
         .header {
             text-align: center;
@@ -27,7 +27,7 @@
             padding-bottom: 10px;
         }
         .company-name {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             margin-bottom: 5px;
         }
@@ -74,11 +74,11 @@
         .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
+            font-size: 13px;
         }
         .section-title {
             font-weight: bold;
-            font-size: 13px;
+            font-size: 15px;
             margin-top: 15px;
             margin-bottom: 5px;
             border-bottom: 2px solid #000;
@@ -89,7 +89,7 @@
         }
         .rental-item {
             padding: 3px 0;
-            font-size: 11px;
+            font-size: 13px;
             border-bottom: 1px dotted #ddd;
         }
         .totals {
@@ -104,7 +104,7 @@
             font-weight: bold;
         }
         .grand-total {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             border-top: 2px solid #000;
             border-bottom: 2px solid #000;
@@ -116,14 +116,14 @@
             margin-top: 15px;
             border-top: 1px dashed #000;
             padding-top: 10px;
-            font-size: 10px;
-            margin-left: 0.1rem;
-            margin-right: 1rem;
-            max-width: 90%;
+            font-size: 12px;
+            margin-left: 0;
+            margin-right: 0;
+            max-width: 100%;
         }
         .legend {
             margin-top: 6px;
-            font-size: 9px;
+            font-size: 11px;
             text-align: justify;
             text-justify: inter-word;
             overflow-wrap: break-word;
