@@ -170,7 +170,6 @@ class VentasPorLinea extends Page
         $ventas = $this->ventas;
         $totals = [
             'cantidad' => $this->totalCantidad,
-            'subtotal' => $this->totalSubtotal,
             'total' => $this->totalTotal,
         ];
 
@@ -189,19 +188,18 @@ class VentasPorLinea extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Linea', 'Cantidad', 'Subtotal', 'Total'];
+        $rows[] = ['Linea', 'Cantidad', 'Total'];
 
         foreach ($this->ventas as $row) {
             $rows[] = [
                 $row['linea'],
                 number_format($row['cantidad'], 2, '.', ''),
-                number_format($row['subtotal'], 2, '.', ''),
                 number_format($row['total'], 2, '.', ''),
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['TOTALES', number_format($this->totalCantidad, 2, '.', ''), number_format($this->totalSubtotal, 2, '.', ''), number_format($this->totalTotal, 2, '.', '')];
+        $rows[] = ['TOTALES', number_format($this->totalCantidad, 2, '.', ''), number_format($this->totalTotal, 2, '.', '')];
 
         $filename = 'ventas_por_linea_' . now()->format('Ymd_His') . '.csv';
 

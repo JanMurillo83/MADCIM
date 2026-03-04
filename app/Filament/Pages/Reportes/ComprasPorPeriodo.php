@@ -165,8 +165,6 @@ class ComprasPorPeriodo extends Page
     {
         $compras = $this->compras;
         $totals = [
-            'subtotal' => $this->totalSubtotal,
-            'impuestos' => $this->totalImpuestos,
             'total' => $this->totalGeneral,
         ];
 
@@ -186,7 +184,7 @@ class ComprasPorPeriodo extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Tipo', 'Serie/Folio', 'Fecha', 'Proveedor', 'Subtotal', 'Total', 'Estatus'];
+        $rows[] = ['Tipo', 'Serie/Folio', 'Fecha', 'Proveedor', 'Total', 'Estatus'];
 
         foreach ($this->compras as $row) {
             $rows[] = [
@@ -194,14 +192,13 @@ class ComprasPorPeriodo extends Page
                 $row['serie_folio'],
                 $row['fecha_emision'],
                 $row['proveedor'],
-                number_format($row['subtotal'], 2, '.', ''),
                 number_format($row['total'], 2, '.', ''),
                 $row['estatus'],
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalSubtotal, 2, '.', ''), number_format($this->totalGeneral, 2, '.', ''), ''];
+        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalGeneral, 2, '.', ''), ''];
 
         $filename = 'compras_por_periodo_' . now()->format('Ymd_His') . '.csv';
 

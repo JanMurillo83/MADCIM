@@ -91,21 +91,20 @@ class OrdenesCompraPorEstatus extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Serie/Folio', 'Fecha', 'Proveedor', 'Subtotal', 'Total', 'Estatus'];
+        $rows[] = ['Serie/Folio', 'Fecha', 'Proveedor', 'Total', 'Estatus'];
 
         foreach ($this->ordenes as $orden) {
             $rows[] = [
                 trim(($orden->serie ?? '') . ($orden->folio ?? '')),
                 optional($orden->fecha_emision)->format('Y-m-d'),
                 $orden->proveedor?->nombre ?? 'N/A',
-                number_format($orden->subtotal, 2, '.', ''),
                 number_format($orden->total, 2, '.', ''),
                 $orden->estatus,
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', 'TOTALES', '', number_format($this->totalMonto, 2, '.', ''), ''];
+        $rows[] = ['', '', 'TOTALES', number_format($this->totalMonto, 2, '.', ''), ''];
 
         $filename = 'ordenes_por_estatus_' . now()->format('Ymd_His') . '.csv';
 

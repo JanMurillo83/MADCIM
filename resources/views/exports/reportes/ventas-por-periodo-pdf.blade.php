@@ -28,7 +28,6 @@
                 <th>Serie/Folio</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
-                <th class="text-right">Subtotal</th>
                 <th class="text-right">Total</th>
                 <th class="text-right">Saldo</th>
                 <th>Estatus</th>
@@ -41,7 +40,6 @@
                     <td>{{ $venta['serie_folio'] }}</td>
                     <td>{{ $venta['fecha_emision'] }}</td>
                     <td>{{ $venta['cliente'] }}</td>
-                    <td class="text-right">${{ number_format($venta['subtotal'], 2) }}</td>
                     <td class="text-right">${{ number_format($venta['total'], 2) }}</td>
                     <td class="text-right">${{ number_format($venta['saldo_pendiente'], 2) }}</td>
                     <td>{{ $venta['estatus'] }}</td>
@@ -55,10 +53,6 @@
             <tr>
                 <th>Concepto</th>
                 <th class="text-right">Importe</th>
-            </tr>
-            <tr>
-                <td>Subtotal</td>
-                <td class="text-right">${{ number_format($totals['subtotal'], 2) }}</td>
             </tr>
             <tr>
                 <td>Total</td>

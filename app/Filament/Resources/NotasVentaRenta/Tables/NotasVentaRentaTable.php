@@ -37,11 +37,6 @@ class NotasVentaRentaTable
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
                     ->sortable(),
-                TextColumn::make('subtotal')
-                    ->label('Subtotal Partidas')
-                    ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
-                    ->prefix('$')
-                    ->sortable(),
                 TextColumn::make('deposito')
                     ->label('Depósito')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')

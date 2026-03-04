@@ -81,7 +81,6 @@
                         <tr>
                             <th class="px-4 py-2 text-left text-gray-600">Linea</th>
                             <th class="px-4 py-2 text-right text-gray-600">Cantidad</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Subtotal</th>
                             <th class="px-4 py-2 text-right text-gray-600">Total</th>
                         </tr>
                     </thead>
@@ -90,12 +89,11 @@
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $row['linea'] }}</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($row['cantidad'], 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format($row['subtotal'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['total'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="4">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="3">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -103,14 +101,10 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Cantidad total</p>
                 <p class="text-2xl font-bold text-gray-800">{{ number_format($this->totalCantidad, 2) }}</p>
-            </div>
-            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
-                <p class="text-sm text-gray-500">Subtotal</p>
-                <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalSubtotal, 2) }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Total</p>

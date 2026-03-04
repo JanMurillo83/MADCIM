@@ -30,10 +30,6 @@ class OrdenesCompraTable
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
                     ->sortable(),
-                TextColumn::make('subtotal')
-                    ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
-                    ->prefix('$')
-                    ->sortable(),
                 TextColumn::make('total')
                     ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
                     ->prefix('$')

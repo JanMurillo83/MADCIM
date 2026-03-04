@@ -23,7 +23,6 @@
                 <th>Serie/Folio</th>
                 <th>Fecha</th>
                 <th>Proveedor</th>
-                <th class="text-right">Subtotal</th>
                 <th class="text-right">Total</th>
                 <th>Estatus</th>
             </tr>
@@ -34,7 +33,6 @@
                     <td>{{ $orden->serie }}-{{ $orden->folio }}</td>
                     <td>{{ optional($orden->fecha_emision)->format('Y-m-d') }}</td>
                     <td>{{ $orden->proveedor?->nombre ?? 'N/A' }}</td>
-                    <td class="text-right">${{ number_format($orden->subtotal, 2) }}</td>
                     <td class="text-right">${{ number_format($orden->total, 2) }}</td>
                     <td>{{ $orden->estatus }}</td>
                 </tr>

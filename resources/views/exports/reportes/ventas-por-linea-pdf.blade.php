@@ -26,7 +26,6 @@
             <tr>
                 <th>Linea</th>
                 <th class="text-right">Cantidad</th>
-                <th class="text-right">Subtotal</th>
                 <th class="text-right">Total</th>
             </tr>
         </thead>
@@ -35,7 +34,6 @@
                 <tr>
                     <td>{{ $row['linea'] }}</td>
                     <td class="text-right">{{ number_format($row['cantidad'], 2) }}</td>
-                    <td class="text-right">${{ number_format($row['subtotal'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['total'], 2) }}</td>
                 </tr>
             @endforeach
@@ -51,10 +49,6 @@
             <tr>
                 <td>Cantidad total</td>
                 <td class="text-right">{{ number_format($totals['cantidad'], 2) }}</td>
-            </tr>
-            <tr>
-                <td>Subtotal</td>
-                <td class="text-right">${{ number_format($totals['subtotal'], 2) }}</td>
             </tr>
             <tr>
                 <td>Total</td>

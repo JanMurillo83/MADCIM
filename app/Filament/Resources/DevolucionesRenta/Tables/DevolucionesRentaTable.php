@@ -27,9 +27,6 @@ class DevolucionesRentaTable
                 TextColumn::make('tipo_cambio')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('subtotal')
-                    ->numeric()
-                    ->sortable(),
                 TextColumn::make('total')
                     ->numeric()
                     ->sortable(),

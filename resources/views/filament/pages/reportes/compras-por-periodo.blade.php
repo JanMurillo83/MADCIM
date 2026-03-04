@@ -62,7 +62,6 @@
                             <th class="px-4 py-2 text-left text-gray-600">Serie/Folio</th>
                             <th class="px-4 py-2 text-left text-gray-600">Fecha</th>
                             <th class="px-4 py-2 text-left text-gray-600">Proveedor</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Subtotal</th>
                             <th class="px-4 py-2 text-right text-gray-600">Total</th>
                             <th class="px-4 py-2 text-left text-gray-600">Estatus</th>
                         </tr>
@@ -74,13 +73,12 @@
                                 <td class="px-4 py-2">{{ $row['serie_folio'] }}</td>
                                 <td class="px-4 py-2">{{ $row['fecha_emision'] }}</td>
                                 <td class="px-4 py-2">{{ $row['proveedor'] }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format($row['subtotal'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['total'], 2) }}</td>
                                 <td class="px-4 py-2">{{ $row['estatus'] }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="7">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="6">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -88,11 +86,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
-                <p class="text-sm text-gray-500">Subtotal</p>
-                <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalSubtotal, 2) }}</p>
-            </div>
+        <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Total</p>
                 <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalGeneral, 2) }}</p>

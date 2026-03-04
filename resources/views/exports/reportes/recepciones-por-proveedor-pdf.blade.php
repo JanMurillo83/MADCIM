@@ -23,7 +23,6 @@
                 <th>Serie/Folio</th>
                 <th>Fecha</th>
                 <th>Proveedor</th>
-                <th class="text-right">Subtotal</th>
                 <th class="text-right">Total</th>
                 <th>Estatus</th>
             </tr>
@@ -34,7 +33,6 @@
                     <td>{{ $recepcion->serie }}-{{ $recepcion->folio }}</td>
                     <td>{{ optional($recepcion->fecha_emision)->format('Y-m-d') }}</td>
                     <td>{{ $recepcion->proveedor?->nombre ?? 'N/A' }}</td>
-                    <td class="text-right">${{ number_format($recepcion->subtotal, 2) }}</td>
                     <td class="text-right">${{ number_format($recepcion->total, 2) }}</td>
                     <td>{{ $recepcion->estatus }}</td>
                 </tr>

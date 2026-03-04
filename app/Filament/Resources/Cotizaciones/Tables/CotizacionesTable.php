@@ -36,10 +36,6 @@ class CotizacionesTable
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
                     ->sortable(),
-                TextColumn::make('subtotal')
-                    ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
-                    ->prefix('$')
-                    ->sortable(),
                 TextColumn::make('total')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')

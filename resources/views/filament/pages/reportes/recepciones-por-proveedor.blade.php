@@ -42,7 +42,6 @@
                             <th class="px-4 py-2 text-left text-gray-600">Serie/Folio</th>
                             <th class="px-4 py-2 text-left text-gray-600">Fecha</th>
                             <th class="px-4 py-2 text-left text-gray-600">Proveedor</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Subtotal</th>
                             <th class="px-4 py-2 text-right text-gray-600">Total</th>
                             <th class="px-4 py-2 text-left text-gray-600">Estatus</th>
                         </tr>
@@ -53,13 +52,12 @@
                                 <td class="px-4 py-2">{{ $recepcion->serie }}-{{ $recepcion->folio }}</td>
                                 <td class="px-4 py-2">{{ optional($recepcion->fecha_emision)->format('Y-m-d') }}</td>
                                 <td class="px-4 py-2">{{ $recepcion->proveedor?->nombre ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format($recepcion->subtotal, 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($recepcion->total, 2) }}</td>
                                 <td class="px-4 py-2">{{ $recepcion->estatus }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="6">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="5">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>

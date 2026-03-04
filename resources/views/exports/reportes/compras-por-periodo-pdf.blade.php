@@ -28,7 +28,6 @@
                 <th>Serie/Folio</th>
                 <th>Fecha</th>
                 <th>Proveedor</th>
-                <th class="text-right">Subtotal</th>
                 <th class="text-right">Total</th>
                 <th>Estatus</th>
             </tr>
@@ -40,7 +39,6 @@
                     <td>{{ $row['serie_folio'] }}</td>
                     <td>{{ $row['fecha_emision'] }}</td>
                     <td>{{ $row['proveedor'] }}</td>
-                    <td class="text-right">${{ number_format($row['subtotal'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['total'], 2) }}</td>
                     <td>{{ $row['estatus'] }}</td>
                 </tr>
@@ -53,10 +51,6 @@
             <tr>
                 <th>Concepto</th>
                 <th class="text-right">Importe</th>
-            </tr>
-            <tr>
-                <td>Subtotal</td>
-                <td class="text-right">${{ number_format($totals['subtotal'], 2) }}</td>
             </tr>
             <tr>
                 <td>Total</td>
