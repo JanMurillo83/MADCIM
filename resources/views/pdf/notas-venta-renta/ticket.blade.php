@@ -15,6 +15,7 @@
         }
         body {
             font-family: 'Courier New', monospace;
+            font-weight: bold;
             font-size: 14px;
             width: 80mm;
             margin: 0 auto;
