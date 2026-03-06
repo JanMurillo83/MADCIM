@@ -12,7 +12,8 @@
         }
         body {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: 700;
             width: 80mm;
             margin: 0 auto;
             padding: 5mm;
@@ -24,7 +25,7 @@
             padding-bottom: 10px;
         }
         .company-name {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             margin-bottom: 5px;
         }
@@ -43,7 +44,7 @@
         }
         .section-title {
             font-weight: bold;
-            font-size: 13px;
+            font-size: 14px;
             margin-top: 10px;
             margin-bottom: 5px;
             border-bottom: 2px solid #000;
@@ -73,7 +74,7 @@
         .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
+            font-size: 12px;
         }
         .direccion-section {
             margin-bottom: 10px;
@@ -90,7 +91,7 @@
             width: 80%;
         }
         .firma-label {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
         }
         .footer {
@@ -98,7 +99,7 @@
             margin-top: 15px;
             border-top: 1px dashed #000;
             padding-top: 10px;
-            font-size: 10px;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -144,13 +145,13 @@
             <div>{{ $notaEnvio->direccionEntrega->direccion_completa }}</div>
             @endif
             @if($notaEnvio->direccionEntrega->referencia)
-            <div style="font-size: 9px;">Ref: {{ $notaEnvio->direccionEntrega->referencia }}</div>
+            <div style="font-size: 11px;">Ref: {{ $notaEnvio->direccionEntrega->referencia }}</div>
             @endif
             @if($notaEnvio->direccionEntrega->contacto)
-            <div style="font-size: 9px;">Contacto: {{ $notaEnvio->direccionEntrega->contacto }}</div>
+            <div style="font-size: 11px;">Contacto: {{ $notaEnvio->direccionEntrega->contacto }}</div>
             @endif
             @if($notaEnvio->direccionEntrega->telefono)
-            <div style="font-size: 9px;">Tel: {{ $notaEnvio->direccionEntrega->telefono }}</div>
+            <div style="font-size: 11px;">Tel: {{ $notaEnvio->direccionEntrega->telefono }}</div>
             @endif
         </div>
     </div>
@@ -169,7 +170,7 @@
                 <span>Cantidad: {{ number_format($partida->cantidad, 0) }}</span>
             </div>
             @if($partida->observaciones && $partida->observaciones !== $partida->descripcion)
-            <div style="font-size: 8px; color: #666;">{{ $partida->observaciones }}</div>
+            <div style="font-size: 10px; color: #666;">{{ $partida->observaciones }}</div>
             @endif
         </div>
         @endforeach
@@ -192,7 +193,7 @@
 
     <div class="footer">
         <div>Verifique el material al momento de la entrega.</div>
-        <div style="margin-top: 5px; font-size: 8px;">
+        <div style="margin-top: 5px; font-size: 10px;">
             Documento generado el {{ now()->format('d/m/Y H:i') }}
         </div>
     </div>

@@ -204,9 +204,17 @@
     </div>
 
     <div class="footer">
-        <div>�Gracias por su preferencia!</div>
-        <div class="legend">
-            Recibi de MADERERIA MADCIM la MADERA o EQUIPO aquí especificada (o) en calidad de ARRENDAMIENTO por el tiempo especificado en este documento. Asi mismo me obligo a cuidarla (o) y devolverla (o) en buen estado en tiempo y forma, de lo contrario en caso de EXTRAVIARLA (o) o NO DEVOLVERLA (o) me OBLIGO a pagar el monto en dinero que cubra el valor de la  MADERA o EQUIPO NO DEVUELTO.
+        <div>¡Gracias por su preferencia!</div>
+        <div style="margin-top: 10px; margin-left: 10px">
+            <p style="text-align: left !important; width: 90% !important; font-size: 14px;">Recibi de MADERERIA MADCIM la MADERA o
+            EQUIPO aquí especificada (o) en calidad de
+            ARRENDAMIENTO por el tiempo especificado en
+            este documento. Asi mismo me obligo a cuidarla
+            (o) y devolverla (o) en buen estado en tiempo
+            y forma, de lo contrario en caso de EXTRAVIARLA
+            (o) o NO DEVOLVERLA (o) me OBLIGO a pagar el
+            monto en dinero que cubra el valor de la  MADERA
+            o EQUIPO NO DEVUELTO.</p>
         </div>
     </div>
 </body>
