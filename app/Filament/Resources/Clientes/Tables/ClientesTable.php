@@ -18,6 +18,11 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use App\Models\ClienteDireccionEntrega;
+use App\Models\NotasVentaRenta;
+use App\Models\NotasVentaVenta;
+use App\Models\Pagos;
+use App\Models\RegistroRenta;
+use Carbon\Carbon;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Grid as FormGrid;
 use Filament\Forms\Components\TextInput as FormTextInput;
@@ -198,6 +203,161 @@ class ClientesTable
                                 ->send();
                         })
                         ->modalSubmitActionLabel('Guardar cambios'),
+                    Action::make('reporteCliente')
+                        ->label('Reporte Cliente')
+                        ->icon('heroicon-o-clipboard-document')
+                        ->color('info')
+                        ->modalHeading(fn ($record) => "Reporte del Cliente - {$record->nombre}")
+                        ->modalWidth('7xl')
+                        ->modalContent(function ($record) {
+                            $cliente = $record->load('direccionesEntrega');
+
+                            $notasVenta = NotasVentaVenta::query()
+                                ->where('cliente_id', $record->id)
+                                ->orderByDesc('fecha_emision')
+                                ->get();
+
+                            $pagosVenta = collect();
+                            if ($notasVenta->isNotEmpty()) {
+                                $pagosVenta = Pagos::query()
+                                    ->selectRaw('documento_id, SUM(importe) as total_pagado, MAX(fecha_pago) as ultimo_pago')
+                                    ->where('documento_tipo', 'notas_venta_venta')
+                                    ->whereIn('documento_id', $notasVenta->pluck('id'))
+                                    ->groupBy('documento_id')
+                                    ->get()
+                                    ->keyBy('documento_id');
+                            }
+
+                            $notasVentaData = $notasVenta->map(function ($nota) use ($pagosVenta) {
+                                $pagos = $pagosVenta->get($nota->id);
+                                $totalPagado = (float)($pagos->total_pagado ?? 0);
+                                $ultimoPago = $pagos?->ultimo_pago ? Carbon::parse($pagos->ultimo_pago) : null;
+                                $saldo = $nota->saldo_pendiente;
+                                if ($saldo === null) {
+                                    $saldo = (float)$nota->total - $totalPagado;
+                                }
+                                if ($saldo < 0) {
+                                    $saldo = 0;
+                                }
+
+                                return [
+                                    'nota' => $nota,
+                                    'total_pagado' => $totalPagado,
+                                    'saldo_pendiente' => (float)$saldo,
+                                    'ultimo_pago' => $ultimoPago,
+                                ];
+                            });
+
+                            $notasRenta = NotasVentaRenta::query()
+                                ->with(['notasEnvio', 'registrosRenta', 'registrosRenta.producto'])
+                                ->where('cliente_id', $record->id)
+                                ->orderByDesc('fecha_emision')
+                                ->get();
+
+                            $pagosRenta = collect();
+                            if ($notasRenta->isNotEmpty()) {
+                                $pagosRenta = Pagos::query()
+                                    ->selectRaw('documento_id, SUM(importe) as total_pagado, MAX(fecha_pago) as ultimo_pago')
+                                    ->where('documento_tipo', 'notas_venta_renta')
+                                    ->whereIn('documento_id', $notasRenta->pluck('id'))
+                                    ->groupBy('documento_id')
+                                    ->get()
+                                    ->keyBy('documento_id');
+                            }
+
+                            $estadoRenta = function (NotasVentaRenta $nota): string {
+                                $registros = $nota->registrosRenta;
+                                if ($registros->isEmpty()) {
+                                    return 'Sin registros';
+                                }
+                                $todosDevueltos = $registros->every(fn ($r) => $r->estado === 'Devuelto');
+                                if ($todosDevueltos) {
+                                    return 'Devuelto';
+                                }
+                                $fechaVencimiento = $nota->fecha_vencimiento
+                                    ?? ($nota->fecha_emision ? Carbon::parse($nota->fecha_emision)->addDays($nota->dias_renta ?? 30) : null);
+                                if ($fechaVencimiento && Carbon::parse($fechaVencimiento)->lt(Carbon::today())) {
+                                    return 'Vencido';
+                                }
+                                return 'Vigente';
+                            };
+
+                            $notasRentaData = $notasRenta->map(function ($nota) use ($pagosRenta, $estadoRenta) {
+                                $pagos = $pagosRenta->get($nota->id);
+                                $totalPagado = (float)($pagos->total_pagado ?? 0);
+                                $ultimoPago = $pagos?->ultimo_pago ? Carbon::parse($pagos->ultimo_pago) : null;
+                                $saldo = $nota->saldo_pendiente;
+                                if ($saldo === null) {
+                                    $saldo = (float)$nota->total - $totalPagado;
+                                }
+                                if ($saldo < 0) {
+                                    $saldo = 0;
+                                }
+                                $ultimoEnvio = $nota->notasEnvio
+                                    ->sortByDesc(function ($envio) {
+                                        return $envio->fecha_emision ?? $envio->created_at;
+                                    })
+                                    ->first();
+                                $estadoEnvio = $ultimoEnvio?->estatus ?? 'Sin envíos';
+
+                                return [
+                                    'nota' => $nota,
+                                    'estado_envio' => $estadoEnvio,
+                                    'estado_renta' => $estadoRenta($nota),
+                                    'total_pagado' => $totalPagado,
+                                    'saldo_pendiente' => (float)$saldo,
+                                    'ultimo_pago' => $ultimoPago,
+                                ];
+                            });
+
+                            $itemsEnRenta = RegistroRenta::query()
+                                ->with(['producto', 'notaVentaRenta'])
+                                ->where('cliente_id', $record->id)
+                                ->where(function ($query) {
+                                    $query->where('estado', '!=', 'Devuelto')
+                                        ->orWhereColumn('cantidad_devuelta', '<', 'cantidad');
+                                })
+                                ->orderByDesc('fecha_renta')
+                                ->get();
+
+                            $notasRentadasData = $notasRenta
+                                ->filter(function (NotasVentaRenta $nota) {
+                                    return $nota->registrosRenta->contains(function ($registro) {
+                                        $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
+                                        return $registro->estado !== 'Devuelto' && $pendiente > 0;
+                                    });
+                                })
+                                ->map(function (NotasVentaRenta $nota) use ($estadoRenta) {
+                                    $items = $nota->registrosRenta
+                                        ->filter(function ($registro) {
+                                            $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
+                                            return $registro->estado !== 'Devuelto' && $pendiente > 0;
+                                        })
+                                        ->map(function ($registro) {
+                                            $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
+                                            $descripcion = $registro->producto?->descripcion ?? 'Item';
+                                            return "{$descripcion} x{$pendiente}";
+                                        })
+                                        ->values();
+
+                                    return [
+                                        'nota' => $nota,
+                                        'estado_renta' => $estadoRenta($nota),
+                                        'items' => $items,
+                                    ];
+                                })
+                                ->values();
+
+                            return view('filament.resources.clientes.reporte', [
+                                'cliente' => $cliente,
+                                'notasVenta' => $notasVentaData,
+                                'notasRenta' => $notasRentaData,
+                                'notasRentadas' => $notasRentadasData,
+                                'itemsEnRenta' => $itemsEnRenta,
+                            ]);
+                        })
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar'),
                 ]),
             ],RecordActionsPosition::BeforeColumns)
             ->headerActions([
