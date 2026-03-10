@@ -446,7 +446,15 @@ class NotasVentaRentaForm
                             ->numeric()
                             ->default(0.0)
                             ->prefix('$')
-                            ->readOnly()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (Get $get, Set $set) {
+                                $subtotal = (float) $get('subtotal');
+                                $impuestos = (float) $get('impuestos_total');
+                                $deposito = (float) $get('deposito');
+                                $total = round($subtotal + $impuestos + $deposito, 2);
+                                $set('total', $total);
+                                $set('saldo_pendiente', $total);
+                            })
                             ->extraAttributes([
                                 'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
