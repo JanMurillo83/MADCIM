@@ -9,6 +9,7 @@ use App\Models\NotasVentaVenta;
 use App\Models\Productos;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\HtmlString;
 
 class IndicadoresDashboard extends StatsOverviewWidget
 {
@@ -73,26 +74,34 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         return [
             Stat::make('Ventas del mes', $this->formatCurrency($ventasDelMes))
-                ->description('Notas de venta y facturas del mes')
+                ->description($this->descriptionWithLink('Notas de venta y facturas del mes', '/notas-venta-venta/notas-venta-ventas'))
                 ->icon('heroicon-o-banknotes'),
             Stat::make('Rentas del mes', $this->formatCurrency((float) $rentasSinDepositoDelMes))
-                ->description('Notas de renta del mes (sin depósito)')
+                ->description($this->descriptionWithLink('Notas de renta del mes (sin depósito)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-receipt-refund'),
             Stat::make('Depósitos del mes', $this->formatCurrency((float) $depositosNetosDelMes))
-                ->description('Depósitos cobrados menos devoluciones del mes')
+                ->description($this->descriptionWithLink('Depósitos cobrados menos devoluciones del mes', '/control-depositos'))
                 ->icon('heroicon-o-shield-check'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
-                ->description('Rentas sin devolucion')
+                ->description($this->descriptionWithLink('Rentas sin devolucion', '/notas-rentadas'))
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('danger'),
             Stat::make('Rentas por vencer', (string) $rentasPorVencer)
-                ->description('Proximas ' . $diasPorVencer . ' dias')
+                ->description($this->descriptionWithLink('Proximas ' . $diasPorVencer . ' dias', '/notas-rentadas'))
                 ->icon('heroicon-o-clock')
                 ->color('warning'),
             Stat::make('Valor inventario actual', $this->formatCurrency((float) $valorInventario))
-                ->description('Existencia x precio de venta')
+                ->description($this->descriptionWithLink('Existencia x precio de venta', '/productos'))
                 ->icon('heroicon-o-archive-box'),
         ];
+    }
+
+    private function descriptionWithLink(string $text, string $url): HtmlString
+    {
+        $safeText = e($text);
+        $safeUrl = e($url);
+
+        return new HtmlString($safeText . ' <a class="fi-btn fi-size-xs fi-outlined" href="' . $safeUrl . '" wire:navigate>Ver</a>');
     }
 
     private function formatCurrency(float $value): string
