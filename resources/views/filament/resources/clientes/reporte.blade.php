@@ -1,28 +1,28 @@
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-<div class="space-y-8">
+<div class="cliente-reporte space-y-8">
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Datos generales</h3>
+        <h3 class="text-base font-semibold !text-black">Datos generales</h3>
         <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Clave:</span> {{ $cliente->clave }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Nombre:</span> {{ $cliente->nombre }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">RFC:</span> {{ $cliente->rfc }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Regimen:</span> {{ $cliente->regimen }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Telefono:</span> {{ $cliente->telefono }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Correo:</span> {{ $cliente->correo }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Contacto:</span> {{ $cliente->contacto }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Dias credito:</span> {{ $cliente->dias_credito }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Saldo:</span> ${{ number_format((float)$cliente->saldo, 2) }}</div>
-            <div class="!text-gray-900 dark:!text-gray-100"><span class="font-medium">Direccion:</span> {{ $cliente->calle }} {{ $cliente->exterior }} {{ $cliente->interior }}, {{ $cliente->colonia }}, {{ $cliente->municipio }}, {{ $cliente->estado }}, {{ $cliente->pais }}</div>
+            <div class="!text-black"><span class="font-medium">Clave:</span> {{ $cliente->clave }}</div>
+            <div class="!text-black"><span class="font-medium">Nombre:</span> {{ $cliente->nombre }}</div>
+            <div class="!text-black"><span class="font-medium">RFC:</span> {{ $cliente->rfc }}</div>
+            <div class="!text-black"><span class="font-medium">Regimen:</span> {{ $cliente->regimen }}</div>
+            <div class="!text-black"><span class="font-medium">Telefono:</span> {{ $cliente->telefono }}</div>
+            <div class="!text-black"><span class="font-medium">Correo:</span> {{ $cliente->correo }}</div>
+            <div class="!text-black"><span class="font-medium">Contacto:</span> {{ $cliente->contacto }}</div>
+            <div class="!text-black"><span class="font-medium">Dias credito:</span> {{ $cliente->dias_credito }}</div>
+            <div class="!text-black"><span class="font-medium">Saldo:</span> ${{ number_format((float)$cliente->saldo, 2) }}</div>
+            <div class="!text-black"><span class="font-medium">Direccion:</span> {{ $cliente->calle }} {{ $cliente->exterior }} {{ $cliente->interior }}, {{ $cliente->colonia }}, {{ $cliente->municipio }}, {{ $cliente->estado }}, {{ $cliente->pais }}</div>
         </div>
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Direcciones de entrega</h3>
+        <h3 class="text-base font-semibold !text-black">Direcciones de entrega</h3>
         @if($cliente->direccionesEntrega->isEmpty())
-            <p class="mt-2 text-sm !text-gray-900 dark:!text-gray-100">No hay direcciones registradas.</p>
+            <p class="mt-2 text-sm !text-black">No hay direcciones registradas.</p>
         @else
-            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
+            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
                     <tr>
                         <th class="px-6 py-2 font-medium">Nombre</th>
@@ -52,11 +52,11 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Notas de venta (venta)</h3>
+        <h3 class="text-base font-semibold !text-black">Notas de venta (venta)</h3>
         @if($notasVenta->isEmpty())
-            <p class="mt-2 text-sm !text-gray-900 dark:!text-gray-100">No hay notas de venta registradas.</p>
+            <p class="mt-2 text-sm !text-black">No hay notas de venta registradas.</p>
         @else
-            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
+            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
                     <tr>
                         <th class="px-6 py-2 font-medium">Folio</th>
@@ -89,11 +89,11 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Notas de renta</h3>
+        <h3 class="text-base font-semibold !text-black">Notas de renta</h3>
         @if($notasRenta->isEmpty())
-            <p class="mt-2 text-sm !text-gray-900 dark:!text-gray-100">No hay notas de renta registradas.</p>
+            <p class="mt-2 text-sm !text-black">No hay notas de renta registradas.</p>
         @else
-            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
+            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
                     <tr>
                         <th class="px-6 py-2 font-medium">Folio</th>
@@ -142,17 +142,16 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Notas rentadas (items activos)</h3>
+        <h3 class="text-base font-semibold !text-black">Notas rentadas (items activos)</h3>
         @if($notasRentadas->isEmpty())
-            <p class="mt-2 text-sm !text-gray-900 dark:!text-gray-100">No hay notas con items activos en renta.</p>
+            <p class="mt-2 text-sm !text-black">No hay notas con items activos en renta.</p>
         @else
-            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
+            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
                     <tr>
                         <th class="px-6 py-2 font-medium">Folio</th>
                         <th class="px-6 py-2 font-medium">Fecha</th>
                         <th class="px-6 py-2 font-medium">Estatus renta</th>
-                        <th class="px-6 py-2 font-medium">Items activos</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
@@ -176,19 +175,6 @@
                                     {{ $estadoRenta }}
                                 </span>
                             </td>
-                            <td class="px-6 py-3">
-                                @if($row['items']->isEmpty())
-                                    <span class="text-xs">-</span>
-                                @else
-                                    <div class="flex flex-wrap gap-2">
-                                        @foreach($row['items'] as $item)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                                {{ $item }}
-                                            </span>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -197,11 +183,11 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-gray-900 dark:!text-gray-100">Items actualmente rentados</h3>
+        <h3 class="text-base font-semibold !text-black">Items actualmente rentados</h3>
         @if($itemsEnRenta->isEmpty())
-            <p class="mt-2 text-sm !text-gray-900 dark:!text-gray-100">No hay items activos en renta.</p>
+            <p class="mt-2 text-sm !text-black">No hay items activos en renta.</p>
         @else
-            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
+            <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
                     <tr>
                         <th class="px-6 py-2 font-medium">Nota</th>

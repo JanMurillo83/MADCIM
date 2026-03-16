@@ -211,6 +211,7 @@ class NotasVentaVentaForm
                                     ->required()
                                     ->default(0.0)
                                     ->live(onBlur: true)
+                                    ->readOnly()
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);

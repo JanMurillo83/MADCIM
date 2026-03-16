@@ -88,6 +88,60 @@
         margin-top: 0.5rem;
     }
 
+    .fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-label {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-value {
+        font-size: 2rem;
+        line-height: 1.2;
+        font-weight: 700;
+    }
+
+    .fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-description {
+        font-size: 0.95rem;
+    }
+
+    .cliente-reporte {
+        color: #000000;
+    }
+
+    .cliente-reporte thead th {
+        color: #000000;
+    }
+
+    .fi-topbar {
+        background-color: #2f2416;
+        border-bottom: 1px solid #3a2c1b;
+        box-shadow: none;
+    }
+
+    .fi-topbar .fi-topbar-item-label {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #efe7d8;
+        letter-spacing: 0.01em;
+    }
+
+    .fi-topbar .fi-topbar-item-btn {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .fi-topbar .fi-topbar-item-btn:hover,
+    .fi-topbar .fi-topbar-item-btn:focus-visible {
+        background-color: #3b2f1f;
+    }
+
+    .fi-topbar .fi-icon {
+        color: #d8cbb7;
+    }
+
+    .fi-topbar .fi-active .fi-icon,
+    .fi-topbar .fi-active .fi-topbar-item-label {
+        color: #46a15f;
+    }
+
     /* Reduce row height by tightening cell padding in tables. */
     .fi-ta-text:not(.fi-inline) {
         @apply px-2 py-1;
