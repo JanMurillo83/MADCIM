@@ -117,6 +117,7 @@ class NotasVentaVentaForm
                             ->visible(false),
                         Select::make('cliente_id')
                             ->label('Cliente')
+                            ->required()
                             ->relationship('cliente', 'nombre')
                             ->searchable()
                             ->preload(),
