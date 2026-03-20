@@ -5,9 +5,9 @@ namespace App\Filament\Resources\NotasVentaVenta\Tables;
 use App\Models\NotasVentaVenta;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Actions\CreateAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
@@ -97,8 +97,9 @@ class NotasVentaVentaTable
             ])
             ->recordActions([
                 ActionGroup::make([
-                    EditAction::make()
-                        ->visible(fn (NotasVentaVenta $record) => $record->estatus !== 'Cancelada'),
+                    ViewAction::make()
+                        ->label('Consultar')
+                    ->modalWidth('full'),
                     Action::make('imprimir_ticket')
                         ->label('Imprimir Ticket')
                         ->icon('fas-receipt')

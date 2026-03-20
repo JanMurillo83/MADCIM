@@ -31,6 +31,27 @@ class NotaEnvio extends Model
         'fecha_vencimiento' => 'date',
     ];
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $notaEnvio): void {
+            if (!$notaEnvio->nota_venta_renta_id || !$notaEnvio->fecha_vencimiento) {
+                return;
+            }
+
+            if (
+                !$notaEnvio->wasRecentlyCreated
+                && !$notaEnvio->wasChanged('fecha_vencimiento')
+                && !$notaEnvio->wasChanged('nota_venta_renta_id')
+            ) {
+                return;
+            }
+
+            $notaEnvio->notaVentaRenta()->update([
+                'fecha_vencimiento' => $notaEnvio->fecha_vencimiento,
+            ]);
+        });
+    }
+
     public function notaVentaRenta(): BelongsTo
     {
         return $this->belongsTo(NotasVentaRenta::class, 'nota_venta_renta_id');

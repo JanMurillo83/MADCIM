@@ -8,9 +8,9 @@ use App\Models\NotasVentaRenta;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Actions\CreateAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
@@ -162,8 +162,9 @@ class NotasVentaRentaTable
             ])
             ->recordActions([
                 ActionGroup::make([
-                    EditAction::make()
-                        ->visible(fn (NotasVentaRenta $record) => $record->estatus !== 'Cancelada'),
+                    ViewAction::make()
+                        ->label('Consultar')
+                        ->modalWidth('full'),
                     Action::make('devolucion')
                         ->label('Registrar Devolución')
                         ->visible(false)

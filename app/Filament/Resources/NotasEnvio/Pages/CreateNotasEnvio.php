@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\NotasEnvio\Pages;
 
 use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
-use App\Models\Clientes;
 use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
 use App\Models\RegistroRenta;
@@ -32,8 +31,10 @@ class CreateNotasEnvio extends CreateRecord
 
         $cliente = $nota->cliente;
         $fechaEmision = Carbon::parse($nota->fecha_emision);
-        $diasRenta = $nota->dias_renta ?? 30;
-        $fechaVencimiento = $nota->fecha_vencimiento ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
+        $diasRenta = $record->dias_renta ?? $nota->dias_renta ?? 30;
+        $fechaVencimiento = $record->fecha_vencimiento?->toDateString()
+            ?? $nota->fecha_vencimiento?->toDateString()
+            ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
 
         foreach ($record->partidas as $partida) {
             RegistroRenta::create([

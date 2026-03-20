@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\NotasVentaVenta;
 
 use App\Filament\Resources\NotasVentaVenta\Pages\CreateNotasVentaVenta;
-use App\Filament\Resources\NotasVentaVenta\Pages\EditNotasVentaVenta;
 use App\Filament\Resources\NotasVentaVenta\Pages\ListNotasVentaVenta;
 use App\Filament\Resources\NotasVentaVenta\Schemas\NotasVentaVentaForm;
 use App\Filament\Resources\NotasVentaVenta\Tables\NotasVentaVentaTable;
@@ -49,12 +48,11 @@ class NotasVentaVentaResource extends Resource
         return [
             'index' => ListNotasVentaVenta::route('/'),
             'create' => CreateNotasVentaVenta::route('/create'),
-            'edit' => EditNotasVentaVenta::route('/{record}/edit'),
         ];
     }
 
     public static function canEdit(Model $record): bool
     {
-        return parent::canEdit($record) && $record->estatus !== 'Cancelada';
+        return false;
     }
 }
