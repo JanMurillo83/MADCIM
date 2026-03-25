@@ -12,9 +12,18 @@ class CreateNotasVentaRenta extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Calcular fecha de vencimiento basada en días de renta
+        // Calcular duración equivalente en días para vencimiento/registros.
         $fechaEmision = Carbon::parse($data['fecha_emision'] ?? now());
-        $diasRenta = !empty($data['dias_renta']) ? (int) $data['dias_renta'] : 30;
+        $duracionRenta = !empty($data['duracion_renta']) ? (int) $data['duracion_renta'] : 1;
+        $tipoRenta = $data['tipo_renta'] ?? 'dia';
+        $diasRenta = match ($tipoRenta) {
+            'semana' => $duracionRenta * 7,
+            'mes' => $duracionRenta * 30,
+            default => $duracionRenta,
+        };
+
+        $data['duracion_renta'] = $duracionRenta;
+        $data['dias_renta'] = $diasRenta;
         $data['fecha_vencimiento'] = $fechaEmision->addDays($diasRenta)->toDateString();
 
         return $data;

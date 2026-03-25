@@ -25,6 +25,63 @@ use Illuminate\Support\Facades\Auth;
 
 class NotasVentaRentaForm
 {
+    private static function resolverPrecioBaseRenta(Productos $producto, ?string $tipoRenta): float
+    {
+        return match ($tipoRenta) {
+            'semana' => (float) $producto->precio_renta_semana,
+            'mes' => (float) $producto->precio_renta_mes,
+            default => (float) $producto->precio_renta_dia,
+        };
+    }
+
+    private static function resolverDuracionRenta(Get $get): float
+    {
+        return max(1, (float) ($get('duracion_renta') ?? 1));
+    }
+
+    private static function recalculatePartidasByRentaConfig(Get $get, Set $set): void
+    {
+        $partidas = $get('partidas');
+        if (!is_array($partidas)) {
+            self::recalculateDocumentoTotalesFromPartidas([], $set, false);
+            return;
+        }
+
+        $tipoRenta = $get('tipo_renta') ?? 'dia';
+        $duracion = self::resolverDuracionRenta($get);
+        $cambiadas = false;
+
+        foreach ($partidas as $key => $partida) {
+            $itemId = $partida['item'] ?? null;
+            if (!$itemId) {
+                continue;
+            }
+
+            $producto = Productos::find($itemId);
+            if (!$producto) {
+                continue;
+            }
+
+            $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta);
+            $valorUnitario = round($precioBase * $duracion, 2);
+            $cantidad = (float) ($partida['cantidad'] ?? 1);
+            $totalConIva = round($cantidad * $valorUnitario, 2);
+            $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
+
+            $partidas[$key]['valor_unitario'] = $valorUnitario;
+            $partidas[$key]['subtotal'] = $desglose['subtotal'];
+            $partidas[$key]['impuestos'] = $desglose['iva'];
+            $partidas[$key]['total'] = $totalConIva;
+            $cambiadas = true;
+        }
+
+        if ($cambiadas) {
+            $set('partidas', $partidas);
+        }
+
+        self::recalculateDocumentoTotalesFromPartidas($partidas, $set, false);
+    }
+
     private static function recalculatePartidaTotales(Get $get, Set $set): void
     {
         $cantidad = (float) $get('cantidad');
@@ -37,20 +94,26 @@ class NotasVentaRentaForm
         $set('total', $totalConIva);
     }
 
-    private static function recalculateDocumentoTotales(Get $get, Set $set): void
+    private static function setDocumentoTotales(Set $set, bool $fromRepeater, float $subtotal, float $impuestos, float $deposito, float $total): void
     {
-        $partidas = $get('../../partidas');
+        $prefix = $fromRepeater ? '../../' : '';
+
+        $set($prefix . 'subtotal', $subtotal);
+        $set($prefix . 'impuestos_total', $impuestos);
+        $set($prefix . 'deposito', $deposito);
+        $set($prefix . 'total', $total);
+        $set($prefix . 'saldo_pendiente', $total);
+    }
+
+    private static function recalculateDocumentoTotalesFromPartidas(mixed $partidas, Set $set, bool $fromRepeater): void
+    {
         $subtotal = 0.0;
         $impuestos = 0.0;
         $subtotalMadera = 0.0;
         $impuestosMadera = 0.0;
 
         if (!is_array($partidas)) {
-            $set('../../subtotal', 0.0);
-            $set('../../impuestos_total', 0.0);
-            $set('../../total', 0.0);
-            $set('../../saldo_pendiente', 0.0);
-            $set('../../deposito', 0.0);
+            self::setDocumentoTotales($set, $fromRepeater, 0.0, 0.0, 0.0, 0.0);
             return;
         }
 
@@ -75,11 +138,12 @@ class NotasVentaRentaForm
         // Total = Subtotal Partidas + IVA Partidas + Depósito (sin IVA)
         $total = $subtotal + $impuestos + $deposito;
 
-        $set('../../subtotal', $subtotal);
-        $set('../../impuestos_total', $impuestos);
-        $set('../../deposito', $deposito);
-        $set('../../total', $total);
-        $set('../../saldo_pendiente', $total);
+        self::setDocumentoTotales($set, $fromRepeater, $subtotal, $impuestos, $deposito, $total);
+    }
+
+    private static function recalculateDocumentoTotales(Get $get, Set $set): void
+    {
+        self::recalculateDocumentoTotalesFromPartidas($get('../../partidas'), $set, true);
     }
 
     public static function configure(Schema $schema): Schema
@@ -123,36 +187,20 @@ class NotasVentaRentaForm
                             ])
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set) {
-                                // Recalcular precios de todas las partidas al cambiar tipo de renta
-                                $partidas = $get('partidas');
-                                if (!is_array($partidas)) return;
-                                $tipoRenta = $get('tipo_renta');
-                                $cambiadas = false;
-                                foreach ($partidas as $key => $partida) {
-                                    $itemId = $partida['item'] ?? null;
-                                    if ($itemId) {
-                                        $producto = Productos::find($itemId);
-                                        if ($producto) {
-                                            $precio = match ($tipoRenta) {
-                                                'semana' => (float) $producto->precio_renta_semana,
-                                                'mes' => (float) $producto->precio_renta_mes,
-                                                default => (float) $producto->precio_renta_dia,
-                                            };
-                                            $cantidad = (float) ($partida['cantidad'] ?? 1);
-                                            $subtotal = $cantidad * $precio;
-                                            $impuestos = $subtotal * 0.16;
-                                            $partidas[$key]['valor_unitario'] = $precio;
-                                            $partidas[$key]['subtotal'] = $subtotal;
-                                            $partidas[$key]['impuestos'] = $impuestos;
-                                            $partidas[$key]['total'] = $subtotal + $impuestos;
-                                            $cambiadas = true;
-                                        }
-                                    }
-                                }
-                                if ($cambiadas) {
-                                    $set('partidas', $partidas);
-                                }
+                                self::recalculatePartidasByRentaConfig($get, $set);
                             }),
+                        TextInput::make('duracion_renta')
+                            ->label('Duración')
+                            ->numeric()
+                            ->required()
+                            ->default(1)
+                            ->minValue(1)
+                            ->helperText('Número de días, semanas o meses según el tipo de renta.')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (Get $get, Set $set) {
+                                self::recalculatePartidasByRentaConfig($get, $set);
+                            }),
+                        Hidden::make('dias_renta')->default(1),
                         Select::make('condicion_pago')
                             ->label('Condición de Pago')
                             ->required()
@@ -359,11 +407,8 @@ class NotasVentaRentaForm
                                         }
                                         $set('descripcion', $producto->descripcion);
                                         $tipoRenta = $get('../../tipo_renta') ?? 'dia';
-                                        $precio = match ($tipoRenta) {
-                                            'semana' => (float) $producto->precio_renta_semana,
-                                            'mes' => (float) $producto->precio_renta_mes,
-                                            default => (float) $producto->precio_renta_dia,
-                                        };
+                                        $duracion = max(1, (float) ($get('../../duracion_renta') ?? 1));
+                                        $precio = round(self::resolverPrecioBaseRenta($producto, $tipoRenta) * $duracion, 2);
                                         $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);

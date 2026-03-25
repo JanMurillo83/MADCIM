@@ -23,6 +23,7 @@ class NotasVentaRenta extends Model
         'folio',
         'fecha_emision',
         'dias_renta',
+        'duracion_renta',
         'tipo_renta',
         'condicion_pago',
         'fecha_vencimiento',

@@ -166,6 +166,28 @@
             <span>{{ $notaVenta->direccionEntrega->direccion_completa }}</span>
         </div>
         @endif
+        @php
+            $tipoRenta = $notaVenta->tipo_renta ?? 'dia';
+            $unidadRenta = match ($tipoRenta) {
+                'semana' => 'Semana(s)',
+                'mes' => 'Mes(es)',
+                default => 'Día(s)',
+            };
+            $duracionRenta = $notaVenta->duracion_renta;
+            if (!$duracionRenta && $notaVenta->dias_renta) {
+                $duracionRenta = match ($tipoRenta) {
+                    'semana' => (int) max(1, round($notaVenta->dias_renta / 7)),
+                    'mes' => (int) max(1, round($notaVenta->dias_renta / 30)),
+                    default => (int) $notaVenta->dias_renta,
+                };
+            }
+        @endphp
+        @if($duracionRenta)
+        <div class="info-row">
+            <span class="label">Duración:</span>
+            <span>{{ $duracionRenta }} {{ $unidadRenta }}</span>
+        </div>
+        @endif
     </div>
 
     <div class="items-table">
