@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Clientes\Schemas;
 
+use App\Models\Clientes;
 use App\Models\SatRegimenFiscal;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -20,7 +21,8 @@ class ClientesForm
                     Tab::make('Datos Generales')
                     ->schema([
                         TextInput::make('clave')
-                            ->required(),
+                            ->required()
+                        ->default(fn () => Clientes::all()->count() + 1),
                         TextInput::make('nombre')
                             ->required()->columnSpan(3),
                         TextInput::make('rfc')

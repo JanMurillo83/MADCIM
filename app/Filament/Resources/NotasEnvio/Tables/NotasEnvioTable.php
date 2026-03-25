@@ -35,7 +35,7 @@ class NotasEnvioTable
     {
         return $table
             ->columns([
-                TextColumn::make('folio')
+                TextColumn::make('id')
                     ->label('Folio')
                     ->sortable()
                     ->searchable(),
