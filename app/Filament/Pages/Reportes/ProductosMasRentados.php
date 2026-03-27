@@ -45,7 +45,7 @@ class ProductosMasRentados extends Page
             ->mapWithKeys(fn ($c) => [$c->id => $c->nombre]);
     }
 
-    public function getProductosProperty(): Collection
+    public function getProductosFiltroProperty(): Collection
     {
         return Productos::orderBy('descripcion')
             ->get()

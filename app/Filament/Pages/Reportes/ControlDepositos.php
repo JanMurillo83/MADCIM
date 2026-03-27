@@ -72,6 +72,7 @@ class ControlDepositos extends Page
     {
         return NotasVentaRenta::query()
             ->with(['cliente', 'registrosRenta'])
+            ->whereRaw("UPPER(TRIM(serie)) = 'RM'")
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->sucursal_id, fn ($q) => $q->where('sucursal_id', $this->sucursal_id))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))

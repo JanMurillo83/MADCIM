@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\Proveedores\Schemas;
 
+use App\Models\Proveedores;
+use App\Models\SatRegimenFiscal;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -18,13 +22,24 @@ class ProveedoresForm
                         Tab::make('Datos Generales')
                             ->schema([
                                 TextInput::make('clave')
-                                    ->required(),
+                                    ->required()
+                                    ->default(fn () => Proveedores::all()->count() + 1),
                                 TextInput::make('nombre')
                                     ->required()
                                     ->columnSpan(3),
                                 TextInput::make('rfc')
                                     ->required(),
-                                TextInput::make('regimen')
+                                Select::make('regimen')
+                                    ->label('Régimen fiscal')
+                                    ->options(fn () => SatRegimenFiscal::query()
+                                        ->orderBy('clave')
+                                        ->get()
+                                        ->mapWithKeys(fn (SatRegimenFiscal $regimen) => [
+                                            $regimen->clave => "{$regimen->clave} - {$regimen->descripcion}",
+                                        ])
+                                        ->all())
+                                    ->preload()
+                                    ->searchable()
                                     ->required(),
                                 TextInput::make('telefono')
                                     ->tel()
@@ -53,9 +68,7 @@ class ProveedoresForm
                                     ->required()
                                     ->numeric()
                                     ->default(0.0),
-                                TextInput::make('lista')
-                                    ->required()
-                                    ->numeric()
+                                Hidden::make('lista')
                                     ->default(1),
                                 TextInput::make('contacto')
                                     ->required(),

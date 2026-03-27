@@ -48,7 +48,7 @@
                 <select wire:model.live="producto_id"
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">-- Todos --</option>
-                    @foreach($this->productos as $id => $label)
+                    @foreach($this->productosFiltro as $id => $label)
                         <option value="{{ $id }}">{{ $label }}</option>
                     @endforeach
                 </select>

@@ -23,7 +23,7 @@ class DevolucionesVentaResource extends Resource
 
     protected static ?string $pluralLabel = 'Devoluciones (venta)';
     protected static string|null|\UnitEnum $navigationGroup = 'Devoluciones';
-
+    protected static bool $shouldRegisterNavigation = false;
     public static function form(Schema $schema): Schema
     {
         return DevolucionesVentaForm::configure($schema);

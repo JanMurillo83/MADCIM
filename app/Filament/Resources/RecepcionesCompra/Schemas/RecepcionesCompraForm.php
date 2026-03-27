@@ -230,7 +230,7 @@ class RecepcionesCompraForm
                             ->default(0.0)
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
-                            ]),
+                            ])->readOnly(),
                         Hidden::make('impuestos_total')
                             ->default(0.0),
                         TextInput::make('total')
@@ -239,7 +239,7 @@ class RecepcionesCompraForm
                             ->default(0.0)
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
-                            ]),
+                            ])->readOnly(),
                     ])
                     ->columns(3),
             ])

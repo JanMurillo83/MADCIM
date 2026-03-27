@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Filament\Widgets\IndicadoresDashboard;
 use App\Models\CajaMovimiento;
+use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
+use App\Models\Productos;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -25,7 +27,7 @@ class IndicadoresDashboardTest extends TestCase
         return null;
     }
 
-    public function test_rentas_del_mes_excluye_deposito_y_depositos_del_mes_considera_devoluciones(): void
+    public function test_rentas_madera_y_equipo_del_mes_separadas_y_depositos_neto_del_mes_considera_devoluciones(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-03 10:00:00'));
 
@@ -35,6 +37,20 @@ class IndicadoresDashboardTest extends TestCase
 
         $this->actingAs($admin);
 
+        $productoMadera = Productos::create([
+            'clave' => 'MAD-001',
+            'descripcion' => 'Tabla de madera',
+            'grupo' => 'TABLA',
+            'linea' => 'MADERA',
+        ]);
+
+        $productoEquipo = Productos::create([
+            'clave' => 'EQ-001',
+            'descripcion' => 'Andamio',
+            'grupo' => 'ANDAMIO',
+            'linea' => 'EQUIPO',
+        ]);
+
         NotasVentaRenta::create([
             'serie' => 'NR',
             'folio' => '1',
@@ -43,7 +59,29 @@ class IndicadoresDashboardTest extends TestCase
             'deposito' => 500,
             'subtotal' => 0,
             'impuestos_total' => 0,
-            'total' => 1500,
+            'total' => 2000,
+        ]);
+
+        NotaVentaRentaPartidas::create([
+            'nota_venta_renta_id' => 1,
+            'cantidad' => 1,
+            'item' => (string) $productoMadera->id,
+            'descripcion' => 'Renta madera',
+            'valor_unitario' => 1000,
+            'subtotal' => 862.07,
+            'impuestos' => 137.93,
+            'total' => 1000,
+        ]);
+
+        NotaVentaRentaPartidas::create([
+            'nota_venta_renta_id' => 1,
+            'cantidad' => 1,
+            'item' => (string) $productoEquipo->id,
+            'descripcion' => 'Renta equipo',
+            'valor_unitario' => 500,
+            'subtotal' => 431.03,
+            'impuestos' => 68.97,
+            'total' => 500,
         ]);
 
         // Egreso por devolución real del depósito
@@ -66,7 +104,8 @@ class IndicadoresDashboardTest extends TestCase
 
         $stats = $widget->stats();
 
-        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Rentas del mes'));
+        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Renta de Madera del mes'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Renta de Equipo del mes'));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos del mes'));
     }
 }
