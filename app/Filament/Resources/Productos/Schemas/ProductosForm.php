@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Productos\Schemas;
 
 use App\Models\Grupos;
 use App\Models\Lineas;
+use App\Models\Productos;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -17,7 +19,9 @@ class ProductosForm
         return $schema
             ->components([
                 TextInput::make('clave')
-                    ->required()->columnSpan(2),
+                    ->required()
+                    ->readOnly(fn (?string $operation): bool => $operation === 'edit')
+                    ->columnSpan(2),
                 TextInput::make('descripcion')
                     ->required()->columnSpanFull(),
                 TextInput::make('m2_cubre')
@@ -29,13 +33,13 @@ class ProductosForm
                     ->prefix('$')
                     ->required()
                     ->numeric()
-                    ->default(0.0),
+                    ->default(0.0)->readOnly(),
                 TextInput::make('ultimo_costo')
                     ->label('Ultimo costo')
                     ->prefix('$')
                     ->required()
                     ->numeric()
-                    ->default(0.0),
+                    ->default(0.0)->readOnly(),
                 TextInput::make('precio_venta')
                     ->label('Precio de Venta')
                     ->prefix('$')
@@ -70,13 +74,9 @@ class ProductosForm
                 Select::make('linea')
                     ->options(Lineas::all()->pluck('nombre', 'nombre'))
                     ->required(),
-                TextInput::make('largo')
-                    ->required()
-                    ->numeric()
+                Hidden::make('largo')
                     ->default(0.0),
-                TextInput::make('ancho')
-                    ->required()
-                    ->numeric()
+                Hidden::make('ancho')
                     ->default(0.0),
                 FileUpload::make('imagen')
                     ->disk('public')
