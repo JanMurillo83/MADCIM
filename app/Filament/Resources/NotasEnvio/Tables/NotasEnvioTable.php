@@ -65,6 +65,62 @@ class NotasEnvioTable
                     ->label('Fecha Vencimiento')
                     ->date('d/m/Y')
                     ->sortable(),
+                TextColumn::make('dias_vencimiento')
+                    ->label('Dias Vencimiento')
+                    ->state(function (NotaEnvio $record): string {
+                        if (!$record->fecha_vencimiento) {
+                            return '-';
+                        }
+
+                        $dias = Carbon::today()->diffInDays(Carbon::parse($record->fecha_vencimiento), false);
+
+                        if ($dias > 0) {
+                            return 'Faltan ' . $dias . ' dias';
+                        }
+
+                        if ($dias < 0) {
+                            return 'Vencido hace ' . abs($dias) . ' dias';
+                        }
+
+                        return 'Vence hoy';
+                    })
+                    ->badge()
+                    ->color(function (string $state): string {
+                        if (str_starts_with($state, 'Faltan')) {
+                            return 'success';
+                        }
+
+                        if (str_starts_with($state, 'Vencido')) {
+                            return 'danger';
+                        }
+
+                        return 'warning';
+                    }),
+                TextColumn::make('semaforo_vencimiento')
+                    ->label('Semaforo Vencimiento')
+                    ->state(function (NotaEnvio $record): string {
+                        if (!$record->fecha_vencimiento) {
+                            return '-';
+                        }
+
+                        $dias = Carbon::today()->diffInDays(Carbon::parse($record->fecha_vencimiento), false);
+
+                        if ($dias < 0) {
+                            return 'Vencido';
+                        }
+
+                        if ($dias > 3) {
+                            return 'En tiempo';
+                        }
+
+                        return 'Por vencer';
+                    })
+                    ->badge()
+                    ->colors([
+                        'success' => 'En tiempo',
+                        'warning' => 'Por vencer',
+                        'danger' => 'Vencido',
+                    ]),
                 TextColumn::make('estatus')
                     ->label('Estatus de Envío')
                     ->badge()
