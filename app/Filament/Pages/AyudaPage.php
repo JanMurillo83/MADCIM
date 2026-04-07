@@ -538,7 +538,7 @@ class AyudaPage extends Page implements HasActions
                                         $prod = Productos::where('id',$id)->first();
                                         $set('cons_mad_clave',$prod->clave);
                                         $set('cons_mad_descr',$prod->descripcion);
-                                        $set('cons_mad_renta',$prod->precio_renta_dia);
+                                        $set('cons_mad_renta',$prod->precio_renta_mes);
                                         $set('cons_mad_venta',$prod->precio_venta);
                                         $set('cons_mad_venmi',$prod->precio_venta);
                                         $set('cons_mad_mecu',$prod->m2_cubre);
@@ -554,17 +554,14 @@ class AyudaPage extends Page implements HasActions
                                                 ->label('Descripción')->inlineLabel()
                                                 ->readOnly(),
                                             TextInput::make('cons_mad_renta')
-                                                ->label('Precio Renta x Dia')->inlineLabel()
+                                                ->label('Precio Renta')->inlineLabel()
                                                 ->prefix('$')->numeric()
                                                 ->readOnly(),
                                             TextInput::make('cons_mad_venta')
                                                 ->label('Precio Venta')->inlineLabel()
                                                 ->prefix('$')->numeric()
                                                 ->readOnly(),
-                                            TextInput::make('cons_mad_venmi')
-                                                ->label('Precio Venta mínimo')->inlineLabel()
-                                                ->prefix('$')->numeric()
-                                                ->readOnly(),
+                                            Hidden::make('cons_mad_venmi'),
                                             TextInput::make('cons_mad_mecu')
                                                 ->label('M2 que cubre')->inlineLabel()
                                                 ->numeric()
@@ -594,7 +591,9 @@ class AyudaPage extends Page implements HasActions
                                         $prod = Productos::where('id',$id)->first();
                                         $set('cons_equi_clave',$prod->clave);
                                         $set('cons_equi_descr',$prod->descripcion);
-                                        $set('cons_equi_renta',$prod->precio_renta_dia);
+                                        $set('cons_equi_renta_d',$prod->precio_renta_dia);
+                                        $set('cons_equi_renta_s',$prod->precio_renta_semana);
+                                        $set('cons_equi_renta_m',$prod->precio_renta_mes);
                                         $set('cons_equi_venta',$prod->precio_venta);
                                         $set('cons_equi_venmi',$prod->precio_venta);
                                         $set('cons_equi_mecu',$prod->m2_cubre);
@@ -609,18 +608,23 @@ class AyudaPage extends Page implements HasActions
                                             TextInput::make('cons_equi_descr')
                                                 ->label('Descripción')->inlineLabel()
                                                 ->readOnly(),
-                                            TextInput::make('cons_equi_renta')
-                                                ->label('Precio Renta x Dia')->inlineLabel()
+                                            TextInput::make('cons_equi_renta_d')
+                                                ->label('Precio Renta x dia')->inlineLabel()
+                                                ->prefix('$')->numeric()
+                                                ->readOnly(),
+                                            TextInput::make('cons_equi_renta_s')
+                                                ->label('Precio Renta x semana')->inlineLabel()
+                                                ->prefix('$')->numeric()
+                                                ->readOnly(),
+                                            TextInput::make('cons_equi_renta_m')
+                                                ->label('Precio Renta x mes')->inlineLabel()
                                                 ->prefix('$')->numeric()
                                                 ->readOnly(),
                                             TextInput::make('cons_equi_venta')
                                                 ->label('Precio Venta')->inlineLabel()
                                                 ->prefix('$')->numeric()
                                                 ->readOnly(),
-                                            TextInput::make('cons_equi_venmi')
-                                                ->label('Precio Venta mínimo')->inlineLabel()
-                                                ->prefix('$')->numeric()
-                                                ->readOnly(),
+                                            Hidden::make('cons_equi_venmi'),
                                             TextInput::make('cons_equi_mecu')
                                                 ->label('M2 que cubre')->inlineLabel()
                                                 ->numeric()
@@ -678,6 +682,7 @@ class AyudaPage extends Page implements HasActions
                                                 return Productos::select(DB::raw("CONCAT(clave,' - ',descripcion) as descripcion"),'id')
                                                     ->pluck('descripcion','id');
                                             })->live(onBlur: true)
+                                            ->searchable()
                                             ->afterStateUpdated(function (Get $get,Set $set){
                                                 $cve = $get('clave');
                                                 $can = $get('cantidad');
