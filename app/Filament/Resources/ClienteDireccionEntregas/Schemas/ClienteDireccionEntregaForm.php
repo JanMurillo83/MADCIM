@@ -83,6 +83,11 @@ class ClienteDireccionEntregaForm
                             ->required()
                             ->maxLength(255),
 
+                        TextInput::make('referencia')
+                            ->label('Referencia')
+                            ->placeholder('Ej: Frente al parque, portón azul')
+                            ->maxLength(255),
+
                         Textarea::make('referencias')
                             ->label('Referencias')
                             ->placeholder('Referencias adicionales para encontrar el lugar')

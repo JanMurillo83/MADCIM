@@ -4,6 +4,7 @@ use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
+use App\Http\Controllers\NotaDevolucionRentaPdfController;
 use App\Http\Controllers\NotaVentaVentaPdfController;
 use App\Http\Controllers\OrdenCompraPdfController;
 use App\Http\Controllers\RecepcionCompraPdfController;
@@ -54,6 +55,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('notas-envio.pdf.ticket');
     Route::get('/notas-envio/{id}/cierre-devolucion-ticket', [NotaEnvioPdfController::class, 'cierreDevolucionTicket'])
         ->name('notas-envio.cierre-devolucion-ticket');
+});
+
+// Rutas para impresión de notas de devolución renta
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notas-devolucion-renta/{id}/pdf/ticket', [NotaDevolucionRentaPdfController::class, 'ticket'])
+        ->name('notas-devolucion-renta.pdf.ticket');
 });
 
 // Rutas para impresión de notas de venta venta

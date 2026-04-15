@@ -32,6 +32,11 @@ class ClienteDireccionEntregasTable
                     ->limit(50)
                     ->tooltip(fn ($record) => $record->direccion_completa),
 
+                TextColumn::make('referencia')
+                    ->label('Referencia')
+                    ->limit(30)
+                    ->toggleable(),
+
                 IconColumn::make('es_principal')
                     ->label('Principal')
                     ->boolean(),

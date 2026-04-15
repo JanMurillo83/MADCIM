@@ -13,6 +13,8 @@ use App\Filament\Pages\Reportes\Inventario;
 use App\Filament\Pages\Reportes\OrdenesCompraPorEstatus;
 use App\Filament\Pages\Reportes\ProductosMasRentados;
 use App\Filament\Pages\Reportes\RecepcionesPorProveedor;
+use App\Filament\Pages\Reportes\ReporteConcentrado;
+use App\Filament\Pages\Reportes\ConcentradoHistorico;
 use App\Filament\Pages\Reportes\RentasActivasVencidas;
 use App\Filament\Pages\Reportes\VentasPorLinea;
 use App\Filament\Pages\Reportes\VentasPorPeriodo;
@@ -93,6 +95,16 @@ class CentroReportes extends Page
                 'titulo' => 'Productos Mas Rentados',
                 'descripcion' => 'Ranking de productos con mas rentas.',
                 'url' => ProductosMasRentados::getUrl(),
+            ],
+            [
+                'titulo' => 'Reporte Concentrado',
+                'descripcion' => 'Concentrado de notas de envio no devueltas por obra y cliente.',
+                'url' => ReporteConcentrado::getUrl(),
+            ],
+            [
+                'titulo' => 'Concentrado Historico',
+                'descripcion' => 'Concentrado de notas de envio ya devueltas por obra y cliente.',
+                'url' => ConcentradoHistorico::getUrl(),
             ],
         ];
     }

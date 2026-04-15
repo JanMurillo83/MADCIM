@@ -19,6 +19,8 @@ class IndicadoresDashboard extends StatsOverviewWidget
         $now = now();
         $inicioMes = $now->copy()->startOfMonth();
         $finMes = $now->copy()->endOfMonth();
+        $inicioAnio = $now->copy()->startOfYear();
+        $finAnio = $now->copy()->endOfYear();
 
         $ventasNotas = NotasVentaVenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
@@ -31,6 +33,18 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->sum('total');
 
         $ventasDelMes = $ventasNotas + $ventasFacturas;
+
+        $ventasNotasAnio = NotasVentaVenta::query()
+            ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('total');
+
+        $ventasFacturasAnio = FacturasCfdi::query()
+            ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('total');
+
+        $ventasDelAnio = $ventasNotasAnio + $ventasFacturasAnio;
 
         $depositosCobradosDelMes = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
@@ -45,6 +59,19 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         $depositosNetosDelMes = $depositosCobradosDelMes - $depositosDevueltosDelMes;
 
+        $depositosCobradosDelAnio = NotasVentaRenta::query()
+            ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('deposito');
+
+        $depositosDevueltosDelAnio = CajaMovimiento::query()
+            ->whereBetween('fecha', [$inicioAnio, $finAnio])
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->sum('importe');
+
+        $depositosNetosDelAnio = $depositosCobradosDelAnio - $depositosDevueltosDelAnio;
+
         $rentasMaderaDelMes = NotaVentaRentaPartidas::query()
             ->whereHas('documento', function ($query) use ($inicioMes, $finMes) {
                 $query->whereBetween('fecha_emision', [$inicioMes, $finMes])
@@ -58,6 +85,26 @@ class IndicadoresDashboard extends StatsOverviewWidget
         $rentasEquipoDelMes = NotaVentaRentaPartidas::query()
             ->whereHas('documento', function ($query) use ($inicioMes, $finMes) {
                 $query->whereBetween('fecha_emision', [$inicioMes, $finMes])
+                    ->where('estatus', '!=', 'Cancelada');
+            })
+            ->whereHas('producto', function ($query) {
+                $query->whereRaw("UPPER(TRIM(linea)) = 'EQUIPO'");
+            })
+            ->sum('total');
+
+        $rentasMaderaDelAnio = NotaVentaRentaPartidas::query()
+            ->whereHas('documento', function ($query) use ($inicioAnio, $finAnio) {
+                $query->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
+                    ->where('estatus', '!=', 'Cancelada');
+            })
+            ->whereHas('producto', function ($query) {
+                $query->whereRaw("UPPER(TRIM(linea)) = 'MADERA'");
+            })
+            ->sum('total');
+
+        $rentasEquipoDelAnio = NotaVentaRentaPartidas::query()
+            ->whereHas('documento', function ($query) use ($inicioAnio, $finAnio) {
+                $query->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
                     ->where('estatus', '!=', 'Cancelada');
             })
             ->whereHas('producto', function ($query) {
@@ -88,18 +135,38 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->value('total') ?? 0;
 
         return [
-            Stat::make('Ventas del mes', $this->formatCurrency($ventasDelMes))
+            Stat::make('Mensual | Ventas', $this->formatCurrency($ventasDelMes))
                 ->description($this->descriptionWithLink('Notas de venta y facturas del mes', '/notas-venta-venta/notas-venta-ventas'))
-                ->icon('heroicon-o-banknotes'),
-            Stat::make('Renta de Madera del mes', $this->formatCurrency((float) $rentasMaderaDelMes))
+                ->icon('heroicon-o-banknotes')
+                ->color('info'),
+            Stat::make('Mensual | Renta Madera', $this->formatCurrency((float) $rentasMaderaDelMes))
                 ->description($this->descriptionWithLink('Notas de renta del mes (línea MADERA)', '/notas-venta-renta/notas-venta-rentas'))
-                ->icon('heroicon-o-receipt-refund'),
-            Stat::make('Renta de Equipo del mes', $this->formatCurrency((float) $rentasEquipoDelMes))
+                ->icon('heroicon-o-receipt-refund')
+                ->color('info'),
+            Stat::make('Mensual | Renta Equipo', $this->formatCurrency((float) $rentasEquipoDelMes))
                 ->description($this->descriptionWithLink('Notas de renta del mes (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
-                ->icon('heroicon-o-receipt-refund'),
-            Stat::make('Depósitos del mes', $this->formatCurrency((float) $depositosNetosDelMes))
+                ->icon('heroicon-o-receipt-refund')
+                ->color('info'),
+            Stat::make('Mensual | Depósitos Netos', $this->formatCurrency((float) $depositosNetosDelMes))
                 ->description($this->descriptionWithLink('Depósitos cobrados menos devoluciones del mes', '/control-depositos'))
-                ->icon('heroicon-o-shield-check'),
+                ->icon('heroicon-o-shield-check')
+                ->color('info'),
+            Stat::make('Anual | Ventas Acumuladas', $this->formatCurrency((float) $ventasDelAnio))
+                ->description($this->descriptionWithLink('Notas de venta y facturas del año', '/notas-venta-venta/notas-venta-ventas'))
+                ->icon('heroicon-o-chart-bar-square')
+                ->color('success'),
+            Stat::make('Anual | Renta Madera', $this->formatCurrency((float) $rentasMaderaDelAnio))
+                ->description($this->descriptionWithLink('Notas de renta del año (línea MADERA)', '/notas-venta-renta/notas-venta-rentas'))
+                ->icon('heroicon-o-rectangle-group')
+                ->color('success'),
+            Stat::make('Anual | Renta Equipo', $this->formatCurrency((float) $rentasEquipoDelAnio))
+                ->description($this->descriptionWithLink('Notas de renta del año (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
+                ->icon('heroicon-o-wrench-screwdriver')
+                ->color('success'),
+            Stat::make('Anual | Depósitos Netos', $this->formatCurrency((float) $depositosNetosDelAnio))
+                ->description($this->descriptionWithLink('Depósitos cobrados menos devoluciones del año', '/control-depositos'))
+                ->icon('heroicon-o-calendar-days')
+                ->color('success'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
                 ->description($this->descriptionWithLink('Rentas sin devolucion', '/notas-rentadas'))
                 ->icon('heroicon-o-exclamation-triangle')

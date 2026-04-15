@@ -20,6 +20,7 @@ class ClienteDireccionEntrega extends Model
         'estado',
         'codigo_postal',
         'pais',
+        'referencia',
         'referencias',
         'contacto_nombre',
         'contacto_telefono',

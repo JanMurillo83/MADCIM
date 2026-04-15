@@ -176,6 +176,10 @@ class ClientesTable
                                                 ->required()
                                                 ->maxLength(255),
                                         ]),
+                                    FormTextInput::make('referencia')
+                                        ->label('Referencia')
+                                        ->placeholder('Ej: Frente al parque, portón azul')
+                                        ->maxLength(255),
                                     Grid::make(2)
                                         ->schema([
                                             FormTextInput::make('contacto_nombre')

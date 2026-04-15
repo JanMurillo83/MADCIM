@@ -30,6 +30,7 @@ class RolePermissions
         'App\\Filament\\Resources\\Productos\\ProductosResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN],
         'App\\Filament\\Resources\\Embarques\\EmbarquesResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Resources\\NotasEnvio\\NotasEnvioResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
+        'App\\Filament\\Resources\\NotasDevolucionRenta\\NotasDevolucionRentaResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Resources\\ItemsEnRenta\\ItemsEnRentaResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Resources\\NotasRentadas\\NotasRentadasResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
 
@@ -60,6 +61,8 @@ class RolePermissions
         'App\\Filament\\Pages\\Reportes\\ComprasPorPeriodo' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\OrdenesCompraPorEstatus' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\RecepcionesPorProveedor' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
+        'App\\Filament\\Pages\\Reportes\\ReporteConcentrado' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
+        'App\\Filament\\Pages\\Reportes\\ConcentradoHistorico' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
     ];
 
     public static function canAccessResource(string $class, ?string $role): bool

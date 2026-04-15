@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasEnvio\Tables;
 
+use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
 use App\Models\DevolucionesRenta;
@@ -110,9 +111,11 @@ class NotasEnvioTable
                     ->label('Estado Renta')
                     ->badge()
                     ->colors([
-                        'success' => 'Vigente',
+                        'warning' => 'Pendiente',
+                        'info' => 'Parcial',
+                        'success' => 'Devuelta',
+                        'gray' => 'Vigente',
                         'danger' => 'Vencido',
-                        'warning' => 'Devuelta',
                     ])
             ])
             ->defaultSort('id', 'desc')
@@ -168,6 +171,16 @@ class NotasEnvioTable
                             ->success()
                             ->send();
                     }),
+                Action::make('crear_nota_devolucion')
+                    ->label('Crear Nota Devolucion')
+                    ->icon('heroicon-o-document-plus')
+                    ->color('info')
+                    ->visible(function (NotaEnvio $record) {
+                        return (bool) $record->nota_venta_renta_id
+                            && $record->partidas()->whereRaw('cantidad_devuelta < cantidad')->exists();
+                    })
+                    ->url(fn (NotaEnvio $record) => NotasDevolucionRentaResource::getUrl('create', ['nota_envio_id' => $record->id]))
+                    ->openUrlInNewTab(),
                 Action::make('devolver')
                     ->label('Devolución Parcial')
                     ->icon('heroicon-o-arrow-uturn-left')

@@ -872,6 +872,7 @@ class AyudaPage extends Page implements HasActions
     }
     public function calcula(Get $get,Set $set): void
     {
+        $precioM2ConIva = 130.0;
         $metros = $get('metros');
         $por_1 = $get('por_1');
         $por_2 = $get('por_2');
@@ -880,21 +881,17 @@ class AyudaPage extends Page implements HasActions
         $set('m_cober1',$m_cober1);
         $set('m_cober2',$m_cober2);
         $tip = $get('tipo_madera');
-        $importe_m2 = 0;
+        $importe_m2 = (float) $metros * $precioM2ConIva;
         $importe_depo = 0;
         if($tip == '1'){
-            $importe_m2 = $metros * $this->imp_tabla_met;
             $importe_depo = $metros * $this->imp_tabla_dep;
         }
         if($tip == '2'){
-            $importe_m2 = $metros * $this->imp_triqui_met;
             $importe_depo = $metros * $this->imp_triqui_dep;
         }
         if($tip == '3'){
-            $importe_m2 = $metros * $this->imp_tridie_met;
             $importe_depo = $metros * $this->imp_tridie_dep;
         }
-        $importe_m2 = $importe_m2 * 1.16;
         $set('importe_m2',number_format($importe_m2,2));
         $set('importe_depo',number_format($importe_depo,2));
         $set('importe_total',number_format($importe_m2 + $importe_depo,2));
