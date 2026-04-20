@@ -20,11 +20,13 @@ class CreateNotasDevolucionRenta extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('edit', ['record' => $this->record]);
+        return $this->getResource()::getUrl('index');
     }
 
     protected function afterCreate(): void
     {
+        $this->record->aplicarCantidadesRecogidas();
+
         $url = route('notas-devolucion-renta.pdf.ticket', $this->record->id);
         $this->js("window.open('{$url}', '_blank')");
     }

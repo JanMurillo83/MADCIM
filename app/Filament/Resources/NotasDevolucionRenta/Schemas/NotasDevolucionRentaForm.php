@@ -38,6 +38,7 @@ class NotasDevolucionRentaForm
             ->with('notaEnvio')
             ->whereIn('nota_envio_id', $envioIds)
             ->whereRaw('cantidad_devuelta < cantidad')
+            ->whereDoesntHave('producto', fn ($q) => $q->where('clave', 'SRENTA-M2'))
             ->get();
 
         $partidas = [];

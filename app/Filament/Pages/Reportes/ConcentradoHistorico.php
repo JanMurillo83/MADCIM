@@ -99,6 +99,10 @@ class ConcentradoHistorico extends Page
 
                 foreach ($notasGrupo as $notaGrupo) {
                     foreach ($notaGrupo->partidas as $partida) {
+                        if (($partida->producto?->clave ?? '') === 'SRENTA-M2') {
+                            continue;
+                        }
+
                         $clave = trim((string) ($partida->producto?->clave ?? $partida->producto_id ?? 'N/A'));
                         $producto = trim((string) ($partida->producto?->descripcion ?? $partida->descripcion ?? 'N/A'));
                         $precioVenta = (float) ($partida->producto?->precio_venta ?? 0);
@@ -147,6 +151,10 @@ class ConcentradoHistorico extends Page
 
         foreach ($this->notas as $nota) {
             foreach ($nota->partidas as $partida) {
+                if (($partida->producto?->clave ?? '') === 'SRENTA-M2') {
+                    continue;
+                }
+
                 $clave = trim((string) ($partida->producto?->clave ?? $partida->producto_id ?? 'N/A'));
                 $producto = trim((string) ($partida->producto?->descripcion ?? $partida->descripcion ?? 'N/A'));
                 $precioVenta = (float) ($partida->producto?->precio_venta ?? 0);

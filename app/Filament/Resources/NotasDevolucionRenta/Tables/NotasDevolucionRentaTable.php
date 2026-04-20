@@ -5,8 +5,6 @@ namespace App\Filament\Resources\NotasDevolucionRenta\Tables;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
@@ -72,71 +70,6 @@ class NotasDevolucionRentaTable
                     ->icon('heroicon-o-printer')
                     ->url(fn ($record): string => route('notas-devolucion-renta.pdf.ticket', $record->id))
                     ->openUrlInNewTab(),
-                Action::make('resumen_captura')
-                    ->label('Resumen/Captura')
-                    ->icon('heroicon-o-document-text')
-                    ->color('info')
-                    ->visible(fn ($record): bool => $record->estatus !== 'Cancelada')
-                    ->modalHeading(fn ($record): string => 'Resumen Nota ' . ($record->serie ?? '') . '-' . ($record->folio ?? ''))
-                    ->modalDescription('Solo se permite capturar cantidades reales recibidas.')
-                    ->modalWidth('7xl')
-                    ->modalSubmitActionLabel('Guardar y aplicar')
-                    ->form(function ($record): array {
-                        $record->loadMissing(['cliente', 'notaOrigen', 'notaEnvio', 'partidas']);
-
-                        $fields = [
-                            Placeholder::make('resumen_general')
-                                ->label('Datos de la nota')
-                                ->content(
-                                    'Cliente: ' . ($record->cliente?->nombre ?? 'N/A')
-                                    . "\nNota origen: " . (($record->notaOrigen?->serie ?? '') . ($record->notaOrigen?->folio ?? 'N/A'))
-                                    . "\nFecha: " . (optional($record->fecha_emision)->format('d/m/Y') ?? 'N/A')
-                                    . "\nEstatus: " . ($record->estatus ?? 'N/A')
-                                )
-                                ->columnSpanFull(),
-                        ];
-
-                        foreach ($record->partidas as $partida) {
-                            $fields[] = Placeholder::make('item_' . $partida->id)
-                                ->label((string) ($partida->descripcion ?? 'Item'))
-                                ->content('Programada: ' . number_format((float) $partida->cantidad_programada, 2, '.', ',') . ' | Aplicada: ' . number_format((float) $partida->cantidad_aplicada, 2, '.', ','))
-                                ->columnSpan(8);
-
-                            $fields[] = TextInput::make('cantidad_recogida_' . $partida->id)
-                                ->label('Cantidad real recibida')
-                                ->numeric()
-                                ->minValue(0)
-                                ->maxValue((float) $partida->cantidad_programada)
-                                ->default((float) $partida->cantidad_recogida)
-                                ->required()
-                                ->columnSpan(2);
-                        }
-
-                        return $fields;
-                    })
-                    ->action(function ($record, array $data): void {
-                        $record->loadMissing('partidas');
-
-                        foreach ($record->partidas as $partida) {
-                            $field = 'cantidad_recogida_' . $partida->id;
-                            if (!array_key_exists($field, $data)) {
-                                continue;
-                            }
-
-                            $cantidad = max(0, (float) $data[$field]);
-                            $partida->update([
-                                'cantidad_recogida' => $cantidad,
-                            ]);
-                        }
-
-                        $record->aplicarCantidadesRecogidas();
-
-                        Notification::make()
-                            ->title('Cantidades aplicadas')
-                            ->body('Se guardaron las cantidades reales recibidas y se actualizo la nota de envio.')
-                            ->success()
-                            ->send();
-                    }),
                 Action::make('cancelar')
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
