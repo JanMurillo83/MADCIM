@@ -60,9 +60,11 @@ class NotaDevolucionRenta extends Model
 
     public function aplicarCantidadesRecogidas(): void
     {
-        $this->loadMissing(['partidas', 'notaEnvio.partidas', 'notaEnvio.notaVentaRenta']);
+        $this->loadMissing(['partidas']);
 
         DB::transaction(function () {
+            $envioIdsAfectados = [];
+
             foreach ($this->partidas as $partida) {
                 if (!$partida->nota_envio_partida_id) {
                     continue;
@@ -99,6 +101,8 @@ class NotaDevolucionRenta extends Model
                     continue;
                 }
 
+                $envioIdsAfectados[$partidaEnvio->nota_envio_id] = true;
+
                 $cantidadMaxima = (float) $partidaEnvio->cantidad;
                 $cantidadDevueltaActual = (float) $partidaEnvio->cantidad_devuelta;
                 $nuevaCantidadDevuelta = $cantidadDevueltaActual + $delta;
@@ -121,8 +125,13 @@ class NotaDevolucionRenta extends Model
                 ]);
             }
 
-            $notaEnvio = $this->notaEnvio;
-            if ($notaEnvio) {
+            // Recalcular estado de cada NotaEnvio afectada
+            $notasEnvio = NotaEnvio::query()
+                ->with('partidas')
+                ->whereIn('id', array_keys($envioIdsAfectados))
+                ->get();
+
+            foreach ($notasEnvio as $notaEnvio) {
                 $estadoNotaEnvio = $this->calcularEstadoDesdePartidas(
                     $notaEnvio->partidas,
                     static fn (NotaEnvioPartida $p): float => (float) $p->cantidad,
@@ -130,16 +139,18 @@ class NotaDevolucionRenta extends Model
                 );
 
                 $notaEnvio->update(['estado_renta' => $estadoNotaEnvio]);
+            }
 
-                if ($notaEnvio->nota_venta_renta_id && $estadoNotaEnvio === 'Devuelta') {
-                    $pendientesEnNota = NotaEnvio::query()
-                        ->where('nota_venta_renta_id', $notaEnvio->nota_venta_renta_id)
-                        ->where('estado_renta', '!=', 'Devuelta')
-                        ->count();
+            // Verificar si toda la NVR queda devuelta
+            if ($this->nota_venta_renta_id) {
+                $pendientesEnNota = NotaEnvio::query()
+                    ->where('nota_venta_renta_id', $this->nota_venta_renta_id)
+                    ->where('estado_renta', '!=', 'Devuelta')
+                    ->count();
 
-                    if ($pendientesEnNota === 0) {
-                        $notaEnvio->notaVentaRenta?->update(['estatus' => 'Devuelta']);
-                    }
+                if ($pendientesEnNota === 0) {
+                    NotasVentaRenta::query()->whereKey($this->nota_venta_renta_id)
+                        ->update(['estatus' => 'Devuelta']);
                 }
             }
 
@@ -158,12 +169,14 @@ class NotaDevolucionRenta extends Model
 
     public function cancelar(): void
     {
-        $this->loadMissing(['partidas', 'notaEnvio.partidas', 'notaEnvio.notaVentaRenta']);
+        $this->loadMissing(['partidas']);
 
         DB::transaction(function () {
             if (in_array($this->estatus, ['Cancelada', 'Devuelta'], true)) {
                 return;
             }
+
+            $envioIdsAfectados = [];
 
             if (in_array($this->estatus, ['Aplicada', 'Parcial', 'Devuelta'], true)) {
                 foreach ($this->partidas as $partida) {
@@ -184,6 +197,8 @@ class NotaDevolucionRenta extends Model
                     if (!$partidaEnvio) {
                         continue;
                     }
+
+                    $envioIdsAfectados[$partidaEnvio->nota_envio_id] = true;
 
                     $nuevaCantidadDevuelta = (float) $partidaEnvio->cantidad_devuelta - $aplicada;
                     if ($nuevaCantidadDevuelta < 0) {
@@ -206,8 +221,13 @@ class NotaDevolucionRenta extends Model
                 }
             }
 
-            $notaEnvio = $this->notaEnvio;
-            if ($notaEnvio) {
+            // Recalcular estado de cada NotaEnvio afectada
+            $notasEnvio = NotaEnvio::query()
+                ->with('partidas')
+                ->whereIn('id', array_keys($envioIdsAfectados))
+                ->get();
+
+            foreach ($notasEnvio as $notaEnvio) {
                 $estadoNotaEnvio = $this->calcularEstadoDesdePartidas(
                     $notaEnvio->partidas,
                     static fn (NotaEnvioPartida $p): float => (float) $p->cantidad,
@@ -215,17 +235,17 @@ class NotaDevolucionRenta extends Model
                 );
 
                 $notaEnvio->update(['estado_renta' => $estadoNotaEnvio]);
+            }
 
-                if ($notaEnvio->nota_venta_renta_id && $notaEnvio->notaVentaRenta) {
-                    $pendientesEnNota = NotaEnvio::query()
-                        ->where('nota_venta_renta_id', $notaEnvio->nota_venta_renta_id)
-                        ->where('estado_renta', '!=', 'Devuelta')
-                        ->count();
+            // Recalcular estado de la NVR
+            if ($this->nota_venta_renta_id) {
+                $pendientesEnNota = NotaEnvio::query()
+                    ->where('nota_venta_renta_id', $this->nota_venta_renta_id)
+                    ->where('estado_renta', '!=', 'Devuelta')
+                    ->count();
 
-                    $notaEnvio->notaVentaRenta->update([
-                        'estatus' => $pendientesEnNota === 0 ? 'Devuelta' : 'Activa',
-                    ]);
-                }
+                NotasVentaRenta::query()->whereKey($this->nota_venta_renta_id)
+                    ->update(['estatus' => $pendientesEnNota === 0 ? 'Devuelta' : 'Activa']);
             }
 
             $this->forceFill([

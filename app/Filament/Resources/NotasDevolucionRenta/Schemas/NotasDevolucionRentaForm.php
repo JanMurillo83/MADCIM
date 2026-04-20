@@ -4,6 +4,7 @@ namespace App\Filament\Resources\NotasDevolucionRenta\Schemas;
 
 use App\Models\DocumentoSerie;
 use App\Models\NotaEnvio;
+use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -12,41 +13,48 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class NotasDevolucionRentaForm
 {
-    private static function cargarPartidasPendientes(?int $notaEnvioId, Set $set): void
+    private static function cargarPartidasPendientesDeNVR(?int $notaVentaRentaId, Set $set): void
     {
-        if (!$notaEnvioId) {
+        if (!$notaVentaRentaId) {
             $set('partidas', []);
             return;
         }
 
-        $notaEnvio = NotaEnvio::query()
-            ->with(['partidas', 'cliente'])
-            ->find($notaEnvioId);
+        $envioIds = NotaEnvio::query()
+            ->where('nota_venta_renta_id', $notaVentaRentaId)
+            ->pluck('id');
 
-        if (!$notaEnvio) {
+        if ($envioIds->isEmpty()) {
             $set('partidas', []);
             return;
         }
 
-        $set('cliente_id', $notaEnvio->cliente_id);
+        $partidasEnvio = NotaEnvioPartida::query()
+            ->with('notaEnvio')
+            ->whereIn('nota_envio_id', $envioIds)
+            ->whereRaw('cantidad_devuelta < cantidad')
+            ->get();
 
         $partidas = [];
-        foreach ($notaEnvio->partidas as $partidaEnvio) {
+        foreach ($partidasEnvio as $partidaEnvio) {
             $pendiente = (float) $partidaEnvio->cantidad - (float) $partidaEnvio->cantidad_devuelta;
             if ($pendiente <= 0) {
                 continue;
             }
 
+            $folioEnvio = $partidaEnvio->notaEnvio?->folio ?? '';
+            $descripcionItem = $partidaEnvio->descripcion;
+
             $partidas[] = [
                 'nota_envio_partida_id' => $partidaEnvio->id,
                 'producto_id' => $partidaEnvio->producto_id,
-                'descripcion' => $partidaEnvio->descripcion,
+                'descripcion' => $descripcionItem,
+                'nota_envio_folio' => $folioEnvio,
                 'cantidad_programada' => $pendiente,
                 'cantidad_recogida' => 0,
                 'cantidad_aplicada' => 0,
@@ -59,14 +67,7 @@ class NotasDevolucionRentaForm
 
     public static function configure(Schema $schema): Schema
     {
-        $notaEnvioDefault = request()->integer('nota_envio_id') ?: null;
-        $notaOrigenDefault = null;
-
-        if ($notaEnvioDefault) {
-            $notaOrigenDefault = NotaEnvio::query()
-                ->whereKey($notaEnvioDefault)
-                ->value('nota_venta_renta_id');
-        }
+        $notaOrigenDefault = request()->integer('nota_venta_renta_id') ?: null;
 
         return $schema
             ->components([
@@ -130,7 +131,6 @@ class NotasDevolucionRentaForm
                             ->searchable()
                             ->preload()
                             ->afterStateUpdated(function ($state, Set $set) {
-                                $set('nota_envio_id', null);
                                 $set('cliente_id', null);
                                 $set('partidas', []);
 
@@ -140,39 +140,9 @@ class NotasDevolucionRentaForm
 
                                 $clienteId = NotasVentaRenta::query()->whereKey((int) $state)->value('cliente_id');
                                 $set('cliente_id', $clienteId);
+
+                                self::cargarPartidasPendientesDeNVR((int) $state, $set);
                             }),
-                        Select::make('nota_envio_id')
-                            ->label('Nota de envio origen')
-                            ->required()
-                            ->disabledOn('edit')
-                            ->default($notaEnvioDefault)
-                            ->options(function (Get $get) {
-                                $notaOrigenId = $get('nota_venta_renta_id');
-
-                                if (!$notaOrigenId) {
-                                    return [];
-                                }
-
-                                return NotaEnvio::query()
-                                    ->with('cliente')
-                                    ->where('nota_venta_renta_id', $notaOrigenId)
-                                    ->whereHas('partidas', function ($query) {
-                                        $query->whereRaw('cantidad_devuelta < cantidad');
-                                    })
-                                    ->orderByDesc('id')
-                                    ->get()
-                                    ->mapWithKeys(function (NotaEnvio $notaEnvio) {
-                                        $cliente = $notaEnvio->cliente?->nombre ?? 'Sin cliente';
-                                        return [$notaEnvio->id => 'Folio ' . $notaEnvio->folio . ' - ' . $cliente];
-                                    })
-                                    ->all();
-                            })
-                            ->live()
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                self::cargarPartidasPendientes($state ? (int) $state : null, $set);
-                            })
-                            ->searchable()
-                            ->preload(),
                         Select::make('cliente_id')
                             ->relationship('cliente', 'nombre')
                             ->disabled()
@@ -186,7 +156,7 @@ class NotasDevolucionRentaForm
                             ->columnSpanFull(),
                     ])
                     ->columns(3)->columnSpanFull(),
-                Section::make('Partidas a recoger')
+                Section::make('Partidas pendientes de devolver')
                     ->columnSpanFull()
                     ->schema([
                         Repeater::make('partidas')
@@ -200,7 +170,17 @@ class NotasDevolucionRentaForm
                                 TextInput::make('descripcion')
                                     ->label('Item')
                                     ->readOnly()
-                                    ->columnSpan(4),
+                                    ->columnSpan(3),
+                                TextInput::make('nota_envio_folio')
+                                    ->label('Envío')
+                                    ->readOnly()
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function (TextInput $component, $record) {
+                                        if ($record && $record->notaEnvioPartida?->notaEnvio) {
+                                            $component->state($record->notaEnvioPartida->notaEnvio->folio);
+                                        }
+                                    })
+                                    ->columnSpan(1),
                                 TextInput::make('cantidad_programada')
                                     ->label('Cant. programada')
                                     ->numeric()

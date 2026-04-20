@@ -22,23 +22,6 @@
         <div class="row"><span><strong>Serie/Folio:</strong> {{ $nota->serie }}-{{ $nota->folio }}</span><span><strong>Fecha:</strong> {{ optional($nota->fecha_emision)->format('d/m/Y') }}</span></div>
         <div><strong>Cliente:</strong> {{ $nota->cliente->nombre ?? 'N/A' }}</div>
         <div><strong>Nota origen (renta):</strong> {{ $nota->notaOrigen ? (($nota->notaOrigen->serie ?? '') . $nota->notaOrigen->folio) : 'N/A' }}</div>
-        <div><strong>Nota envio origen:</strong> {{ $nota->notaEnvio->folio ?? 'N/A' }}</div>
-        <div><strong>Direccion de entrega:</strong>
-            @php
-                $direccion = $nota->notaEnvio?->direccionEntrega;
-                $partes = [
-                    $direccion?->calle,
-                    trim((string) ($direccion?->exterior ?? '') . ' ' . (string) ($direccion?->interior ?? '')),
-                    $direccion?->colonia,
-                    $direccion?->municipio,
-                    $direccion?->estado,
-                    $direccion?->pais,
-                    $direccion?->codigo ? 'CP ' . $direccion->codigo : null,
-                ];
-                $direccionTexto = implode(', ', array_filter($partes));
-            @endphp
-            {{ $direccionTexto !== '' ? $direccionTexto : 'N/A' }}
-        </div>
     </div>
 
     <div class="block">
@@ -69,6 +52,6 @@
         </div>
     @endif
 
-    <div class="muted">Documento de recoleccion basado en Nota de Envio.</div>
+    <div class="muted">Documento de recoleccion basado en Nota de Renta.</div>
 </body>
 </html>

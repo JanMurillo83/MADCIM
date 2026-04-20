@@ -25,9 +25,6 @@ class NotasDevolucionRentaTable
                 TextColumn::make('folio')
                     ->label('Folio')
                     ->searchable(),
-                TextColumn::make('notaEnvio.folio')
-                    ->label('Nota envio')
-                    ->searchable(),
                 TextColumn::make('notaOrigen.folio')
                     ->label('Nota origen')
                     ->searchable(),
@@ -93,7 +90,6 @@ class NotasDevolucionRentaTable
                                 ->content(
                                     'Cliente: ' . ($record->cliente?->nombre ?? 'N/A')
                                     . "\nNota origen: " . (($record->notaOrigen?->serie ?? '') . ($record->notaOrigen?->folio ?? 'N/A'))
-                                    . "\nNota envio: " . ($record->notaEnvio?->folio ?? 'N/A')
                                     . "\nFecha: " . (optional($record->fecha_emision)->format('d/m/Y') ?? 'N/A')
                                     . "\nEstatus: " . ($record->estatus ?? 'N/A')
                                 )
