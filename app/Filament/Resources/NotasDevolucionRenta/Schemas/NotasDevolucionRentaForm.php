@@ -164,13 +164,22 @@ class NotasDevolucionRentaForm
                             ->reorderable(false)
                             ->addable(false)
                             ->deletable(false)
+                            ->compact()
+                            ->table([
+                                Repeater\TableColumn::make('Item'),
+                                Repeater\TableColumn::make('Envío'),
+                                Repeater\TableColumn::make('Programada'),
+                                Repeater\TableColumn::make('Recogida'),
+                            ])
                             ->schema([
                                 Hidden::make('nota_envio_partida_id'),
                                 Hidden::make('producto_id'),
+                                Hidden::make('cantidad_aplicada')
+                                    ->default(0),
                                 TextInput::make('descripcion')
                                     ->label('Item')
                                     ->readOnly()
-                                    ->columnSpan(3),
+                                    ->columnSpan(2),
                                 TextInput::make('nota_envio_folio')
                                     ->label('Envío')
                                     ->readOnly()
@@ -182,22 +191,17 @@ class NotasDevolucionRentaForm
                                     })
                                     ->columnSpan(1),
                                 TextInput::make('cantidad_programada')
-                                    ->label('Cant. programada')
+                                    ->label('Programada')
                                     ->numeric()
                                     ->readOnly()
-                                    ->columnSpan(2),
+                                    ->columnSpan(1),
                                 TextInput::make('cantidad_recogida')
-                                    ->label('Cant. recogida real')
+                                    ->label('Recogida')
                                     ->numeric()
                                     ->minValue(0)
                                     ->required()
-                                    ->columnSpan(2),
-                                Hidden::make('cantidad_aplicada')
-                                    ->default(0),
-                                TextInput::make('observaciones')
-                                    ->columnSpan(4),
+                                    ->columnSpan(1),
                             ])
-                            ->columns(8)
                             ->columnSpanFull(),
                     ]),
             ]);
