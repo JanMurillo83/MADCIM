@@ -31,6 +31,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('notas-venta-renta.pdf.ticket');
     Route::get('/notas-venta-renta/{id}/pdf/carta', [NotaVentaRentaPdfController::class, 'carta'])
         ->name('notas-venta-renta.pdf.carta');
+    Route::get('/notas-venta-renta/{id}/cierre-devolucion-ticket', [NotaVentaRentaPdfController::class, 'cierreDevolucionTicket'])
+        ->name('notas-venta-renta.cierre-devolucion-ticket');
     Route::get('/notas-venta-renta/{id}/descargar/ticket', [NotaVentaRentaPdfController::class, 'descargarTicket'])
         ->name('notas-venta-renta.descargar.ticket');
     Route::get('/notas-venta-renta/{id}/descargar/carta', [NotaVentaRentaPdfController::class, 'descargarCarta'])
@@ -53,8 +55,6 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/notas-envio/{id}/pdf/ticket', [NotaEnvioPdfController::class, 'ticket'])
         ->name('notas-envio.pdf.ticket');
-    Route::get('/notas-envio/{id}/cierre-devolucion-ticket', [NotaEnvioPdfController::class, 'cierreDevolucionTicket'])
-        ->name('notas-envio.cierre-devolucion-ticket');
 });
 
 // Rutas para impresión de notas de devolución renta

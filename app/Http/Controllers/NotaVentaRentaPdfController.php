@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Caja;
+use App\Models\DevolucionesRenta;
 use App\Models\NotasVentaRenta;
+use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
+use App\Services\CierreDevolucionRentaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,6 +58,32 @@ class NotaVentaRentaPdfController extends Controller
         $pdf->setPaper('letter', 'portrait');
 
         return $pdf->stream("nota-venta-renta-{$notaVenta->serie}-{$notaVenta->folio}-carta.pdf");
+    }
+
+    public function cierreDevolucionTicket($id)
+    {
+        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'notasEnvio'])->findOrFail($id);
+        $resumen = app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
+
+        $notaVentaVenta = NotasVentaVenta::query()
+            ->where('documento_origen_id', $notaVenta->id)
+            ->latest()
+            ->first();
+
+        $devolucion = DevolucionesRenta::query()
+            ->where('documento_origen_id', $notaVenta->id)
+            ->latest()
+            ->first();
+
+        $observaciones = session('cierre_devolucion_observaciones_nvr_' . $notaVenta->id, null);
+
+        return view('notas-venta-renta.cierre-devolucion-ticket', [
+            'notaVenta' => $notaVenta,
+            'resumen' => $resumen,
+            'notaVentaVenta' => $notaVentaVenta,
+            'devolucion' => $devolucion,
+            'observaciones' => $observaciones,
+        ]);
     }
 
     /**

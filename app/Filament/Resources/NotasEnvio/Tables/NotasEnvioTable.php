@@ -5,15 +5,12 @@ namespace App\Filament\Resources\NotasEnvio\Tables;
 use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
-use App\Models\DevolucionesRenta;
-use App\Models\DevolucionRentaPartidas;
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
-use App\Models\NotasVentaVenta;
 use App\Models\NotaVentaRentaPartidas;
-use App\Models\NotaVentaVentaPartidas;
 use App\Models\RegistroRenta;
+use App\Services\CierreDevolucionRentaService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -286,46 +283,38 @@ class NotasEnvioTable
                     ->label('Cerrar Devolución')
                     ->icon('heroicon-o-check-circle')
                     ->color('danger')
-                    ->visible(function (NotaEnvio $record) {
-                        $nota = $record->notaVentaRenta;
-                        if (!$nota) return false;
-                        return $record->estado_renta !== 'Devuelta';
-                    })
+                    ->visible(false)
                     ->modalHeading(fn (NotaEnvio $record) => 'Cierre de Devolución - Envío Folio ' . $record->folio)
                     ->modalWidth('7xl')
                     ->modalSubmitActionLabel('Confirmar Cierre de Devolución')
                     ->form(function (NotaEnvio $record): array {
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return [];
-                        $items = $record->partidas()->with('producto')->get();
-
-                        $deposito = (float)$nota->deposito;
-                        $totalDescuento = 0;
+                        $resumenData = app(CierreDevolucionRentaService::class)->obtenerResumen($nota);
+                        $totales = $resumenData['totales'];
                         $resumenRows = [];
 
-                        foreach ($items as $item) {
-                            $cantidadOriginal = (float)$item->cantidad;
-                            $cantidadDevuelta = (float)$item->cantidad_devuelta;
-                            $faltante = $cantidadOriginal - $cantidadDevuelta;
-                            $precioVenta = $item->producto ? (float)$item->producto->precio_venta : 0;
-                            $descuento = $faltante * $precioVenta;
-                            $totalDescuento += $descuento;
-
-                            $nombre = $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item');
-                            $resumenRows[] = $nombre . ': Rentado=' . $cantidadOriginal . ', Devuelto=' . $cantidadDevuelta . ', Faltante=' . $faltante . ($faltante > 0 ? ' (Cargo: $' . number_format($descuento, 2) . ')' : '');
+                        foreach ($resumenData['rows'] as $row) {
+                            $resumenRows[] = $row['producto']
+                                . ': Faltante=' . number_format((float) $row['faltante'], 2)
+                                . ' x $' . number_format((float) $row['precio_unitario'], 2)
+                                . ' = $' . number_format((float) $row['subtotal'], 2)
+                                . ' + IVA $' . number_format((float) $row['iva'], 2)
+                                . ' = $' . number_format((float) $row['total'], 2);
                         }
 
-                        $importeDevolver = max(0, $deposito - $totalDescuento);
+                        $resumen = empty($resumenRows)
+                            ? 'No hay faltantes por cobrar en esta renta.'
+                            : implode("\n", $resumenRows);
 
-                        $resumen = implode("\n", $resumenRows);
-                        $resumen .= "\n\n--- Resumen ---";
-                        $resumen .= "\nDepósito: $" . number_format($deposito, 2);
-                        $resumen .= "\nCargo por faltantes: $" . number_format($totalDescuento, 2);
-                        if ($totalDescuento > 0) {
-                            $impuestosFaltantes = round($totalDescuento * 0.16, 2);
-                            $resumen .= "\nSe generará Nota de Venta-Venta por: $" . number_format($totalDescuento + $impuestosFaltantes, 2) . ' (incluye IVA)';
-                        }
-                        $resumen .= "\nDepósito a devolver: $" . number_format($importeDevolver, 2);
+                        $resumen .= "\n\n--- Resumen Consolidado de la Renta ---";
+                        $resumen .= "\nDepósito: $" . number_format((float) $totales['deposito'], 2);
+                        $resumen .= "\nSubtotal faltantes: $" . number_format((float) $totales['subtotal_faltantes'], 2);
+                        $resumen .= "\nIVA faltantes: $" . number_format((float) $totales['iva_faltantes'], 2);
+                        $resumen .= "\nTotal faltantes: $" . number_format((float) $totales['total_faltantes'], 2);
+                        $resumen .= "\nDepósito aplicado a faltantes: $" . number_format((float) $totales['deposito_aplicado'], 2);
+                        $resumen .= "\nSaldo por cobrar al cliente: $" . number_format((float) $totales['saldo_por_cobrar'], 2);
+                        $resumen .= "\nDepósito a devolver: $" . number_format((float) $totales['deposito_devolver'], 2);
 
                         return [
                             Placeholder::make('resumen')
@@ -339,136 +328,31 @@ class NotasEnvioTable
                     ->action(function (NotaEnvio $record, array $data) {
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return;
-                        $items = $record->partidas()->with('producto')->get();
+                        $resultado = app(CierreDevolucionRentaService::class)
+                            ->cerrar($nota, $data['observaciones'] ?? null, Auth::id());
 
-                        $totalDescuento = 0;
-                        $detallesFaltantes = [];
+                        $totales = $resultado['resumen']['totales'];
 
-                        foreach ($items as $item) {
-                            $cantidadOriginal = (float)$item->cantidad;
-                            $cantidadDevuelta = (float)$item->cantidad_devuelta;
-                            $faltante = $cantidadOriginal - $cantidadDevuelta;
-
-                            if ($faltante > 0) {
-                                $precioVenta = $item->producto ? (float)$item->producto->precio_venta : 0;
-                                $descuento = $faltante * $precioVenta;
-                                $totalDescuento += $descuento;
-                                $detallesFaltantes[] = [
-                                    'producto' => $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item'),
-                                    'faltante' => $faltante,
-                                    'precio_unitario' => $precioVenta,
-                                    'descuento' => $descuento,
-                                ];
-                            }
-
-                            $item->update(['estado' => 'Devuelto']);
+                        if (!empty($resultado['already_closed'])) {
+                            Notification::make()
+                                ->title('Renta ya cerrada')
+                                ->body('La nota de renta ya había sido cerrada previamente.')
+                                ->warning()
+                                ->send();
+                            return;
                         }
 
-                        // Generar Nota de Venta-Venta por faltantes
-                        $notaVentaVenta = null;
-                        if ($totalDescuento > 0) {
-                            $impuestosFaltantes = round($totalDescuento * 0.16, 2);
-                            $totalConIva = $totalDescuento + $impuestosFaltantes;
-
-                            $notaVentaVenta = NotasVentaVenta::create([
-                                'cliente_id' => $nota->cliente_id,
-                                'serie' => 'M',
-                                'fecha_emision' => now(),
-                                'moneda' => $nota->moneda ?? 'MXN',
-                                'tipo_cambio' => $nota->tipo_cambio ?? 1,
-                                'subtotal' => $totalDescuento,
-                                'impuestos_total' => $impuestosFaltantes,
-                                'total' => $totalConIva,
-                                'saldo_pendiente' => $totalConIva,
-                                'estatus' => 'Activa',
-                                'documento_origen_id' => null,
-                            ]);
-
-                            foreach ($detallesFaltantes as $detalle) {
-                                $impPartida = round($detalle['descuento'] * 0.16, 2);
-                                NotaVentaVentaPartidas::create([
-                                    'nota_venta_venta_id' => $notaVentaVenta->id,
-                                    'cantidad' => $detalle['faltante'],
-                                    'item' => $detalle['producto'],
-                                    'descripcion' => 'Cargo por faltante renta - ' . $detalle['producto'],
-                                    'valor_unitario' => $detalle['precio_unitario'],
-                                    'subtotal' => $detalle['descuento'],
-                                    'impuestos' => $impPartida,
-                                    'total' => $detalle['descuento'] + $impPartida,
-                                ]);
-                            }
+                        $mensaje = 'Cierre de devolución consolidado procesado. ';
+                        if (!empty($resultado['nota_venta_venta_id'])) {
+                            $mensaje .= 'Se generó Nota de Venta por faltantes: $' . number_format((float) $totales['total_faltantes'], 2) . '. ';
+                            $mensaje .= 'Depósito aplicado: $' . number_format((float) $totales['deposito_aplicado'], 2) . '. ';
+                            $mensaje .= 'Saldo por cobrar: $' . number_format((float) $totales['saldo_por_cobrar'], 2) . '. ';
                         }
 
-                        $deposito = (float)$nota->deposito;
-                        $importeDevolver = max(0, $deposito - $totalDescuento);
+                        $mensaje .= 'Depósito devuelto: $' . number_format((float) $totales['deposito_devolver'], 2);
 
-                        $devolucion = DevolucionesRenta::create([
-                            'serie' => 'DR',
-                            'folio' => (DevolucionesRenta::max('folio') ?? 0) + 1,
-                            'fecha_emision' => now(),
-                            'moneda' => $nota->moneda ?? 'MXN',
-                            'tipo_cambio' => $nota->tipo_cambio ?? 1,
-                            'subtotal' => $totalDescuento,
-                            'impuestos_total' => 0,
-                            'total' => $totalDescuento,
-                            'estatus' => 'Aplicada',
-                            'documento_origen_id' => $nota->id,
-                        ]);
-
-                        foreach ($detallesFaltantes as $detalle) {
-                            DevolucionRentaPartidas::create([
-                                'devolucion_renta_id' => $devolucion->id,
-                                'cantidad' => $detalle['faltante'],
-                                'item' => $detalle['producto'],
-                                'descripcion' => 'Faltante - ' . $detalle['producto'],
-                                'valor_unitario' => $detalle['precio_unitario'],
-                                'subtotal' => $detalle['descuento'],
-                                'impuestos' => 0,
-                                'total' => $detalle['descuento'],
-                            ]);
-                        }
-
-                        if ($importeDevolver > 0) {
-                            $cajaAbierta = Caja::where('estatus', 'Abierta')->first();
-
-                            if ($cajaAbierta) {
-                                CajaMovimiento::create([
-                                    'caja_id' => $cajaAbierta->id,
-                                    'tipo' => 'Egreso',
-                                    'fuente' => 'Devolución depósito renta',
-                                    'metodo_pago' => 'Efectivo',
-                                    'importe' => $importeDevolver,
-                                    'referencia' => 'Cierre Devolución Envío Folio ' . $record->folio . ' (NVR ' . $nota->serie . '-' . $nota->folio . ')',
-                                    'observaciones' => $data['observaciones'] ?? null,
-                                    'user_id' => Auth::id(),
-                                    'fecha' => now(),
-                                    'movimentable_type' => DevolucionesRenta::class,
-                                    'movimentable_id' => $devolucion->id,
-                                ]);
-
-                                $eg = $cajaAbierta->movimientos()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe');
-                                $cajaAbierta->update(['total_egresos_cash' => $eg]);
-                            }
-                        }
-
-                        $record->update(['estado_renta' => 'Devuelta']);
-
-                        // Marcar la nota de renta como Devuelta solo si TODAS sus notas de envío tienen estado_renta Devuelta
-                        $pendientesEnvio = NotaEnvio::where('nota_venta_renta_id', $nota->id)
-                            ->where('estado_renta', '!=', 'Devuelta')
-                            ->count();
-                        if ($pendientesEnvio === 0) {
-                            $nota->update(['estatus' => 'Devuelta']);
-                        }
-
-                        $mensaje = 'Cierre de devolución procesado. ';
-                        if ($totalDescuento > 0 && $notaVentaVenta) {
-                            $mensaje .= 'Cargo por faltantes: $' . number_format($totalDescuento, 2) . '. Se generó Nota de Venta ' . $notaVentaVenta->serie . '-' . $notaVentaVenta->folio . ' por $' . number_format($notaVentaVenta->total, 2) . '. ';
-                        }
-                        $mensaje .= 'Depósito devuelto: $' . number_format($importeDevolver, 2);
-
-                        if ($importeDevolver > 0 && !Caja::where('estatus', 'Abierta')->exists()) {
-                            $mensaje .= ' (⚠ No se encontró caja abierta para registrar el egreso)';
+                        if ((float) $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])) {
+                            $mensaje .= ' (No se encontró caja abierta para registrar el egreso)';
                         }
 
                         // Guardar observaciones en sesión para el ticket
@@ -480,8 +364,7 @@ class NotasEnvioTable
                             ->success()
                             ->persistent()
                             ->send();
-                    })
-                    ->successRedirectUrl(fn (NotaEnvio $record) => route('notas-envio.cierre-devolucion-ticket', $record->id)),
+                    }),
                 Action::make('renovar')
                     ->label('Renovar')
                     ->icon('heroicon-o-arrow-path')

@@ -5,9 +5,12 @@ namespace App\Filament\Resources\NotasVentaRenta\Tables;
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
+use App\Services\CierreDevolucionRentaService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
@@ -292,6 +295,92 @@ class NotasVentaRentaTable
                         })
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar'),
+                    Action::make('cerrar_devolucion_renta')
+                        ->label('Cerrar Devolución')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('danger')
+                        ->visible(function (NotasVentaRenta $record) {
+                            return $record->estatus !== 'Devuelta'
+                                && $record->notasEnvio()->exists();
+                        })
+                        ->modalHeading(fn (NotasVentaRenta $record) => 'Cierre de Devolución - Nota ' . $record->serie . '-' . $record->folio)
+                        ->modalWidth('7xl')
+                        ->modalSubmitActionLabel('Confirmar Cierre de Devolución')
+                        ->form(function (NotasVentaRenta $record): array {
+                            $resumenData = app(CierreDevolucionRentaService::class)->obtenerResumen($record);
+                            $totales = $resumenData['totales'];
+                            $resumenRows = [];
+
+                            foreach ($resumenData['rows'] as $row) {
+                                $resumenRows[] = $row['producto']
+                                    . ': Faltante=' . number_format((float) $row['faltante'], 2)
+                                    . ' x $' . number_format((float) $row['precio_unitario'], 2)
+                                    . ' = $' . number_format((float) $row['subtotal'], 2)
+                                    . ' + IVA $' . number_format((float) $row['iva'], 2)
+                                    . ' = $' . number_format((float) $row['total'], 2);
+                            }
+
+                            $resumen = empty($resumenRows)
+                                ? 'No hay faltantes por cobrar en esta renta.'
+                                : implode("\n", $resumenRows);
+
+                            $resumen .= "\n\n--- Resumen Consolidado de la Renta ---";
+                            $resumen .= "\nDepósito: $" . number_format((float) $totales['deposito'], 2);
+                            $resumen .= "\nSubtotal faltantes: $" . number_format((float) $totales['subtotal_faltantes'], 2);
+                            $resumen .= "\nIVA faltantes: $" . number_format((float) $totales['iva_faltantes'], 2);
+                            $resumen .= "\nTotal faltantes: $" . number_format((float) $totales['total_faltantes'], 2);
+                            $resumen .= "\nDepósito aplicado a faltantes: $" . number_format((float) $totales['deposito_aplicado'], 2);
+                            $resumen .= "\nSaldo por cobrar al cliente: $" . number_format((float) $totales['saldo_por_cobrar'], 2);
+                            $resumen .= "\nDepósito a devolver: $" . number_format((float) $totales['deposito_devolver'], 2);
+
+                            return [
+                                Placeholder::make('resumen')
+                                    ->label('Resumen de Devolución')
+                                    ->content($resumen),
+                                Textarea::make('observaciones')
+                                    ->label('Observaciones')
+                                    ->rows(3),
+                            ];
+                        })
+                        ->action(function (NotasVentaRenta $record, array $data): void {
+                            $resultado = app(CierreDevolucionRentaService::class)
+                                ->cerrar($record, $data['observaciones'] ?? null, Auth::id());
+
+                            $totales = $resultado['resumen']['totales'];
+
+                            if (!empty($resultado['already_closed'])) {
+                                Notification::make()
+                                    ->title('Renta ya cerrada')
+                                    ->body('La nota de renta ya había sido cerrada previamente.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            $mensaje = 'Cierre de devolución consolidado procesado. ';
+                            if (!empty($resultado['nota_venta_venta_id'])) {
+                                $mensaje .= 'Se generó Nota de Venta por faltantes: $' . number_format((float) $totales['total_faltantes'], 2) . '. ';
+                                $mensaje .= 'Depósito aplicado: $' . number_format((float) $totales['deposito_aplicado'], 2) . '. ';
+                                $mensaje .= 'Saldo por cobrar: $' . number_format((float) $totales['saldo_por_cobrar'], 2) . '. ';
+                            }
+
+                            $mensaje .= 'Depósito devuelto: $' . number_format((float) $totales['deposito_devolver'], 2);
+
+                            if ((float) $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])) {
+                                $mensaje .= ' (No se encontró caja abierta para registrar el egreso)';
+                            }
+
+                            Notification::make()
+                                ->title('Cierre de devolución procesado')
+                                ->body($mensaje)
+                                ->success()
+                                ->persistent()
+                                ->send();
+                        })
+                        ->after(function (NotasVentaRenta $record, array $data): void {
+                            session(['cierre_devolucion_observaciones_nvr_' . $record->id => $data['observaciones'] ?? null]);
+                        })
+                        ->successRedirectUrl(fn (NotasVentaRenta $record) => route('notas-venta-renta.cierre-devolucion-ticket', $record->id)),
                     Action::make('cancelar')
                         ->label('Cancelar Nota')
                         ->icon('fas-times-circle')
