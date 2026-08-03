@@ -6,12 +6,18 @@ use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
 use App\Http\Controllers\NotaDevolucionRentaPdfController;
 use App\Http\Controllers\NotaVentaVentaPdfController;
+use App\Http\Controllers\PagoTicketController;
 use App\Http\Controllers\OrdenCompraPdfController;
 use App\Http\Controllers\RecepcionCompraPdfController;
 use App\Http\Controllers\RequisicionCompraPdfController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas para impresión de cotizaciones
+Route::middleware(['auth'])->group(function () {
+    Route::get('/pagos/{id}/ticket', PagoTicketController::class)
+        ->name('pagos.ticket');
+});
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/cotizaciones/{id}/pdf/ticket', [CotizacionPdfController::class, 'ticket'])
         ->name('cotizaciones.pdf.ticket');

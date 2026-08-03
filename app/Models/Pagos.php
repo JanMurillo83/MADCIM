@@ -32,6 +32,8 @@ class Pagos extends Model
         'domicilio_fiscal_receptor',
         'uso_cfdi',
         'importe',
+        'importe_recibido',
+        'cambio',
         'referencia',
         'user_id',
         'caja_id',
@@ -61,6 +63,8 @@ class Pagos extends Model
         'cfdi_fecha_timbrado' => 'datetime',
         'cfdi_fecha_cancelacion' => 'datetime',
         'importe' => 'decimal:2',
+        'importe_recibido' => 'decimal:2',
+        'cambio' => 'decimal:2',
     ];
 
     // Boot method para actualizar saldo_pendiente al guardar

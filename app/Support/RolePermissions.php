@@ -44,6 +44,7 @@ class RolePermissions
     ];
 
     public const PAGES = [
+        'App\\Filament\\Pages\\CobrosPendientes' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_CAJERO],
         'App\\Filament\\Pages\\AyudaPage' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR],
         'App\\Filament\\Pages\\ConsultaItemsRentadosPorDireccion' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Pages\\DetalleCliente' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
