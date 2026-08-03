@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\RawJs;
 use Illuminate\Support\Facades\DB;
 
 class RequisicionesCompraForm
@@ -180,6 +181,9 @@ class RequisicionesCompraForm
                                     ->columnSpan(1)
                                     ->label('Precio')
                                     ->numeric()
+                                    ->prefix('$')
+                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
                                     ->live(onBlur: true)
@@ -190,6 +194,9 @@ class RequisicionesCompraForm
                                 TextInput::make('subtotal')
                                     ->columnSpan(1)
                                     ->numeric()
+                                    ->prefix('$')
+                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
                                     ->readOnly(),
@@ -198,6 +205,9 @@ class RequisicionesCompraForm
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()
+                                    ->prefix('$')
+                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
                                     ->readOnly()
@@ -221,6 +231,9 @@ class RequisicionesCompraForm
                         TextInput::make('subtotal')
                             ->required()
                             ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
@@ -230,6 +243,9 @@ class RequisicionesCompraForm
                         TextInput::make('total')
                             ->required()
                             ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',

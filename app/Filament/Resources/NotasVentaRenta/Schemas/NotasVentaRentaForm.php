@@ -22,6 +22,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Filament\Support\RawJs;
 
 class NotasVentaRentaForm
 {
@@ -418,6 +419,9 @@ class NotasVentaRentaForm
                                     ->columnSpan(1)
                                     ->label('Precio')
                                     ->numeric()
+                                    ->prefix('$')
+                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
                                     ->live(onBlur: true)
@@ -431,6 +435,9 @@ class NotasVentaRentaForm
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()
+                                    ->prefix('$')
+                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
                                     ->readOnly()
@@ -482,6 +489,9 @@ class NotasVentaRentaForm
                             ->label('Subtotal Partidas')
                             ->required()
                             ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
                             ->default(0.0)
                             ->readOnly()
                             ->extraAttributes([
@@ -491,6 +501,8 @@ class NotasVentaRentaForm
                             ->label('Depósito (50% Madera)')
                             ->required()
                             ->numeric()
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
                             ->default(0.0)
                             ->prefix('$')
                             ->live(onBlur: true)
@@ -511,6 +523,9 @@ class NotasVentaRentaForm
                             ->label('Total a Pagar')
                             ->required()
                             ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
                             ->default(0.0)
                             ->readOnly()
                             ->extraAttributes([
