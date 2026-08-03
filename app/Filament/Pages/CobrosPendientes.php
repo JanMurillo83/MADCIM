@@ -11,13 +11,13 @@ use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +37,7 @@ class CobrosPendientes extends Page implements HasActions
 
     public string $tipoSeleccionado = '';
     public ?int $notaSeleccionada = null;
+    public string $pestana = 'hoy';
 
     public function abrirPago(string $tipo, int $id): void
     {
@@ -92,6 +93,17 @@ class CobrosPendientes extends Page implements HasActions
         return (float) ($nota['saldo'] ?? 0);
     }
 
+    public function notasDeLaPestana(): Collection
+    {
+        $hoy = now()->toDateString();
+
+        return $this->notasPendientes->filter(function (array $nota) use ($hoy): bool {
+            $fecha = \Carbon\Carbon::createFromFormat('d/m/Y', $nota['fecha'])->toDateString();
+
+            return $this->pestana === 'hoy' ? $fecha === $hoy : $fecha < $hoy;
+        })->values();
+    }
+
     public function pagarAction(): Action
     {
         return Action::make('pagar')
@@ -105,43 +117,39 @@ class CobrosPendientes extends Page implements HasActions
                         ->label('Fecha de pago')
                         ->default(now())
                         ->required(),
-                    TextInput::make('importe')
-                        ->label('Importe a cobrar')
-                        ->prefix('$')
-                        ->numeric()
-                        ->readOnly()
-                        ->default(fn (): float => $this->saldoSeleccionado()),
-                    Select::make('forma_pago')
-                        ->label('Forma de pago')
-                        ->options([
-                            '01' => '01 - Efectivo',
-                            '02' => '02 - Cheque nominativo',
-                            '03' => '03 - Transferencia electrónica',
-                            '04' => '04 - Tarjeta de crédito',
-                            '28' => '28 - Tarjeta de débito',
+                    Repeater::make('pagos')
+                        ->label('Formas de pago')
+                        ->schema([
+                            Select::make('forma_pago')
+                                ->label('Forma')
+                                ->options([
+                                    '01' => 'Efectivo',
+                                    '02' => 'Cheque nominativo',
+                                    '03' => 'Transferencia electrónica',
+                                    '04' => 'Tarjeta de crédito',
+                                    '28' => 'Tarjeta de débito',
+                                ])
+                                ->default('01')
+                                ->live()
+                                ->required(),
+                            TextInput::make('importe')
+                                ->label('Importe aplicado')
+                                ->prefix('$')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->required(),
+                            TextInput::make('importe_recibido')
+                                ->label('Efectivo recibido')
+                                ->prefix('$')
+                                ->numeric()
+                                ->minValue(0)
+                                ->visible(fn (Get $get): bool => $get('forma_pago') === '01')
+                                ->required(fn (Get $get): bool => $get('forma_pago') === '01'),
                         ])
-                        ->default('01')
-                        ->live()
-                        ->required(),
-                    TextInput::make('importe_recibido')
-                        ->label('Efectivo recibido')
-                        ->prefix('$')
-                        ->numeric()
-                        ->minValue(0)
-                        ->default(fn (): float => $this->saldoSeleccionado())
-                        ->visible(fn (Get $get): bool => $get('forma_pago') === '01')
-                        ->required(fn (Get $get): bool => $get('forma_pago') === '01')
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (Get $get, Set $set): void {
-                            $recibido = (float) ($get('importe_recibido') ?? 0);
-                            $set('cambio', max(0, round($recibido - $this->saldoSeleccionado(), 2)));
-                        }),
-                    TextInput::make('cambio')
-                        ->label('Cambio')
-                        ->prefix('$')
-                        ->numeric()
-                        ->readOnly()
-                        ->default(0),
+                        ->defaultItems(1)
+                        ->addActionLabel('Agregar otra forma de pago')
+                        ->columns(3)
+                        ->columnSpanFull(),
                     TextInput::make('referencia')
                         ->label('Referencia')
                         ->maxLength(255),
@@ -153,7 +161,7 @@ class CobrosPendientes extends Page implements HasActions
             ])
             ->action(function (array $data): void {
                 try {
-                    $pago = app(CobroNotaService::class)->cobrar(
+                        $pago = app(CobroNotaService::class)->cobrar(
                         $this->tipoSeleccionado,
                         (int) $this->notaSeleccionada,
                         $data,

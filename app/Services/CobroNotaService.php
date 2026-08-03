@@ -25,18 +25,18 @@ class CobroNotaService
                 throw new RuntimeException('La nota no tiene saldo pendiente de pago.');
             }
 
-            $formaPago = (string) ($data['forma_pago'] ?? '01');
-            $importe = round($saldo, 2);
-            $recibido = $formaPago === '01'
-                ? round((float) ($data['importe_recibido'] ?? 0), 2)
-                : $importe;
+            $lineas = array_values(array_filter($data['pagos'] ?? [], fn (array $linea): bool => (float) ($linea['importe'] ?? 0) > 0));
+            if ($lineas === []) {
+                throw new RuntimeException('Agrega al menos una forma de pago.');
+            }
 
-            if ($recibido < $importe) {
-                throw new RuntimeException('El importe recibido es menor al saldo pendiente.');
+            $importeTotal = round(array_sum(array_map(fn (array $linea): float => (float) $linea['importe'], $lineas)), 2);
+            if ($importeTotal > $saldo) {
+                throw new RuntimeException('El pago no puede ser mayor al saldo pendiente.');
             }
 
             $cajaId = null;
-            if ($formaPago === '01') {
+            if (collect($lineas)->contains(fn (array $linea): bool => ($linea['forma_pago'] ?? null) === '01')) {
                 $cajaId = Caja::query()
                     ->where('estatus', 'Abierta')
                     ->where('usuario_apertura_id', $userId)
@@ -48,21 +48,36 @@ class CobroNotaService
                 }
             }
 
-            return Pagos::create([
-                'documento_tipo' => $documentoTipo,
-                'documento_id' => $documento->id,
-                'cliente_id' => $documento->cliente_id,
-                'fecha_pago' => $data['fecha_pago'] ?? now()->toDateString(),
-                'fecha_pago_hora' => now(),
-                'forma_pago' => $formaPago,
-                'importe' => $importe,
-                'importe_recibido' => $recibido,
-                'cambio' => round($recibido - $importe, 2),
-                'referencia' => $data['referencia'] ?? null,
-                'observaciones' => $data['observaciones'] ?? null,
-                'user_id' => $userId,
-                'caja_id' => $cajaId,
-            ]);
+            $primerPago = null;
+            foreach ($lineas as $linea) {
+                $formaPago = (string) ($linea['forma_pago'] ?? '01');
+                $importe = round((float) $linea['importe'], 2);
+                $recibido = $formaPago === '01' ? round((float) ($linea['importe_recibido'] ?? 0), 2) : $importe;
+
+                if ($formaPago === '01' && $recibido < $importe) {
+                    throw new RuntimeException('El efectivo recibido es menor al importe aplicado.');
+                }
+
+                $pago = Pagos::create([
+                    'documento_tipo' => $documentoTipo,
+                    'documento_id' => $documento->id,
+                    'cliente_id' => $documento->cliente_id,
+                    'fecha_pago' => $data['fecha_pago'] ?? now()->toDateString(),
+                    'fecha_pago_hora' => now(),
+                    'forma_pago' => $formaPago,
+                    'importe' => $importe,
+                    'importe_recibido' => $recibido,
+                    'cambio' => $formaPago === '01' ? round($recibido - $importe, 2) : 0,
+                    'referencia' => $data['referencia'] ?? null,
+                    'observaciones' => $data['observaciones'] ?? null,
+                    'user_id' => $userId,
+                    'caja_id' => $formaPago === '01' ? $cajaId : null,
+                ]);
+
+                $primerPago ??= $pago;
+            }
+
+            return $primerPago;
         });
     }
 }

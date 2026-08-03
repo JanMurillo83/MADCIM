@@ -19,8 +19,14 @@ class PagoTicketController extends Controller
 
         abort_unless($documento, 404);
 
-        $pdf = Pdf::loadView('pdf.pagos.ticket', compact('pago', 'documento'))
-            ->setPaper([0, 0, 226.77, 620], 'portrait');
+        $pagos = Pagos::query()
+            ->where('documento_tipo', $pago->documento_tipo)
+            ->where('documento_id', $pago->documento_id)
+            ->orderBy('id')
+            ->get();
+
+        $pdf = Pdf::loadView('pdf.pagos.ticket', compact('pago', 'pagos', 'documento'))
+            ->setPaper([0, 0, 226.77, 841.89], 'portrait');
 
         return $pdf->stream("pago-{$pago->id}-ticket.pdf");
     }

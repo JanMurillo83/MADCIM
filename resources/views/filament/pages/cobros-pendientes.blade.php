@@ -1,26 +1,58 @@
 <x-filament-panels::page>
     <x-filament-actions::modals />
 
+    <style>
+        .cobros-shell { display: grid; gap: 20px; }
+        .cobros-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+        .cobros-heading h2 { margin: 0; font-size: 22px; font-weight: 700; color: #111827; }
+        .cobros-heading p { margin: 5px 0 0; color: #6b7280; font-size: 13px; }
+        .cobros-total { text-align: right; white-space: nowrap; }
+        .cobros-total span { display: block; color: #6b7280; font-size: 12px; }
+        .cobros-total strong { display: block; margin-top: 3px; color: #111827; font-size: 21px; }
+        .cobros-tabs { display: flex; gap: 4px; border-bottom: 1px solid #d1d5db; }
+        .cobros-tab { border: 0; border-bottom: 3px solid transparent; background: transparent; color: #6b7280; cursor: pointer; padding: 10px 16px; font-size: 14px; font-weight: 600; }
+        .cobros-tab.active { border-bottom-color: #139043; color: #139043; }
+        .cobros-card { overflow: hidden; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 7%); }
+        .cobros-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .cobros-table th { background: #f3f4f6; color: #4b5563; font-size: 11px; letter-spacing: .04em; padding: 12px 14px; text-align: left; text-transform: uppercase; }
+        .cobros-table td { border-top: 1px solid #eef0f2; color: #1f2937; font-size: 13px; padding: 13px 14px; vertical-align: middle; }
+        .cobros-table th:nth-child(1), .cobros-table td:nth-child(1) { width: 9%; }
+        .cobros-table th:nth-child(2), .cobros-table td:nth-child(2) { width: 12%; }
+        .cobros-table th:nth-child(3), .cobros-table td:nth-child(3) { width: 12%; }
+        .cobros-table th:nth-child(4), .cobros-table td:nth-child(4) { width: 25%; }
+        .cobros-table th:nth-child(5), .cobros-table td:nth-child(5) { width: 13%; text-align: right; }
+        .cobros-table th:nth-child(6), .cobros-table td:nth-child(6) { width: 15%; text-align: right; }
+        .cobros-table th:nth-child(7), .cobros-table td:nth-child(7) { width: 14%; text-align: right; }
+        .cobros-actions { display: flex; justify-content: flex-end; gap: 7px; }
+        .cobros-empty { color: #6b7280 !important; padding: 32px !important; text-align: center !important; }
+        @media (max-width: 900px) { .cobros-heading { align-items: start; flex-direction: column; } .cobros-card { overflow-x: auto; } .cobros-table { min-width: 850px; } }
+    </style>
+
     <div
         x-data
         x-on:abrir-ticket-pago.window="window.open($event.detail.url, '_blank')"
-        class="space-y-6"
+        class="cobros-shell"
     >
-        <div class="flex items-center justify-between gap-4">
+        <div class="cobros-heading">
             <div>
-                <h2 class="text-lg font-semibold text-gray-950 dark:text-white">Notas de venta pendientes de pago</h2>
-                <p class="text-sm text-gray-500">Registra pagos de renta y venta desde una sola consulta.</p>
+                <h2>Notas pendientes de pago</h2>
+                <p>Registra pagos de renta y venta desde una sola consulta.</p>
             </div>
-            <div class="text-right">
-                <div class="text-xs text-gray-500">Saldo pendiente</div>
-                <div class="text-xl font-bold text-gray-950 dark:text-white">${{ number_format($this->notasPendientes->sum('saldo'), 2) }}</div>
+            <div class="cobros-total">
+                <span>Saldo pendiente visible</span>
+                <strong>${{ number_format($this->notasDeLaPestana()->sum('saldo'), 2) }}</strong>
             </div>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div class="cobros-tabs">
+            <button type="button" class="cobros-tab {{ $pestana === 'hoy' ? 'active' : '' }}" wire:click="$set('pestana', 'hoy')">Trabajo de hoy</button>
+            <button type="button" class="cobros-tab {{ $pestana === 'anteriores' ? 'active' : '' }}" wire:click="$set('pestana', 'anteriores')">Cuentas por cobrar</button>
+        </div>
+
+        <div class="cobros-card">
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-50 text-xs uppercase text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <table class="cobros-table">
+                    <thead>
                         <tr>
                             <th class="px-4 py-3 text-left">Tipo</th>
                             <th class="px-4 py-3 text-left">Nota</th>
@@ -31,17 +63,17 @@
                             <th class="px-4 py-3 text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        @forelse($this->notasPendientes as $nota)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                <td class="px-4 py-3">{{ $nota['tipo_label'] }}</td>
-                                <td class="px-4 py-3 font-medium">{{ $nota['folio'] }}</td>
-                                <td class="px-4 py-3">{{ $nota['fecha'] }}</td>
-                                <td class="px-4 py-3">{{ $nota['cliente'] }}</td>
-                                <td class="px-4 py-3 text-right">${{ number_format($nota['total'], 2) }}</td>
-                                <td class="px-4 py-3 text-right font-semibold text-warning-600">${{ number_format($nota['saldo'], 2) }}</td>
-                                <td class="px-4 py-3">
-                                    <div class="flex justify-end gap-2">
+                    <tbody>
+                        @forelse($this->notasDeLaPestana() as $nota)
+                            <tr>
+                                <td>{{ $nota['tipo_label'] }}</td>
+                                <td><strong>{{ $nota['folio'] }}</strong></td>
+                                <td>{{ $nota['fecha'] }}</td>
+                                <td>{{ $nota['cliente'] }}</td>
+                                <td>${{ number_format($nota['total'], 2) }}</td>
+                                <td><strong>${{ number_format($nota['saldo'], 2) }}</strong></td>
+                                <td>
+                                    <div class="cobros-actions">
                                         <x-filament::button
                                             size="sm"
                                             color="success"
@@ -65,7 +97,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">No hay notas pendientes de pago.</td>
+                                <td colspan="7" class="cobros-empty">No hay notas pendientes en esta pestaña.</td>
                             </tr>
                         @endforelse
                     </tbody>
