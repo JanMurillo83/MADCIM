@@ -110,7 +110,7 @@ class CobrosPendientes extends Page implements HasActions
             ->label('Registrar pago')
             ->modalHeading('Registrar pago')
             ->modalSubmitActionLabel('Guardar e imprimir ticket')
-            ->modalWidth('lg')
+            ->modalWidth('5xl')
             ->form([
                 Section::make('Datos del pago')->schema([
                     DatePicker::make('fecha_pago')
