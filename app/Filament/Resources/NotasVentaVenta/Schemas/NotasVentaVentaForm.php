@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaVenta\Schemas;
 
+use Closure;
 use App\Support\Impuestos;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
@@ -188,6 +189,15 @@ class NotasVentaVentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
+                                    ->rules([
+                                        function (string $attribute, mixed $value, Closure $fail): void {
+                                            $producto = Productos::find($value);
+
+                                            if ($producto && (float) $producto->existencia < 1) {
+                                                $fail('No se puede vender este producto porque no tiene existencia disponible.');
+                                            }
+                                        },
+                                    ])
                                     ->searchable()
                                     ->options(function () {
                                         return Productos::query()

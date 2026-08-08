@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
+use Closure;
 use App\Support\Impuestos;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
@@ -394,6 +395,15 @@ class NotasVentaRentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
+                                    ->rules([
+                                        function (string $attribute, mixed $value, Closure $fail): void {
+                                            $producto = Productos::find($value);
+
+                                            if ($producto && (float) $producto->existencia < 1) {
+                                                $fail('No se puede rentar este producto porque no tiene existencia disponible.');
+                                            }
+                                        },
+                                    ])
                                     ->searchable()
                                     ->options(function () {
                                         return Productos::query()
