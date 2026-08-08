@@ -400,7 +400,7 @@ class NotasVentaRentaForm
                                             ->orderBy('clave')
                                             ->get()
                                             ->mapWithKeys(function (Productos $producto): array {
-                                                $existencia = number_format((float) $producto->existencia, 2, '.', ',');
+                                                $existencia = number_format((float) $producto->existencia, 0, '.', ',');
 
                                                 return [
                                                     $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -526,8 +526,18 @@ class NotasVentaRentaForm
                             ->extraAttributes([
                                 'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
-                        Hidden::make('impuestos_total')
-                            ->default(0.0),
+                        TextInput::make('impuestos_total')
+                            ->label('IVA')
+                            ->required()
+                            ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->stripCharacters(',')
+                            ->default(0.0)
+                            ->readOnly()
+                            ->extraAttributes([
+                                'style' => 'background-color: #f3f4f6; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
+                            ]),
                         TextInput::make('total')
                             ->label('Total a Pagar')
                             ->required()
