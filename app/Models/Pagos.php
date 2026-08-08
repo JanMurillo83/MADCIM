@@ -73,11 +73,23 @@ class Pagos extends Model
         static::created(function ($pago) {
             $pago->actualizarSaldoPendiente();
             $pago->sincronizarMovimientoCaja();
+            $pago->cliente?->recalcularSaldo();
         });
 
         static::updated(function ($pago) {
             $pago->actualizarSaldoPendiente();
             $pago->sincronizarMovimientoCaja();
+
+            $clienteAnteriorId = $pago->getOriginal('cliente_id');
+            $clienteNuevoId = $pago->cliente_id;
+
+            if ($clienteAnteriorId && $clienteAnteriorId != $clienteNuevoId) {
+                Clientes::find($clienteAnteriorId)?->recalcularSaldo();
+            }
+
+            if ($clienteNuevoId) {
+                $pago->cliente?->recalcularSaldo();
+            }
         });
 
         static::deleted(function ($pago) {
@@ -89,6 +101,11 @@ class Pagos extends Model
                     ->delete();
             } catch (\Throwable $e) {
                 // swallow
+            }
+
+            $clienteId = $pago->getOriginal('cliente_id') ?? $pago->cliente_id;
+            if ($clienteId) {
+                Clientes::find($clienteId)?->recalcularSaldo();
             }
         });
     }

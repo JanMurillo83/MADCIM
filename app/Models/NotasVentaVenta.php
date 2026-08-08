@@ -45,6 +45,29 @@ class NotasVentaVenta extends Model
         'fecha_emision' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::saved(function (self $nota) {
+            $clienteAnteriorId = $nota->getOriginal('cliente_id');
+            $clienteNuevoId = $nota->cliente_id;
+
+            if ($clienteAnteriorId && $clienteAnteriorId != $clienteNuevoId) {
+                $clienteAnterior = Clientes::find($clienteAnteriorId);
+                $clienteAnterior?->recalcularSaldo();
+            }
+
+            if ($clienteNuevoId) {
+                $nota->cliente?->recalcularSaldo();
+            }
+        });
+
+        static::deleted(function (self $nota) {
+            if ($nota->cliente_id) {
+                $nota->cliente?->recalcularSaldo();
+            }
+        });
+    }
+
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Clientes::class, 'cliente_id');

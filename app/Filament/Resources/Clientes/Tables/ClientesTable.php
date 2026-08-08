@@ -362,6 +362,44 @@ class ClientesTable
                         })
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar'),
+                    Action::make('pagosPendientes')
+                        ->label('Pagos pendientes')
+                        ->icon('fas-hand-holding-dollar')
+                        ->color('warning')
+                        ->modalHeading(fn ($record) => "Pagos pendientes - {$record->nombre}")
+                        ->modalWidth('7xl')
+                        ->modalContent(function ($record) {
+                            $notasVenta = NotasVentaVenta::query()
+                                ->where('cliente_id', $record->id)
+                                ->where('estatus', '!=', 'Cancelada')
+                                ->where('saldo_pendiente', '>', 0)
+                                ->orderByDesc('fecha_emision')
+                                ->get();
+
+                            $notasRenta = NotasVentaRenta::query()
+                                ->where('cliente_id', $record->id)
+                                ->where('estatus', '!=', 'Cancelada')
+                                ->where('saldo_pendiente', '>', 0)
+                                ->orderByDesc('fecha_emision')
+                                ->get();
+
+                            $pagos = Pagos::query()
+                                ->where('cliente_id', $record->id)
+                                ->orderByDesc('fecha_pago')
+                                ->get();
+
+                            $totalPendiente = $notasVenta->sum('saldo_pendiente') + $notasRenta->sum('saldo_pendiente');
+
+                            return view('filament.resources.clientes.pagos-pendientes', [
+                                'cliente' => $record,
+                                'notasVenta' => $notasVenta,
+                                'notasRenta' => $notasRenta,
+                                'pagos' => $pagos,
+                                'totalPendiente' => $totalPendiente,
+                            ]);
+                        })
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar'),
                 ]),
             ],RecordActionsPosition::BeforeColumns)
             ->headerActions([
