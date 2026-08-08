@@ -20,7 +20,6 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Filament\Support\RawJs;
 
@@ -374,7 +373,7 @@ class NotasVentaRentaForm
                             ->compact()
                             ->table([
                                 Repeater\TableColumn::make('Cantidad'),
-                                Repeater\TableColumn::make('Item'),
+                                Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Precio'),
                                 //Repeater\TableColumn::make('Subtotal'),
                                 //Repeater\TableColumn::make('Impuestos'),
@@ -393,11 +392,21 @@ class NotasVentaRentaForm
                                     }),
                                 Select::make('item')
                                     ->columnSpan(2)
+                                    ->label('Producto')
                                     ->required()
                                     ->searchable()
                                     ->options(function () {
-                                        return Productos::select(DB::raw("CONCAT(clave,' - ',descripcion) as descripcion"), 'id')
-                                            ->pluck('descripcion', 'id');
+                                        return Productos::query()
+                                            ->orderBy('clave')
+                                            ->get()
+                                            ->mapWithKeys(function (Productos $producto): array {
+                                                $existencia = number_format((float) $producto->existencia, 2, '.', ',');
+
+                                                return [
+                                                    $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
+                                                ];
+                                            })
+                                            ->all();
                                     })
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function (Get $get, Set $set) {
