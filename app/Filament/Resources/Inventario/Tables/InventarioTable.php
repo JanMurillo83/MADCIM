@@ -41,15 +41,15 @@ class InventarioTable
                     ->sortable(),
                 TextColumn::make('cantidad')
                     ->label('Cantidad')
-                    ->numeric(decimalPlaces: 4, thousandsSeparator: ',')
+                    ->numeric(decimalPlaces: 0, thousandsSeparator: ',')
                     ->sortable(),
                 TextColumn::make('existencia_antes')
                     ->label('Existencia Antes')
-                    ->numeric(decimalPlaces: 4, thousandsSeparator: ',')
+                    ->numeric(decimalPlaces: 0, thousandsSeparator: ',')
                     ->sortable(),
                 TextColumn::make('existencia_despues')
                     ->label('Existencia Después')
-                    ->numeric(decimalPlaces: 4, thousandsSeparator: ',')
+                    ->numeric(decimalPlaces: 0, thousandsSeparator: ',')
                     ->sortable(),
                 TextColumn::make('user.name')
                     ->label('Usuario')
