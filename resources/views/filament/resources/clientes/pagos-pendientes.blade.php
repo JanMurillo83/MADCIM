@@ -4,17 +4,17 @@
     <div class="rounded-lg border border-default bg-white p-4 dark:bg-gray-900">
         <h3 class="text-base font-semibold !text-black">Resumen</h3>
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Cliente</div>
-                <div class="text-lg font-semibold !text-black">{{ $cliente->nombre }}</div>
+            <div class="rounded bg-gray-100 p-3 dark:bg-gray-800">
+                <div class="text-sm !text-black dark:!text-white">Cliente</div>
+                <div class="text-lg font-semibold !text-black dark:!text-white">{{ $cliente->nombre }}</div>
             </div>
-            <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Saldo registrado</div>
-                <div class="text-lg font-semibold !text-black">${{ number_format((float) $cliente->saldo, 2) }}</div>
+            <div class="rounded bg-gray-100 p-3 dark:bg-gray-800">
+                <div class="text-sm !text-black dark:!text-white">Saldo registrado</div>
+                <div class="text-lg font-semibold !text-black dark:!text-white">${{ number_format((float) $cliente->saldo, 2) }}</div>
             </div>
-            <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Total pendiente (documentos abiertos)</div>
-                <div class="text-lg font-semibold !text-black">${{ number_format((float) $totalPendiente, 2) }}</div>
+            <div class="rounded bg-gray-100 p-3 dark:bg-gray-800">
+                <div class="text-sm !text-black dark:!text-white">Total pendiente (documentos abiertos)</div>
+                <div class="text-lg font-semibold !text-black dark:!text-white">${{ number_format((float) $totalPendiente, 2) }}</div>
             </div>
         </div>
     </div>
