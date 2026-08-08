@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\NotasVentaVenta\Schemas;
 
 use App\Support\Impuestos;
+use App\Support\Numero;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
@@ -22,7 +23,6 @@ use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ClosureValidationRule;
 
 class NotasVentaVentaForm
 {
@@ -59,10 +59,10 @@ class NotasVentaVentaForm
             $total += (float) ($partida['total'] ?? 0);
         }
 
-        $set('../../subtotal', $subtotal);
-        $set('../../impuestos_total', $impuestos);
-        $set('../../total', $total);
-        $set('../../saldo_pendiente', $total);
+        $set('../../subtotal', Numero::redondear($subtotal));
+        $set('../../impuestos_total', Numero::redondear($impuestos));
+        $set('../../total', Numero::redondear($total));
+        $set('../../saldo_pendiente', Numero::redondear($total));
     }
 
     public static function configure(Schema $schema): Schema
@@ -190,14 +190,14 @@ class NotasVentaVentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
-                                    ->rules([
-                                        new ClosureValidationRule(function (string $attribute, mixed $value, \Closure $fail): void {
+                                    ->rules(fn () => [
+                                        function (string $attribute, mixed $value, \Closure $fail): void {
                                             $producto = Productos::find($value);
 
                                             if ($producto && (float) $producto->existencia < 1) {
                                                 $fail('No se puede vender este producto porque no tiene existencia disponible.');
                                             }
-                                        }),
+                                        },
                                     ])
                                     ->searchable()
                                     ->options(function () {
@@ -205,7 +205,7 @@ class NotasVentaVentaForm
                                             ->orderBy('clave')
                                             ->get()
                                             ->mapWithKeys(function (Productos $producto): array {
-                                                $existencia = number_format((float) $producto->existencia, 0, '.', ',');
+                                                $existencia = Numero::formato($producto->existencia, 0);
 
                                                 return [
                                                     $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -213,7 +213,7 @@ class NotasVentaVentaForm
                                             })
                                             ->all();
                                     })
-                                    ->live(onBlur: true)
+                                    ->live()
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         $itemId = $get('item');
                                         $producto = Productos::where('id', $itemId)->first();
@@ -223,6 +223,10 @@ class NotasVentaVentaForm
                                         if ((float) $producto->existencia < 1) {
                                             $set('item', null);
                                             $set('descripcion', null);
+                                            $set('valor_unitario', 0.0);
+                                            $set('subtotal', 0.0);
+                                            $set('impuestos', 0.0);
+                                            $set('total', 0.0);
                                             Notification::make()
                                                 ->title('Producto sin existencia')
                                                 ->body('No se puede vender un producto con existencia menor a 1.')
@@ -272,7 +276,7 @@ class NotasVentaVentaForm
                                     ->default(0.0)
                                     ->readOnly()
                                     ->extraAttributes([
-                                        'style' => 'background-color: #fff59d; font-weight: bold;',
+                                        'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                                     ]),
                             ])
                             ->defaultItems(1)
@@ -311,6 +315,7 @@ class NotasVentaVentaForm
                             ->mask(RawJs::make("\$money(\$input, ',', '.')"))
                             ->stripCharacters(',')
                             ->default(0.0)
+                            ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
@@ -333,8 +338,9 @@ class NotasVentaVentaForm
                             ->mask(RawJs::make("\$money(\$input, ',', '.')"))
                             ->stripCharacters(',')
                             ->default(0.0)
+                            ->readOnly()
                             ->extraAttributes([
-                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
+                                'style' => 'background-color: #c8e6c9; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
                         Hidden::make('saldo_pendiente')->default(0.0),
                     ])

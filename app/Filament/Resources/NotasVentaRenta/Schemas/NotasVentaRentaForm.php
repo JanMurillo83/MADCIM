@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
 use App\Support\Impuestos;
+use App\Support\Numero;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
@@ -21,7 +22,6 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ClosureValidationRule;
 use Filament\Notifications\Notification;
 use Filament\Support\RawJs;
 
@@ -100,11 +100,11 @@ class NotasVentaRentaForm
     {
         $prefix = $fromRepeater ? '../../' : '';
 
-        $set($prefix . 'subtotal', $subtotal);
-        $set($prefix . 'impuestos_total', $impuestos);
-        $set($prefix . 'deposito', $deposito);
-        $set($prefix . 'total', $total);
-        $set($prefix . 'saldo_pendiente', $total);
+        $set($prefix . 'subtotal', Numero::redondear($subtotal));
+        $set($prefix . 'impuestos_total', Numero::redondear($impuestos));
+        $set($prefix . 'deposito', Numero::redondear($deposito));
+        $set($prefix . 'total', Numero::redondear($total));
+        $set($prefix . 'saldo_pendiente', Numero::redondear($total));
     }
 
     private static function recalculateDocumentoTotalesFromPartidas(mixed $partidas, Set $set, bool $fromRepeater): void
@@ -138,7 +138,7 @@ class NotasVentaRentaForm
         $deposito = round(($subtotalMadera + $impuestosMadera) * 0.50, 2);
 
         // Total = Subtotal Partidas + IVA Partidas + Depósito (sin IVA)
-        $total = $subtotal + $impuestos + $deposito;
+        $total = Numero::redondear($subtotal + $impuestos + $deposito);
 
         self::setDocumentoTotales($set, $fromRepeater, $subtotal, $impuestos, $deposito, $total);
     }
@@ -396,14 +396,14 @@ class NotasVentaRentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
-                                    ->rules([
-                                        new ClosureValidationRule(function (string $attribute, mixed $value, \Closure $fail): void {
+                                    ->rules(fn () => [
+                                        function (string $attribute, mixed $value, \Closure $fail): void {
                                             $producto = Productos::find($value);
 
                                             if ($producto && (float) $producto->existencia < 1) {
                                                 $fail('No se puede rentar este producto porque no tiene existencia disponible.');
                                             }
-                                        }),
+                                        },
                                     ])
                                     ->searchable()
                                     ->options(function () {
@@ -411,7 +411,7 @@ class NotasVentaRentaForm
                                             ->orderBy('clave')
                                             ->get()
                                             ->mapWithKeys(function (Productos $producto): array {
-                                                $existencia = number_format((float) $producto->existencia, 0, '.', ',');
+                                                $existencia = Numero::formato($producto->existencia, 0);
 
                                                 return [
                                                     $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -419,7 +419,7 @@ class NotasVentaRentaForm
                                             })
                                             ->all();
                                     })
-                                    ->live(onBlur: true)
+                                    ->live()
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         $itemId = $get('item');
                                         $producto = Productos::where('id', $itemId)->first();
@@ -429,6 +429,10 @@ class NotasVentaRentaForm
                                         if ((float) $producto->existencia < 1) {
                                             $set('item', null);
                                             $set('descripcion', null);
+                                            $set('valor_unitario', 0.0);
+                                            $set('subtotal', 0.0);
+                                            $set('impuestos', 0.0);
+                                            $set('total', 0.0);
                                             Notification::make()
                                                 ->title('Producto sin existencia')
                                                 ->body('No se puede rentar un producto con existencia menor a 1.')
