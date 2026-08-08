@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\NotasVentaVenta\Schemas;
 
-use Closure;
 use App\Support\Impuestos;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
@@ -21,7 +20,9 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ClosureValidationRule;
 
 class NotasVentaVentaForm
 {
@@ -190,13 +191,13 @@ class NotasVentaVentaForm
                                     ->label('Producto')
                                     ->required()
                                     ->rules([
-                                        function (string $attribute, mixed $value, Closure $fail): void {
+                                        new ClosureValidationRule(function (string $attribute, mixed $value, \Closure $fail): void {
                                             $producto = Productos::find($value);
 
                                             if ($producto && (float) $producto->existencia < 1) {
                                                 $fail('No se puede vender este producto porque no tiene existencia disponible.');
                                             }
-                                        },
+                                        }),
                                     ])
                                     ->searchable()
                                     ->options(function () {
@@ -217,6 +218,16 @@ class NotasVentaVentaForm
                                         $itemId = $get('item');
                                         $producto = Productos::where('id', $itemId)->first();
                                         if ($producto === null) {
+                                            return;
+                                        }
+                                        if ((float) $producto->existencia < 1) {
+                                            $set('item', null);
+                                            $set('descripcion', null);
+                                            Notification::make()
+                                                ->title('Producto sin existencia')
+                                                ->body('No se puede vender un producto con existencia menor a 1.')
+                                                ->danger()
+                                                ->send();
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
