@@ -5,6 +5,7 @@ namespace App\Filament\Resources\NotasEnvio\Pages;
 use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
 use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
+use App\Models\Productos;
 use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use Carbon\Carbon;
