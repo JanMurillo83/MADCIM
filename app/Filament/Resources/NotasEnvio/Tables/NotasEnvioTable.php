@@ -6,10 +6,13 @@ use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
 use App\Models\NotaEnvio;
+use App\Models\MovimientoInventario;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use App\Models\NotaVentaRentaPartidas;
+use App\Models\Productos;
 use App\Models\RegistroRenta;
+use App\Services\InventarioMovimientoService;
 use App\Services\CierreDevolucionRentaService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -121,6 +124,12 @@ class NotasEnvioTable
             ], HeaderActionsPosition::Bottom)
             ->recordActions([
                 ActionGroup::make([
+                Action::make('imprimir_ticket')
+                    ->label('Imprimir Ticket')
+                    ->icon('fas-receipt')
+                    ->color('info')
+                    ->url(fn (NotaEnvio $record) => route('notas-envio.pdf.ticket', $record->id))
+                    ->openUrlInNewTab(),
                 Action::make('ver_detalle')
                     ->label('Ver Detalle')
                     ->icon('heroicon-o-eye')
@@ -363,6 +372,52 @@ class NotasEnvioTable
                             ->body($mensaje)
                             ->success()
                             ->persistent()
+                            ->send();
+                    }),
+                Action::make('cancelar')
+                    ->label('Cancelar Envío')
+                    ->icon('fas-times-circle')
+                    ->color('danger')
+                    ->visible(fn (NotaEnvio $record) => $record->estatus !== 'Cancelada')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (NotaEnvio $record) => 'Cancelar Envío Folio ' . $record->folio)
+                    ->modalDescription('¿Estás seguro de cancelar esta nota de envío? Se revertirán los movimientos de inventario y se marcarán los registros de renta como cancelados.')
+                    ->modalSubmitActionLabel('Sí, cancelar')
+                    ->action(function (NotaEnvio $record) {
+                        if ($record->estatus === 'Cancelada') {
+                            return;
+                        }
+
+                        $referencia = $record->serie . $record->folio;
+
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $referencia) {
+                            // Revertir movimientos de inventario generados por este envío
+                            $movimientos = MovimientoInventario::query()
+                                ->where('documento_referencia', $referencia)
+                                ->where('tipo', 'salida')
+                                ->get();
+
+                            foreach ($movimientos as $movimiento) {
+                                InventarioMovimientoService::entrada(
+                                    productoId: $movimiento->producto_id,
+                                    cantidad: (float) $movimiento->cantidad,
+                                    motivo: "Cancelación de envío {$referencia}",
+                                    documentoReferencia: $referencia
+                                );
+                            }
+
+                            // Marcar registros de renta como cancelados
+                            RegistroRenta::where('nota_venta_renta_id', $record->nota_venta_renta_id)
+                                ->where('estado', 'Activo')
+                                ->update(['estado' => 'Cancelado']);
+
+                            $record->update(['estatus' => 'Cancelada']);
+                        });
+
+                        Notification::make()
+                            ->title('Envío cancelado')
+                            ->body("El envío {$referencia} ha sido cancelado y se revirtieron los movimientos de inventario.")
+                            ->success()
                             ->send();
                     }),
                 Action::make('renovar')

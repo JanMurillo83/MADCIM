@@ -121,7 +121,7 @@
 
     <div class="info-section">
         <div class="info-row">
-            <span class="label">Folio:</span>
+            <span class="label">Folio Envio:</span>
             <span>{{ $notaEnvio->serie }}-{{ $notaEnvio->folio }}</span>
         </div>
         <div class="info-row">
@@ -129,9 +129,22 @@
             <span>{{ $notaEnvio->fecha_emision ? $notaEnvio->fecha_emision->format('d/m/Y H:i') : now()->format('d/m/Y H:i') }}</span>
         </div>
         @if($notaEnvio->notaVentaRenta)
+        @php $notaRenta = $notaEnvio->notaVentaRenta; @endphp
         <div class="info-row">
             <span class="label">Nota Renta:</span>
-            <span>{{ $notaEnvio->notaVentaRenta->serie }}-{{ $notaEnvio->notaVentaRenta->folio }}</span>
+            <span>{{ $notaRenta->serie }}-{{ $notaRenta->folio }}</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Fecha Renta:</span>
+            <span>{{ $notaRenta->fecha_emision ? $notaRenta->fecha_emision->format('d/m/Y') : '-' }}</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Vencimiento:</span>
+            <span>{{ $notaRenta->fecha_vencimiento ? $notaRenta->fecha_vencimiento->format('d/m/Y') : '-' }}</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Dias Renta:</span>
+            <span>{{ $notaRenta->dias_renta ?? ($notaEnvio->dias_renta ?? '-') }}</span>
         </div>
         @endif
         <div class="info-row">
@@ -144,10 +157,36 @@
             <span>{{ $notaEnvio->cliente->telefono }}</span>
         </div>
         @endif
-        @if($notaEnvio->direccionEntrega)
+        @if($notaEnvio->cliente && $notaEnvio->cliente->correo)
+        <div class="info-row">
+            <span class="label">Correo:</span>
+            <span>{{ $notaEnvio->cliente->correo }}</span>
+        </div>
+        @endif
+
+        @php
+            $direccionEntrega = $notaEnvio->direccionEntrega;
+            $cliente = $notaEnvio->cliente;
+        @endphp
+
+        @if($direccionEntrega)
         <div class="info-row info-row-block">
             <span class="label">Direccion de entrega:</span>
-            <span>{{ $notaEnvio->direccionEntrega->direccion_completa ?? ($notaEnvio->direccionEntrega->nombre_direccion ?? 'N/A') }}</span>
+            <span>{{ $direccionEntrega->nombre_direccion ? $direccionEntrega->nombre_direccion . ':' : 'Direccion de entrega:' }}</span>
+            <span>{{ $direccionEntrega->direccion_completa ?? 'N/A' }}</span>
+            @if($direccionEntrega->referencias || $direccionEntrega->referencia)
+            <span style="font-size: 12px;">Ref: {{ $direccionEntrega->referencias ?? $direccionEntrega->referencia }}</span>
+            @endif
+            @if($direccionEntrega->contacto_nombre || $direccionEntrega->contacto_telefono)
+            <span style="font-size: 12px;">Contacto: {{ $direccionEntrega->contacto_nombre }}{{ $direccionEntrega->contacto_telefono ? ' - ' . $direccionEntrega->contacto_telefono : '' }}</span>
+            @endif
+        </div>
+        @elseif($cliente)
+        <div class="info-row info-row-block">
+            <span class="label">Direccion del cliente:</span>
+            <span>
+                {{ implode(', ', array_filter([$cliente->calle, $cliente->exterior, $cliente->interior, $cliente->colonia, $cliente->municipio, $cliente->estado, $cliente->pais, $cliente->codigo ? 'CP ' . $cliente->codigo : null])) }}
+            </span>
         </div>
         @endif
     </div>
@@ -179,10 +218,13 @@
     @endif
 
     <div class="firma-section">
-        <div class="firma-linea"></div>
-        <div class="firma-label">Entrego (Chofer)</div>
+        <div style="font-size: 12px; margin-bottom: 5px;">Nombre de quien recibe: _________________________</div>
+        <div style="font-size: 12px; margin-bottom: 15px;">Fecha y hora de recepcion: _________________________</div>
 
-        <div class="firma-linea" style="margin-top: 30px;"></div>
+        <div class="firma-linea"></div>
+        <div class="firma-label">Entrego (Chofer / Responsable)</div>
+
+        <div class="firma-linea" style="margin-top: 35px;"></div>
         <div class="firma-label">Recibio (Cliente)</div>
     </div>
 
