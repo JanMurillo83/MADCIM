@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use App\Models\NotaDevolucionRentaPartida;
+use App\Services\InventarioMovimientoService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -123,6 +124,20 @@ class NotaDevolucionRenta extends Model
                 $partida->update([
                     'cantidad_aplicada' => $cantidadObjetivo,
                 ]);
+
+                // Registrar entrada de inventario por cantidad devuelta aplicada en esta operación
+                if ($delta > 0.00001) {
+                    $producto = Productos::find($partidaEnvio->producto_id);
+                    if ($producto) {
+                        $referencia = $this->serie . $this->folio;
+                        InventarioMovimientoService::entrada(
+                            productoId: $producto->id,
+                            cantidad: $delta,
+                            motivo: "Devolución de renta {$referencia}",
+                            documentoReferencia: $referencia
+                        );
+                    }
+                }
             }
 
             // Recalcular estado de cada NotaEnvio afectada
@@ -218,6 +233,18 @@ class NotaDevolucionRenta extends Model
                     $partida->update([
                         'cantidad_aplicada' => 0,
                     ]);
+
+                    // Revertir entrada de inventario por cancelación
+                    $producto = Productos::find($partidaEnvio->producto_id);
+                    if ($producto) {
+                        $referencia = $this->serie . $this->folio;
+                        InventarioMovimientoService::salida(
+                            productoId: $producto->id,
+                            cantidad: $aplicada,
+                            motivo: "Cancelación de devolución de renta {$referencia}",
+                            documentoReferencia: $referencia
+                        );
+                    }
                 }
             }
 

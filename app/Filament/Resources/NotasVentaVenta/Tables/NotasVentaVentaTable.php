@@ -139,6 +139,22 @@ class NotasVentaVentaTable
                         ->modalSubmitActionLabel('Sí, cancelar')
                         ->visible(fn ($record) => $record->estatus === 'Activa')
                         ->action(function ($record) {
+                            $referencia = $record->serie . $record->folio;
+
+                            foreach ($record->partidas as $partida) {
+                                $producto = Productos::find($partida->item);
+                                if (! $producto) {
+                                    continue;
+                                }
+
+                                \App\Services\InventarioMovimientoService::entrada(
+                                    productoId: $producto->id,
+                                    cantidad: (float) $partida->cantidad,
+                                    motivo: "Cancelación de nota de venta {$referencia}",
+                                    documentoReferencia: $referencia
+                                );
+                            }
+
                             $record->update(['estatus' => 'Cancelada']);
 
                             Notification::make()

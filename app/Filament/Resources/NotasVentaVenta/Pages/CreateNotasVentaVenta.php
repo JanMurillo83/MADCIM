@@ -4,6 +4,7 @@ namespace App\Filament\Resources\NotasVentaVenta\Pages;
 
 use App\Filament\Resources\NotasVentaVenta\NotasVentaVentaResource;
 use App\Models\Productos;
+use App\Services\InventarioMovimientoService;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateNotasVentaVenta extends CreateRecord
@@ -12,12 +13,21 @@ class CreateNotasVentaVenta extends CreateRecord
 
     protected function afterCreate(): void
     {
-        // Disminuir existencia de productos
-        foreach ($this->record->partidas as $partida) {
+        $record = $this->record;
+        $referencia = $record->serie . $record->folio;
+
+        foreach ($record->partidas as $partida) {
             $producto = Productos::find($partida->item);
-            if ($producto) {
-                $producto->decrement('existencia', $partida->cantidad);
+            if (! $producto) {
+                continue;
             }
+
+            InventarioMovimientoService::salida(
+                productoId: $producto->id,
+                cantidad: (float) $partida->cantidad,
+                motivo: "Venta generada en nota {$referencia}",
+                documentoReferencia: $referencia
+            );
         }
     }
 

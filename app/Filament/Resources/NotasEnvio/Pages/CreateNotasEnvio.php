@@ -6,6 +6,7 @@ use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
 use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
 use App\Models\RegistroRenta;
+use App\Services\InventarioMovimientoService;
 use Carbon\Carbon;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +37,19 @@ class CreateNotasEnvio extends CreateRecord
             ?? $nota->fecha_vencimiento?->toDateString()
             ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
 
+        $referencia = $record->serie . $record->folio;
+
         foreach ($record->partidas as $partida) {
+            $producto = Productos::find($partida->producto_id);
+            if ($producto) {
+                InventarioMovimientoService::salida(
+                    productoId: $producto->id,
+                    cantidad: (float) $partida->cantidad,
+                    motivo: "Envío de renta {$referencia}",
+                    documentoReferencia: $referencia
+                );
+            }
+
             RegistroRenta::create([
                 'nota_venta_renta_id' => $nota->id,
                 'cliente_id' => $nota->cliente_id,

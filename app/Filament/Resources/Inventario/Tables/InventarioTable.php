@@ -2,7 +2,11 @@
 
 namespace App\Filament\Resources\Inventario\Tables;
 
+use App\Filament\Resources\Inventario\InventarioResource;
 use App\Support\Numero;
+use Filament\Actions\CreateAction;
+use Filament\Actions\ViewAction;
+use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -74,9 +78,15 @@ class InventarioTable
                 //
             ])
             ->actions([
-                \Filament\Tables\Actions\ViewAction::make()
+                ViewAction::make()
                     ->label('Ver')
                     ->modalWidth('lg'),
-            ]);
+            ])
+            ->headerActions([
+                CreateAction::make()
+                    ->label('Nuevo Movimiento')
+                    ->icon('heroicon-m-plus')
+                    ->url(InventarioResource::getUrl('create')),
+            ], HeaderActionsPosition::Bottom);
     }
 }
