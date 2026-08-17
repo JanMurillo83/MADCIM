@@ -35,6 +35,8 @@ class NotasVentaRenta extends Model
         'total',
         'saldo_pendiente',
         'estatus',
+        'tipo_nota_renta',
+        'dias_solicitados',
         'uso_cfdi',
         'forma_pago',
         'metodo_pago',
@@ -122,5 +124,20 @@ class NotasVentaRenta extends Model
     public function notasEnvio(): HasMany
     {
         return $this->hasMany(NotaEnvio::class, 'nota_venta_renta_id');
+    }
+
+    public function desgloseM2(): HasMany
+    {
+        return $this->hasMany(NotaVentaRentaM2Desglose::class, 'nota_venta_renta_id');
+    }
+
+    public function esMaderaM2(): bool
+    {
+        return \App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMaderaM2() ?? false;
+    }
+
+    public function esMadera(): bool
+    {
+        return \App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMadera() ?? false;
     }
 }

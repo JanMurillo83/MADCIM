@@ -163,7 +163,8 @@ class NotaDevolucionRenta extends Model
                     ->where('estado_renta', '!=', 'Devuelta')
                     ->count();
 
-                if ($pendientesEnNota === 0) {
+                $notaOrigen = NotasVentaRenta::query()->find($this->nota_venta_renta_id);
+                if ($pendientesEnNota === 0 && !$notaOrigen?->esMadera()) {
                     NotasVentaRenta::query()->whereKey($this->nota_venta_renta_id)
                         ->update(['estatus' => 'Devuelta']);
                 }

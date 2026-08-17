@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
+use App\Enums\TipoNotaRenta;
+use App\Services\DesgloseM2Service;
+use App\Services\RentaMaderaM2Service;
 use App\Support\Impuestos;
 use App\Support\Numero;
 use App\Models\ClienteDireccionEntrega;
@@ -17,6 +20,8 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Actions\Action;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -27,8 +32,34 @@ use Filament\Support\RawJs;
 
 class NotasVentaRentaForm
 {
-    private static function resolverPrecioBaseRenta(Productos $producto, ?string $tipoRenta): float
+    private const PRODUCTOS_RENTA_M2_IDS = [143, 145, 146];
+
+    private static function tipoNotaRentaActual(Get $get): ?TipoNotaRenta
     {
+        return TipoNotaRenta::tryFrom($get('tipo_nota_renta') ?? '');
+    }
+
+    private static function esMaderaM2(Get $get): bool
+    {
+        return self::tipoNotaRentaActual($get)?->esMaderaM2() ?? false;
+    }
+
+    private static function esMadera(Get $get): bool
+    {
+        return self::tipoNotaRentaActual($get)?->esMadera() ?? false;
+    }
+
+    private static function esEquipo(Get $get): bool
+    {
+        return !self::esMadera($get);
+    }
+    private static function resolverPrecioBaseRenta(Productos $producto, ?string $tipoRenta, ?TipoNotaRenta $tipoNotaRenta = null): float
+    {
+        // Para madera (pieza o M2) el precio es fijo de 1 a 30 días, no multiplicar por duración.
+        if ($tipoNotaRenta?->esMadera() === true) {
+            return (float) $producto->precio_renta_dia;
+        }
+
         return match ($tipoRenta) {
             'semana' => (float) $producto->precio_renta_semana,
             'mes' => (float) $producto->precio_renta_mes,
@@ -49,6 +80,7 @@ class NotasVentaRentaForm
             return;
         }
 
+        $tipoNotaRenta = self::tipoNotaRentaActual($get);
         $tipoRenta = $get('tipo_renta') ?? 'dia';
         $duracion = self::resolverDuracionRenta($get);
         $cambiadas = false;
@@ -64,8 +96,10 @@ class NotasVentaRentaForm
                 continue;
             }
 
-            $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta);
-            $valorUnitario = round($precioBase * $duracion, 2);
+            $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
+            $valorUnitario = $tipoNotaRenta?->esMadera() === true
+                ? $precioBase
+                : round($precioBase * $duracion, 2);
             $cantidad = (float) ($partida['cantidad'] ?? 1);
             $totalConIva = round($cantidad * $valorUnitario, 2);
             $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
@@ -94,6 +128,61 @@ class NotasVentaRentaForm
         $set('subtotal', $desglose['subtotal']);
         $set('impuestos', $desglose['iva']);
         $set('total', $totalConIva);
+    }
+
+    private static function recalcularM2(Get $get, Set $set): void
+    {
+        if (!self::esMaderaM2($get)) {
+            return;
+        }
+
+        $metros = (float) ($get('metros_m2') ?? 0);
+        $tipoNotaRenta = self::tipoNotaRentaActual($get);
+        if (!$tipoNotaRenta) {
+            return;
+        }
+
+        $calculo = RentaMaderaM2Service::calcular($tipoNotaRenta, $metros);
+
+        $set('precio_renta_m2', $calculo['precio_renta_m2']);
+        $set('precio_deposito_m2', $calculo['precio_deposito_m2']);
+        $set('subtotal_renta_m2', $calculo['subtotal_renta']);
+        $set('iva_renta_m2', $calculo['iva_renta']);
+        $set('total_renta_m2', $calculo['total_renta']);
+        $set('deposito_m2', $calculo['deposito']);
+
+        $set('subtotal', $calculo['subtotal_renta']);
+        $set('impuestos_total', $calculo['iva_renta']);
+        $set('deposito', $calculo['deposito']);
+        $set('total', $calculo['total']);
+        $set('saldo_pendiente', $calculo['total']);
+
+        $desglose = DesgloseM2Service::generar($tipoNotaRenta, $metros, $get('desglose_m2') ?? []);
+        $set('desglose_m2', $desglose);
+    }
+
+    private static function aplicarDesgloseAM2(Get $get, Set $set): void
+    {
+        if (!self::esMaderaM2($get)) {
+            return;
+        }
+
+        $metros = (float) ($get('metros_m2') ?? 0);
+        $tipoNotaRenta = self::tipoNotaRentaActual($get);
+        if (!$tipoNotaRenta) {
+            return;
+        }
+
+        $desglose = $get('desglose_m2') ?? [];
+        $m2TotalDesglose = 0;
+        foreach ($desglose as $fila) {
+            $m2TotalDesglose += (float) ($fila['m2_total'] ?? 0);
+        }
+
+        // Si el desglose actual no cubre aproximadamente los M2, regenerar
+        if (abs($m2TotalDesglose - $metros) > 0.01 || empty($desglose)) {
+            self::recalcularM2($get, $set);
+        }
     }
 
     private static function setDocumentoTotales(Set $set, bool $fromRepeater, float $subtotal, float $impuestos, float $deposito, float $total): void
@@ -148,12 +237,42 @@ class NotasVentaRentaForm
         self::recalculateDocumentoTotalesFromPartidas($get('../../partidas'), $set, true);
     }
 
+    private static function recalcularFilaDesgloseM2(Get $get, Set $set): void
+    {
+        $cantidad = (float) ($get('cantidad') ?? 0);
+        $m2Cubre = (float) ($get('m2_cubre') ?? 0);
+        $set('m2_total', round($cantidad * $m2Cubre, 2));
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
             ->components([
                 Section::make('Encabezado')
                     ->schema([
+                        Select::make('tipo_nota_renta')
+                            ->label('Tipo de Nota de Renta')
+                            ->required()
+                            ->default('equipo')
+                            ->options(TipoNotaRenta::options())
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set) {
+                                $tipo = self::tipoNotaRentaActual($get);
+
+                                if ($tipo?->esMadera()) {
+                                    $set('tipo_renta', 'dia');
+                                    $set('duracion_renta', 1);
+                                }
+
+                                if ($tipo?->esMaderaM2()) {
+                                    $set('partidas', []);
+                                    self::recalcularM2($get, $set);
+                                } else {
+                                    $set('metros_m2', 0);
+                                    $set('desglose_m2', []);
+                                    self::recalculatePartidasByRentaConfig($get, $set);
+                                }
+                            }),
                         Select::make('serie')
                             ->required()
                             ->options(function () {
@@ -188,6 +307,7 @@ class NotasVentaRentaForm
                                 'mes' => 'Por Mes',
                             ])
                             ->live()
+                            ->visible(fn (Get $get) => self::esEquipo($get))
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 self::recalculatePartidasByRentaConfig($get, $set);
                             }),
@@ -199,10 +319,23 @@ class NotasVentaRentaForm
                             ->minValue(1)
                             ->helperText('Número de días, semanas o meses según el tipo de renta.')
                             ->live(onBlur: true)
+                            ->visible(fn (Get $get) => self::esEquipo($get))
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 self::recalculatePartidasByRentaConfig($get, $set);
                             }),
-                        Hidden::make('dias_renta')->default(1),
+                        TextInput::make('dias_solicitados')
+                            ->label('Días de Renta')
+                            ->numeric()
+                            ->required()
+                            ->default(1)
+                            ->minValue(1)
+                            ->maxValue(30)
+                            ->helperText('Días considerados para el vencimiento. El precio de madera sigue siendo fijo.')
+                            ->visible(fn (Get $get) => self::esMadera($get)),
+                        TextInput::make('dias_renta')
+                            ->default(1)
+                            ->visible(false)
+                            ->dehydrated(true),
                         Select::make('condicion_pago')
                             ->label('Condición de Pago')
                             ->required()
@@ -236,8 +369,8 @@ class NotasVentaRentaForm
                             ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
                             ->searchable()
                             ->preload()
-                            ->default(fn () => auth()->user()?->sucursal_id)
-                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
+                            ->default(fn () => Auth::user()?->sucursal_id)
+                            ->disabled(fn () => Auth::user()?->role !== 'Administrador'),
                         Hidden::make('user_id')
                             ->default(fn () => Auth::id()),
                         Select::make('direccion_entrega_id')
@@ -366,6 +499,7 @@ class NotasVentaRentaForm
                     ])
                     ->columns(5),
                 Section::make('Partidas')
+                    ->visible(fn (Get $get) => !self::esMaderaM2($get))
                     ->schema([
                         Repeater::make('partidas')
                             ->relationship()
@@ -396,11 +530,24 @@ class NotasVentaRentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
-                                    ->rules(fn () => [
-                                        function (string $attribute, mixed $value, \Closure $fail): void {
+                                    ->rules(fn (Get $get) => [
+                                        function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
                                             $producto = Productos::find($value);
 
-                                            if ($producto && (float) $producto->existencia < 1) {
+                                            if (!$producto) {
+                                                return;
+                                            }
+
+                                            // Los productos conceptuales de renta M2 no requieren existencia
+                                            if (in_array((int) $producto->id, self::PRODUCTOS_RENTA_M2_IDS, true)) {
+                                                return;
+                                            }
+
+                                            if (self::esMaderaM2($get)) {
+                                                return;
+                                            }
+
+                                            if ((float) $producto->existencia < 1) {
                                                 $fail('No se puede rentar este producto porque no tiene existencia disponible.');
                                             }
                                         },
@@ -426,7 +573,10 @@ class NotasVentaRentaForm
                                         if ($producto === null) {
                                             return;
                                         }
-                                        if ((float) $producto->existencia < 1) {
+                                        $tipoNotaRenta = self::tipoNotaRentaActual($get);
+                                        $esProductoConceptualM2 = in_array((int) $producto->id, self::PRODUCTOS_RENTA_M2_IDS, true);
+
+                                        if (!$esProductoConceptualM2 && !self::esMaderaM2($get) && (float) $producto->existencia < 1) {
                                             $set('item', null);
                                             $set('descripcion', null);
                                             $set('valor_unitario', 0.0);
@@ -443,7 +593,10 @@ class NotasVentaRentaForm
                                         $set('descripcion', $producto->descripcion);
                                         $tipoRenta = $get('../../tipo_renta') ?? 'dia';
                                         $duracion = max(1, (float) ($get('../../duracion_renta') ?? 1));
-                                        $precio = round(self::resolverPrecioBaseRenta($producto, $tipoRenta) * $duracion, 2);
+                                        $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
+                                        $precio = $tipoNotaRenta?->esMadera() === true
+                                            ? $precioBase
+                                            : round($precioBase * $duracion, 2);
                                         $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
@@ -493,6 +646,141 @@ class NotasVentaRentaForm
                             ->defaultItems(1)
                             ->columnSpanFull(),
                     ]),
+                Section::make('Renta de Madera por Metro Cuadrado')
+                    ->visible(fn (Get $get) => self::esMaderaM2($get))
+                    ->schema([
+                        TextInput::make('metros_m2')
+                            ->label('Metros Cuadrados')
+                            ->numeric()
+                            ->required()
+                            ->default(0)
+                            ->minValue(0.01)
+                            ->suffix('M2')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (Get $get, Set $set) {
+                                self::recalcularM2($get, $set);
+                            }),
+                        Hidden::make('precio_renta_m2')->default(0),
+                        Hidden::make('precio_deposito_m2')->default(0),
+                        Hidden::make('total_renta_m2')->default(0),
+                        TextInput::make('subtotal_renta_m2')
+                            ->label('Subtotal Renta')
+                            ->numeric()
+                            ->prefix('$')
+                            ->default(0)
+                            ->readOnly(),
+                        TextInput::make('iva_renta_m2')
+                            ->label('IVA Renta')
+                            ->numeric()
+                            ->prefix('$')
+                            ->default(0)
+                            ->readOnly(),
+                        TextInput::make('deposito_m2')
+                            ->label('Depósito por M2')
+                            ->numeric()
+                            ->prefix('$')
+                            ->default(0)
+                            ->readOnly(),
+                        Placeholder::make('resumen_m2')
+                            ->label('Resumen')
+                            ->content(function (Get $get) {
+                                $metros = (float) ($get('metros_m2') ?? 0);
+                                $renta = (float) ($get('total_renta_m2') ?? 0);
+                                $deposito = (float) ($get('deposito_m2') ?? 0);
+                                $total = (float) ($get('total') ?? 0);
+                                return "M2: {$metros} | Renta c/IVA: $" . number_format($renta, 2) . " | Depósito: $" . number_format($deposito, 2) . " | Total: $" . number_format($total, 2);
+                            })
+                            ->columnSpanFull(),
+                        Repeater::make('desglose_m2')
+                            ->label('Desglose sugerido de productos')
+                            ->addable(true)
+                            ->deletable(true)
+                            ->reorderable(false)
+                            ->compact()
+                            ->table([
+                                Repeater\TableColumn::make('Producto'),
+                                Repeater\TableColumn::make('Cantidad'),
+                                Repeater\TableColumn::make('M2 c/u'),
+                                Repeater\TableColumn::make('M2 Total'),
+                            ])
+                            ->schema([
+                                Select::make('producto_id')
+                                    ->label('Producto')
+                                    ->required()
+                                    ->searchable()
+                                    ->options(function () {
+                                        return Productos::query()
+                                            ->where('linea', 'MADERA')
+                                            ->whereNotNull('m2_cubre')
+                                            ->where('m2_cubre', '>', 0)
+                                            ->orderBy('clave')
+                                            ->get()
+                                            ->mapWithKeys(function (Productos $producto) {
+                                                return [
+                                                    $producto->id => $producto->clave . ' - ' . $producto->descripcion
+                                                        . ' | M2: ' . $producto->m2_cubre
+                                                        . ' | Existencia: ' . Numero::formato($producto->existencia, 2),
+                                                ];
+                                            })
+                                            ->all();
+                                    })
+                                    ->live()
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        $producto = Productos::find($get('producto_id'));
+                                        if ($producto) {
+                                            $set('clave', $producto->clave);
+                                            $set('descripcion', $producto->descripcion);
+                                            $set('m2_cubre', (float) $producto->m2_cubre);
+                                            self::recalcularFilaDesgloseM2($get, $set);
+                                        }
+                                    })
+                                    ->columnSpan(3),
+                                Hidden::make('clave'),
+                                Hidden::make('descripcion'),
+                                TextInput::make('cantidad')
+                                    ->label('Cantidad')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(0)
+                                    ->minValue(0.01)
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set) {
+                                        self::recalcularFilaDesgloseM2($get, $set);
+                                    })
+                                    ->columnSpan(1),
+                                TextInput::make('m2_cubre')
+                                    ->label('M2 c/u')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(0)
+                                    ->readOnly()
+                                    ->columnSpan(1),
+                                TextInput::make('m2_total')
+                                    ->label('M2 Total')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(0)
+                                    ->readOnly()
+                                    ->columnSpan(1),
+                                TextInput::make('observaciones')
+                                    ->label('Observaciones')
+                                    ->maxLength(255)
+                                    ->columnSpan(2),
+                            ])
+                            ->columns(8)
+                            ->columnSpanFull(),
+                        Actions::make([
+                            Action::make('regenerar_desglose')
+                                ->label('Regenerar desglose')
+                                ->icon('heroicon-o-arrow-path')
+                                ->color('info')
+                                ->action(function (Get $get, Set $set) {
+                                    self::recalcularM2($get, $set);
+                                }),
+                        ]),
+                    ])
+                    ->columns(4)
+                    ->columnSpanFull(),
                 Section::make('CFDI')
                     ->schema([
                         TextInput::make('uso_cfdi')
@@ -578,6 +866,28 @@ class NotasVentaRentaForm
                         Hidden::make('saldo_pendiente')->default(0.0),
                     ])
                     ->columns(4),
+                Actions::make([
+                    Action::make('cancelar_captura_abajo')
+                        ->label('Cancelar captura')
+                        ->icon('fas-ban')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Cancelar captura')
+                        ->modalDescription('¿Deseas cancelar la captura y regresar al listado? Se perderán los datos no guardados.')
+                        ->modalSubmitActionLabel('Sí, cancelar')
+                        ->action(fn ($livewire) => $livewire->cancelarCaptura()),
+                    Action::make('guardar_abajo')
+                        ->label('Guardar')
+                        ->icon('fas-save')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Confirmar periodo de renta')
+                        ->modalDescription(fn ($livewire) => $livewire->buildRentaPeriodoDescription())
+                        ->modalSubmitActionLabel('Guardar')
+                        ->modalCancelActionLabel('Revisar')
+                        ->action(fn ($livewire) => $livewire->guardarCaptura()),
+                ])
+                    ->columnSpanFull(),
             ])
             ->columns(1);
     }

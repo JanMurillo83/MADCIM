@@ -15,6 +15,7 @@ use Filament\Notifications\Notification;
 use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
+use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
@@ -74,7 +75,12 @@ class NotasVentaRentaTable
                     ->label('Estatus Envío')
                     ->badge()
                     ->getStateUsing(function (NotasVentaRenta $record) {
-                        $partidas = $record->partidas;
+                        $partidas = $record->esMaderaM2()
+                            ? $record->desgloseM2->map(fn ($fila) => (object) [
+                                'item' => $fila->producto_id,
+                                'cantidad' => $fila->cantidad,
+                            ])
+                            : $record->partidas;
                         if ($partidas->isEmpty()) return 'Sin partidas';
 
                         $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
@@ -269,7 +275,13 @@ class NotasVentaRentaTable
                             }
 
                             // Partidas pendientes de envío
-                            $partidas = $record->partidas;
+                            $partidas = $record->esMaderaM2()
+                                ? $record->desgloseM2->map(fn ($fila) => (object) [
+                                    'item' => $fila->producto_id,
+                                    'cantidad' => $fila->cantidad,
+                                    'descripcion' => $fila->descripcion ?: $fila->producto?->descripcion,
+                                ])
+                                : $record->partidas;
                             $pendientes = collect();
                             foreach ($partidas as $partida) {
                                 $yaEnviado = NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($notaId) {
@@ -300,7 +312,7 @@ class NotasVentaRentaTable
                         ->icon('heroicon-o-check-circle')
                         ->color('danger')
                         ->visible(function (NotasVentaRenta $record) {
-                            return $record->estatus !== 'Devuelta'
+                            return !in_array($record->estatus, ['Devuelta', 'Vendida'], true)
                                 && $record->notasEnvio()->exists();
                         })
                         ->modalHeading(fn (NotasVentaRenta $record) => 'Cierre de Devolución - Nota ' . $record->serie . '-' . $record->folio)
@@ -340,11 +352,25 @@ class NotasVentaRentaTable
                                 Textarea::make('observaciones')
                                     ->label('Observaciones')
                                     ->rows(3),
+                                Select::make('modo_cierre')
+                                    ->label('Resolución de la renta')
+                                    ->options([
+                                        'devolucion' => 'Recibir devolución y aplicar depósito/faltantes',
+                                        'venta_madera' => 'Cliente se queda con la madera y se genera venta',
+                                    ])
+                                    ->default('devolucion')
+                                    ->required()
+                                    ->visible(fn () => $record->esMadera()),
                             ];
                         })
                         ->action(function (NotasVentaRenta $record, array $data): void {
                             $resultado = app(CierreDevolucionRentaService::class)
-                                ->cerrar($record, $data['observaciones'] ?? null, Auth::id());
+                                ->cerrar(
+                                    $record,
+                                    $data['observaciones'] ?? null,
+                                    Auth::id(),
+                                    $data['modo_cierre'] ?? 'devolucion',
+                                );
 
                             $totales = $resultado['resumen']['totales'];
 
@@ -358,6 +384,9 @@ class NotasVentaRentaTable
                             }
 
                             $mensaje = 'Cierre de devolución consolidado procesado. ';
+                            if (($resultado['modo'] ?? null) === 'venta_madera') {
+                                $mensaje = 'La madera se convirtió en venta y la NR quedó marcada como Vendida. ';
+                            }
                             if (!empty($resultado['nota_venta_venta_id'])) {
                                 $mensaje .= 'Se generó Nota de Venta por faltantes: $' . number_format((float) $totales['total_faltantes'], 2) . '. ';
                                 $mensaje .= 'Depósito aplicado: $' . number_format((float) $totales['deposito_aplicado'], 2) . '. ';

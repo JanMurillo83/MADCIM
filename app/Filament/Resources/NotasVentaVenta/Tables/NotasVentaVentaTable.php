@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\NotasVentaVenta\Tables;
 
 use App\Models\NotasVentaVenta;
+use App\Models\Productos;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
@@ -56,7 +57,7 @@ class NotasVentaVentaTable
                     ->badge()
                     ->colors([
                         'danger' => 'Pendiente de Envío',
-                        'success' => 'Enviada',
+                        'success' => ['Enviada', 'Entregada'],
                     ]),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
