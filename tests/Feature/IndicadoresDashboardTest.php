@@ -8,13 +8,13 @@ use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class IndicadoresDashboardTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private function findStatValue(array $stats, string $label): ?string
     {

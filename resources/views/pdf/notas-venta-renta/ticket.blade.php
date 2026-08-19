@@ -32,6 +32,12 @@
             font-weight: bold;
             margin-bottom: 5px;
         }
+        .company-address {
+            font-size: 10px;
+            font-weight: normal;
+            line-height: 1.3;
+            margin-bottom: 5px;
+        }
         .info-section {
             margin-bottom: 10px;
             border-bottom: 1px dashed #000;
@@ -112,6 +118,15 @@
             padding: 5px 0;
             margin-top: 5px;
         }
+        .payment-section {
+            margin-top: 10px;
+            border-top: 1px dashed #000;
+            padding-top: 8px;
+        }
+        .payment-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
         .footer {
             text-align: center;
             margin-top: 15px;
@@ -137,7 +152,21 @@
 </head>
 <body>
     <div class="header">
-        <div class="company-name">MADCIM</div>
+        <div class="company-name">{{ $configuracion->razon_social ?? 'MADCIM' }}</div>
+        @if($configuracion)
+        <div class="company-address">
+            {{ implode(', ', array_filter([
+                $configuracion->calle,
+                $configuracion->exterior ? 'Ext. ' . $configuracion->exterior : null,
+                $configuracion->interior ? 'Int. ' . $configuracion->interior : null,
+                $configuracion->colonia,
+                $configuracion->municipio,
+                $configuracion->estado,
+                $configuracion->pais,
+                $configuracion->codigo ? 'CP ' . $configuracion->codigo : null,
+            ])) }}
+        </div>
+        @endif
         <div>NOTA DE RENTA</div>
     </div>
 
@@ -153,6 +182,18 @@
         <div class="info-row">
             <span class="label">Cliente:</span>
             <span>{{ $notaVenta->cliente->nombre ?? 'N/A' }}</span>
+        </div>
+        @php
+            $condicionPago = strtolower((string) ($notaVenta->condicion_pago ?? ''));
+            $condicionPagoTexto = match ($condicionPago) {
+                'contado' => 'Contado',
+                'credito' => 'Credito',
+                default => $notaVenta->condicion_pago ?: 'N/A',
+            };
+        @endphp
+        <div class="info-row">
+            <span class="label">Condicion de pago:</span>
+            <strong>{{ $condicionPagoTexto }}</strong>
         </div>
         @if($notaVenta->cliente && $notaVenta->cliente->telefono)
         <div class="info-row">
@@ -224,6 +265,37 @@
             <span>${{ number_format($notaVenta->total, 2) }}</span>
         </div>
     </div>
+
+    @if($condicionPago === 'contado')
+    <div class="payment-section">
+        <div class="payment-title">Pago de contado</div>
+        @forelse($notaVenta->pagos as $pago)
+            <div class="total-row">
+                <span>{{ match ($pago->forma_pago) {
+                    '01' => 'Efectivo',
+                    '02' => 'Cheque',
+                    '03' => 'Transferencia',
+                    '04' => 'Tarjeta credito',
+                    '28' => 'Tarjeta debito',
+                    default => $pago->forma_pago ?: 'N/A',
+                } }}:</span>
+                <span>${{ number_format($pago->importe, 2) }}</span>
+            </div>
+            @if($pago->forma_pago === '01')
+            <div class="total-row">
+                <span>Recibido:</span>
+                <span>${{ number_format($pago->importe_recibido ?? $pago->importe, 2) }}</span>
+            </div>
+            <div class="total-row">
+                <span>Cambio:</span>
+                <span>${{ number_format($pago->cambio ?? 0, 2) }}</span>
+            </div>
+            @endif
+        @empty
+            <div>Pago pendiente</div>
+        @endforelse
+    </div>
+    @endif
 
     <div class="footer">
         <div>¡Gracias por su preferencia!</div>

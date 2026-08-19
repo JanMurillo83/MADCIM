@@ -4,10 +4,12 @@ namespace App\Filament\Resources\NotasVentaRenta\Pages;
 
 use App\Enums\TipoNotaRenta;
 use App\Filament\Resources\NotasVentaRenta\NotasVentaRentaResource;
+use App\Models\Clientes;
 use App\Models\Productos;
 use App\Services\DesgloseM2Service;
 use App\Services\RentaMaderaM2Service;
 use Carbon\Carbon;
+use DomainException;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\HtmlString;
@@ -149,8 +151,22 @@ class CreateNotasVentaRenta extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $cliente = Clientes::find($data['cliente_id'] ?? null);
+        $condicionPago = $data['condicion_pago'] ?? 'contado';
+
+        try {
+            $cliente?->validarCreacionNota($condicionPago);
+        } catch (DomainException $exception) {
+            throw ValidationException::withMessages([
+                'cliente_id' => $exception->getMessage(),
+            ]);
+        }
+
         $tipoNotaRenta = TipoNotaRenta::tryFrom($data['tipo_nota_renta'] ?? '');
         $fechaEmision = Carbon::parse($data['fecha_emision'] ?? now());
+        $data['fecha_vencimiento_pago'] = $condicionPago === 'credito'
+            ? $fechaEmision->copy()->addDays(max(1, (int) ($cliente?->dias_credito ?? 0)))->toDateString()
+            : null;
 
         if ($tipoNotaRenta?->esMadera() === true) {
             // Para madera (pieza o M2) el precio es fijo, pero los días determinan el vencimiento.

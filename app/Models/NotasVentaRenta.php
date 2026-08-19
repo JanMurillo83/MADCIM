@@ -27,6 +27,7 @@ class NotasVentaRenta extends Model
         'tipo_renta',
         'condicion_pago',
         'fecha_vencimiento',
+        'fecha_vencimiento_pago',
         'moneda',
         'tipo_cambio',
         'deposito',
@@ -51,10 +52,15 @@ class NotasVentaRenta extends Model
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_vencimiento' => 'date',
+        'fecha_vencimiento_pago' => 'date',
     ];
 
     protected static function booted(): void
     {
+        static::creating(function (self $nota): void {
+            $nota->cliente?->validarCreacionNota($nota->condicion_pago ?? 'contado');
+        });
+
         static::saved(function (self $nota) {
             $clienteAnteriorId = $nota->getOriginal('cliente_id');
             $clienteNuevoId = $nota->cliente_id;
@@ -109,6 +115,13 @@ class NotasVentaRenta extends Model
     public function documentosRelacionados(): HasMany
     {
         return $this->hasMany(self::class, 'documento_origen_id');
+    }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pagos::class, 'documento_id')
+            ->where('documento_tipo', 'notas_venta_renta')
+            ->orderBy('id');
     }
 
     public function devoluciones(): HasMany

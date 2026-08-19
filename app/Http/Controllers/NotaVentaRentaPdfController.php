@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Caja;
+use App\Models\Configuracion;
 use App\Models\DevolucionesRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
@@ -19,11 +20,7 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function preview($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
-
-        return view('notas-venta-renta.preview', [
-            'notaVenta' => $notaVenta
-        ]);
+        return view('notas-venta-renta.preview', $this->datosImpresion($id));
     }
 
     /**
@@ -31,11 +28,10 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function ticket($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $datos = $this->datosImpresion($id);
+        $notaVenta = $datos['notaVenta'];
 
-        $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', [
-            'notaVenta' => $notaVenta
-        ]);
+        $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', $datos);
 
         // Configurar tamaño de ticket (80mm x auto)
         $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait'); // 80mm width
@@ -48,11 +44,10 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function carta($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $datos = $this->datosImpresion($id);
+        $notaVenta = $datos['notaVenta'];
 
-        $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', [
-            'notaVenta' => $notaVenta
-        ]);
+        $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', $datos);
 
         // Configurar tamaño carta
         $pdf->setPaper('letter', 'portrait');
@@ -91,11 +86,10 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function descargarTicket($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $datos = $this->datosImpresion($id);
+        $notaVenta = $datos['notaVenta'];
 
-        $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', [
-            'notaVenta' => $notaVenta
-        ]);
+        $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', $datos);
 
         $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait');
 
@@ -107,11 +101,10 @@ class NotaVentaRentaPdfController extends Controller
      */
     public function descargarCarta($id)
     {
-        $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'partidas', 'registrosRenta.producto'])->findOrFail($id);
+        $datos = $this->datosImpresion($id);
+        $notaVenta = $datos['notaVenta'];
 
-        $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', [
-            'notaVenta' => $notaVenta
-        ]);
+        $pdf = Pdf::loadView('pdf.notas-venta-renta.carta', $datos);
 
         $pdf->setPaper('letter', 'portrait');
 
@@ -144,6 +137,7 @@ class NotaVentaRentaPdfController extends Controller
         $request->validate([
             'importe' => 'required|numeric|min:0.01',
             'metodo_pago' => 'required|string',
+            'importe_recibido' => 'nullable|numeric|min:0',
         ]);
 
         $notaVenta = NotasVentaRenta::findOrFail($id);
@@ -160,6 +154,16 @@ class NotaVentaRentaPdfController extends Controller
             default => $metodoPago,
         };
         $importe = (float) $request->input('importe');
+        $importeRecibido = $formaPago === '01'
+            ? (float) $request->input('importe_recibido', $importe)
+            : $importe;
+
+        if ($formaPago === '01' && $importeRecibido < $importe) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El pago recibido no puede ser menor al total de la nota.',
+            ], 422);
+        }
 
         $cajaId = null;
         if ($formaPago === '01') {
@@ -176,6 +180,8 @@ class NotaVentaRentaPdfController extends Controller
             'fecha_pago' => now(),
             'forma_pago' => $formaPago,
             'importe' => $importe,
+            'importe_recibido' => $importeRecibido,
+            'cambio' => $formaPago === '01' ? round($importeRecibido - $importe, 2) : 0,
             'referencia' => 'Pago de contado al crear nota',
             'user_id' => $userId,
             'caja_id' => $cajaId,
@@ -186,5 +192,21 @@ class NotaVentaRentaPdfController extends Controller
             'message' => 'Pago registrado correctamente.',
             'saldo_pendiente' => $notaVenta->fresh()->saldo_pendiente,
         ]);
+    }
+
+    private function datosImpresion($id): array
+    {
+        $notaVenta = NotasVentaRenta::with([
+            'cliente',
+            'direccionEntrega',
+            'partidas',
+            'registrosRenta.producto',
+            'pagos',
+        ])->findOrFail($id);
+
+        return [
+            'notaVenta' => $notaVenta,
+            'configuracion' => Configuracion::first(),
+        ];
     }
 }

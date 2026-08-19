@@ -99,9 +99,9 @@ class CuentasPorCobrar extends Page
                 ->get()
                 ->map(function ($row) use ($hoy) {
                     $diasVencido = null;
-                    if ($row->fecha_vencimiento) {
-                        $diasVencido = $row->fecha_vencimiento->toDateString() < $hoy
-                            ? $row->fecha_vencimiento->diffInDays(now())
+                    if ($row->fecha_vencimiento_pago) {
+                        $diasVencido = $row->fecha_vencimiento_pago->toDateString() < $hoy
+                            ? $row->fecha_vencimiento_pago->diffInDays(now())
                             : 0;
                     }
 
@@ -130,7 +130,14 @@ class CuentasPorCobrar extends Page
                 ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
                 ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin))
                 ->get()
-                ->map(function ($row) {
+                ->map(function ($row) use ($hoy) {
+                    $diasVencido = null;
+                    if ($row->fecha_vencimiento_pago) {
+                        $diasVencido = $row->fecha_vencimiento_pago->toDateString() < $hoy
+                            ? $row->fecha_vencimiento_pago->diffInDays(now())
+                            : 0;
+                    }
+
                     return [
                         'tipo' => 'Nota de Venta',
                         'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
@@ -139,7 +146,7 @@ class CuentasPorCobrar extends Page
                         'total' => (float) $row->total,
                         'saldo_pendiente' => (float) $row->saldo_pendiente,
                         'estatus' => $row->estatus,
-                        'dias_vencido' => null,
+                        'dias_vencido' => $diasVencido,
                     ];
                 });
         }
@@ -156,7 +163,18 @@ class CuentasPorCobrar extends Page
                 ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
                 ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin))
                 ->get()
-                ->map(function ($row) {
+                ->map(function ($row) use ($hoy) {
+                    $diasVencido = null;
+                    if ($row->fecha_emision) {
+                        $fechaVencimiento = $row->fecha_emision
+                            ->copy()
+                            ->addDays(max(0, (int) ($row->cliente?->dias_credito ?? 0)));
+
+                        $diasVencido = $fechaVencimiento->toDateString() < $hoy
+                            ? $fechaVencimiento->diffInDays(now())
+                            : 0;
+                    }
+
                     return [
                         'tipo' => 'Factura CFDI',
                         'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
@@ -165,7 +183,7 @@ class CuentasPorCobrar extends Page
                         'total' => (float) $row->total,
                         'saldo_pendiente' => (float) $row->saldo_pendiente,
                         'estatus' => $row->estatus,
-                        'dias_vencido' => null,
+                        'dias_vencido' => $diasVencido,
                     ];
                 });
         }

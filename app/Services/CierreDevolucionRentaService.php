@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
+use App\Models\Clientes;
 use App\Models\DevolucionesRenta;
 use App\Models\DevolucionRentaPartidas;
 use App\Models\DocumentoSerie;
@@ -47,17 +48,6 @@ class CierreDevolucionRentaService
 
             $nota->load(['notasEnvio.partidas.producto', 'cliente']);
 
-            // La devolución de equipo se considera completa al cerrar. La madera
-            // conserva las cantidades recogidas por NotaDevolucionRenta.
-            if (!$nota->esMadera()) {
-                NotaEnvioPartida::query()
-                    ->whereHas('notaEnvio', fn ($q) => $q->where('nota_venta_renta_id', $nota->id))
-                    ->update([
-                        'cantidad_devuelta' => DB::raw('cantidad'),
-                        'estado' => 'Devuelto',
-                    ]);
-            }
-
             $resumen = $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
             $modo = $nota->esMadera() && $modo === 'venta_madera' ? 'venta_madera' : 'devolucion';
             $referencia = 'Cierre NVR ' . ($nota->serie ?? '') . '-' . ($nota->folio ?? '');
@@ -69,12 +59,14 @@ class CierreDevolucionRentaService
             $notaVentaVenta = null;
 
             if ((float) $resumen['totales']['total_faltantes'] > 0) {
-                $notaVentaVenta = NotasVentaVenta::create([
+                $notaVentaVenta = (new NotasVentaVenta([
                     'cliente_id' => $nota->cliente_id,
                     'sucursal_id' => $nota->sucursal_id,
                     'user_id' => $userId,
                     'serie' => 'M',
                     'fecha_emision' => now(),
+                    'condicion_pago' => 'credito',
+                    'fecha_vencimiento_pago' => now()->toDateString(),
                     'moneda' => $nota->moneda ?? 'MXN',
                     'tipo_cambio' => $nota->tipo_cambio ?? 1,
                     'subtotal' => $resumen['totales']['subtotal_faltantes'],
@@ -86,7 +78,8 @@ class CierreDevolucionRentaService
                     'forma_pago' => '99',
                     'metodo_pago' => 'PUE',
                     'documento_origen_id' => $nota->id,
-                ]);
+                ]))->omitirValidacionEstatusCliente();
+                $notaVentaVenta->save();
 
                 foreach ($resumen['rows'] as $row) {
                     NotaVentaVentaPartidas::create([
@@ -200,6 +193,10 @@ class CierreDevolucionRentaService
                 ->update(['estado_renta' => 'Devuelta']);
 
             $nota->update(['estatus' => $modo === 'venta_madera' ? 'Vendida' : 'Devuelta']);
+
+            if ((float) $resumen['totales']['total_faltantes'] > 0) {
+                Clientes::find($nota->cliente_id)?->bloquear();
+            }
 
             return [
                 'already_closed' => false,

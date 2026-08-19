@@ -9,6 +9,10 @@ return new class extends Migration
 {
     private function foreignKeyExists(string $table, string $name): bool
     {
+        if (! in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            return false;
+        }
+
         $rows = DB::select(
             'SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
              WHERE TABLE_SCHEMA = DATABASE()

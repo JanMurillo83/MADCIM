@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use Database\Seeders\SatRegimenFiscalSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SatRegimenFiscalSeederTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_seeder_crea_el_catalogo_de_regimen_fiscal_de_sat(): void
     {

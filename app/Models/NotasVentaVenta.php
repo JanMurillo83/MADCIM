@@ -22,6 +22,8 @@ class NotasVentaVenta extends Model
         'serie',
         'folio',
         'fecha_emision',
+        'condicion_pago',
+        'fecha_vencimiento_pago',
         'moneda',
         'tipo_cambio',
         'subtotal',
@@ -43,10 +45,28 @@ class NotasVentaVenta extends Model
 
     protected $casts = [
         'fecha_emision' => 'datetime',
+        'fecha_vencimiento_pago' => 'date',
     ];
+
+    protected bool $omitirValidacionEstatusCliente = false;
+
+    public function omitirValidacionEstatusCliente(): static
+    {
+        $this->omitirValidacionEstatusCliente = true;
+
+        return $this;
+    }
 
     protected static function booted(): void
     {
+        static::creating(function (self $nota): void {
+            if ($nota->omitirValidacionEstatusCliente) {
+                return;
+            }
+
+            $nota->cliente?->validarCreacionNota($nota->condicion_pago ?? 'contado');
+        });
+
         static::saved(function (self $nota) {
             $clienteAnteriorId = $nota->getOriginal('cliente_id');
             $clienteNuevoId = $nota->cliente_id;

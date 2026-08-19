@@ -47,6 +47,28 @@
             color: #666;
             line-height: 1.4;
         }
+        .payment-section {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .payment-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        .payment-row {
+            display: table;
+            width: 100%;
+            margin: 4px 0;
+        }
+        .payment-row span {
+            display: table-cell;
+        }
+        .payment-row span:last-child {
+            text-align: right;
+        }
         .document-title {
             font-size: 18pt;
             font-weight: bold;
@@ -223,10 +245,21 @@
 <body>
     <div class="header">
         <div class="header-left">
-            <div class="company-name">MADCIM</div>
+            <div class="company-name">{{ $configuracion->razon_social ?? 'MADCIM' }}</div>
             <div class="company-info">
                 Renta y Venta de Cimbra<br>
-                <!-- Agregar aqu� direcci�n, tel�fono, etc. si est� disponible -->
+                @if($configuracion)
+                    {{ implode(', ', array_filter([
+                        $configuracion->calle,
+                        $configuracion->exterior ? 'Ext. ' . $configuracion->exterior : null,
+                        $configuracion->interior ? 'Int. ' . $configuracion->interior : null,
+                        $configuracion->colonia,
+                        $configuracion->municipio,
+                        $configuracion->estado,
+                        $configuracion->pais,
+                        $configuracion->codigo ? 'CP ' . $configuracion->codigo : null,
+                    ])) }}
+                @endif
             </div>
         </div>
         <div class="header-right">
@@ -273,6 +306,18 @@
                 <div class="info-row">
                     <span class="info-label">Estatus:</span>
                     {{ $notaVenta->estatus }}
+                </div>
+                @php
+                    $condicionPago = strtolower((string) ($notaVenta->condicion_pago ?? ''));
+                    $condicionPagoTexto = match ($condicionPago) {
+                        'contado' => 'Contado',
+                        'credito' => 'Credito',
+                        default => $notaVenta->condicion_pago ?: 'N/A',
+                    };
+                @endphp
+                <div class="info-row">
+                    <span class="info-label">Condicion de pago:</span>
+                    <strong>{{ $condicionPagoTexto }}</strong>
                 </div>
                 @php
                     $tipoRenta = $notaVenta->tipo_renta ?? 'dia';
@@ -373,6 +418,37 @@
             </tr>
         </table>
     </div>
+
+    @if($condicionPago === 'contado')
+    <div class="payment-section">
+        <div class="payment-title">Pago de contado</div>
+        @forelse($notaVenta->pagos as $pago)
+            <div class="payment-row">
+                <span>{{ match ($pago->forma_pago) {
+                    '01' => 'Efectivo',
+                    '02' => 'Cheque',
+                    '03' => 'Transferencia',
+                    '04' => 'Tarjeta credito',
+                    '28' => 'Tarjeta debito',
+                    default => $pago->forma_pago ?: 'N/A',
+                } }}</span>
+                <span>${{ number_format($pago->importe, 2) }}</span>
+            </div>
+            @if($pago->forma_pago === '01')
+            <div class="payment-row">
+                <span>Recibido</span>
+                <span>${{ number_format($pago->importe_recibido ?? $pago->importe, 2) }}</span>
+            </div>
+            <div class="payment-row">
+                <span>Cambio</span>
+                <span>${{ number_format($pago->cambio ?? 0, 2) }}</span>
+            </div>
+            @endif
+        @empty
+            <div>Pago pendiente</div>
+        @endforelse
+    </div>
+    @endif
 
     <div class="alert-box">
         <strong>IMPORTANTE:</strong> Favor de verificar la devoluci�n de todos los materiales en las fechas indicadas.

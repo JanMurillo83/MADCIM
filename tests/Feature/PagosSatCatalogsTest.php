@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Models\Clientes;
 use App\Models\Pagos;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class PagosSatCatalogsTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_se_puede_registrar_un_pago_con_defaults_de_cfdi_y_llaves_foraneas_sat(): void
     {

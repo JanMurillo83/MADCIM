@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Clientes\Schemas;
 
 use App\Models\Clientes;
 use App\Models\SatRegimenFiscal;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -27,6 +29,18 @@ class ClientesForm
                             ->required()->columnSpan(3),
                         TextInput::make('rfc')
                             ->required(),
+                        TextInput::make('curp')
+                            ->label('CURP')
+                            ->maxLength(18)
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state === null ? null : strtoupper(trim($state))),
+                        FileUpload::make('ine')
+                            ->label('INE escaneada')
+                            ->disk('local')
+                            ->directory('clientes/ine')
+                            ->image()
+                            ->maxSize(5120)
+                            ->openable()
+                            ->downloadable(),
                         Select::make('regimen')
                             ->label('Régimen fiscal')
                             ->options(fn () => SatRegimenFiscal::query()
@@ -76,6 +90,9 @@ class ClientesForm
                             ->required()
                             ->numeric()
                             ->default(0.0),
+                        Hidden::make('estatus_cliente')->default(Clientes::ESTATUS_ACTIVO),
+                        \Filament\Forms\Components\Checkbox::make('desbloqueo_discrecional')
+                            ->label('Permitir desbloqueo discrecional'),
                     ])->columnSpanFull()->columns(3),
                 ])->columnSpanFull()
             ]);

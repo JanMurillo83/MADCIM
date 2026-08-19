@@ -344,6 +344,7 @@ class NotasVentaRentaForm
                                 'contado' => 'Contado',
                                 'credito' => 'Crédito',
                             ]),
+                        Hidden::make('fecha_vencimiento_pago'),
                         Hidden::make('estatus')
                             ->required()
                             ->default('Activa'),

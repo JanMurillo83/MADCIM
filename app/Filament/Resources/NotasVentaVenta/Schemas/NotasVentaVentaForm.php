@@ -92,6 +92,15 @@ class NotasVentaVentaForm
                         DatePicker::make('fecha_emision')
                             ->default(Carbon::now()->format('Y-m-d'))
                             ->format('Y-m-d'),
+                        Select::make('condicion_pago')
+                            ->label('Condición de Pago')
+                            ->required()
+                            ->default('contado')
+                            ->options([
+                                'contado' => 'Contado',
+                                'credito' => 'Crédito',
+                            ]),
+                        Hidden::make('fecha_vencimiento_pago'),
                         Select::make('moneda')
                             ->required()
                             ->default('MXN')

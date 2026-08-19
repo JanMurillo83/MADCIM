@@ -2,12 +2,10 @@
 
 namespace App\Filament\Resources\Clientes\Tables;
 
-use App\Models\SatRegimenFiscal;
+use App\Models\Clientes;
 use App\Services\ClientesImportService;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
@@ -17,17 +15,14 @@ use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
-use App\Models\ClienteDireccionEntrega;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Models\RegistroRenta;
 use Carbon\Carbon;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Grid as FormGrid;
 use Filament\Forms\Components\TextInput as FormTextInput;
 use Filament\Forms\Components\Checkbox as FormCheckbox;
-use Filament\Forms\Components\Textarea as FormTextarea;
 use Filament\Actions\ActionGroup;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -44,21 +39,17 @@ class ClientesTable
                     ->searchable(),
                 TextColumn::make('rfc')
                     ->searchable(),
-                TextColumn::make('regimen')
-                    ->label('Régimen fiscal')
-                    ->formatStateUsing(function (?string $state): ?string {
-                        if ($state === null || $state === '') {
-                            return $state;
-                        }
-
-                        static $map = null;
-                        $map ??= SatRegimenFiscal::query()->pluck('descripcion', 'clave')->all();
-
-                        $descripcion = $map[$state] ?? null;
-
-                        return $descripcion ? "{$state} - {$descripcion}" : $state;
-                    })
-                    ->searchable(),
+                TextColumn::make('saldo')
+                    ->money('MXN', true)
+                    ->sortable(),
+                TextColumn::make('estatus_cliente')
+                    ->label('Estatus')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        Clientes::ESTATUS_MOROSO => 'warning',
+                        Clientes::ESTATUS_BLOQUEADO => 'danger',
+                        default => 'success',
+                    }),
                 TextColumn::make('codigo')
                     ->searchable(),
                 TextColumn::make('calle')
@@ -90,9 +81,6 @@ class ClientesTable
                 TextColumn::make('dias_credito')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('saldo')
-                    ->numeric()
-                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -108,6 +96,55 @@ class ClientesTable
             ->recordActions([
                 ActionGroup::make([
                     EditAction::make(),
+                    Action::make('configurar_desbloqueo')
+                        ->label('Desbloqueo discrecional')
+                        ->icon('heroicon-o-lock-open')
+                        ->form([
+                            FormCheckbox::make('desbloqueo_discrecional')
+                                ->label('Permitir desbloquear con saldo pendiente')
+                                ->helperText('Úsalo solo con autorización administrativa.'),
+                        ])
+                        ->fillForm(fn ($record): array => [
+                            'desbloqueo_discrecional' => (bool) $record->desbloqueo_discrecional,
+                        ])
+                        ->action(function ($record, array $data): void {
+                            $record->update([
+                                'desbloqueo_discrecional' => (bool) ($data['desbloqueo_discrecional'] ?? false),
+                            ]);
+
+                            Notification::make()
+                                ->title('Configuración actualizada')
+                                ->body('La opción de desbloqueo discrecional fue actualizada.')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('desbloquear')
+                        ->label('Desbloquear cliente')
+                        ->icon('heroicon-o-lock-open')
+                        ->color('success')
+                        ->visible(fn (Clientes $record): bool => $record->estatus_cliente === Clientes::ESTATUS_BLOQUEADO)
+                        ->requiresConfirmation()
+                        ->modalHeading('Desbloquear cliente')
+                        ->modalDescription(fn (Clientes $record): string => (float) $record->saldo > 0
+                            ? 'El cliente tiene saldo pendiente. Solo se podrá desbloquear si está habilitado el desbloqueo discrecional.'
+                            : 'El saldo del cliente es 0 y puede desbloquearse.')
+                        ->action(function (Clientes $record): void {
+                            try {
+                                $record->desbloquear();
+
+                                Notification::make()
+                                    ->title('Cliente desbloqueado')
+                                    ->body('El cliente volvió al estatus Activo.')
+                                    ->success()
+                                    ->send();
+                            } catch (\DomainException $exception) {
+                                Notification::make()
+                                    ->title('No se puede desbloquear')
+                                    ->body($exception->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
                     \Filament\Actions\Action::make('direccionesEntrega')
                         ->label('Direcciones de Entrega')
                         ->icon('fas-truck-loading')
