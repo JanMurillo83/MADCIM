@@ -18,20 +18,57 @@ use Filament\Schemas\Schema;
 
 class NotasDevolucionRentaForm
 {
-    private static function cargarPartidasPendientesDeNVR(?int $notaVentaRentaId, Set $set): void
+    /**
+     * @return array{cliente_id: int|null, partidas: array<int, array<string, mixed>>}
+     */
+    public static function obtenerDatosIniciales(?int $notaVentaRentaId): array
     {
         if (!$notaVentaRentaId) {
-            $set('partidas', []);
-            return;
+            return ['cliente_id' => null, 'partidas' => []];
+        }
+
+        $nota = NotasVentaRenta::query()
+            ->with(['partidas', 'desgloseM2'])
+            ->find($notaVentaRentaId);
+
+        if (!$nota) {
+            return ['cliente_id' => null, 'partidas' => []];
+        }
+
+        return [
+            'cliente_id' => $nota->cliente_id,
+            'partidas' => self::obtenerPartidasPendientesDeNVR($nota->id),
+        ];
+    }
+
+    private static function cargarDatosDeNota(?int $notaVentaRentaId, Set $set): void
+    {
+        $datos = self::obtenerDatosIniciales($notaVentaRentaId);
+        $set('cliente_id', $datos['cliente_id']);
+        $set('partidas', $datos['partidas']);
+    }
+
+    private static function cargarPartidasPendientesDeNVR(?int $notaVentaRentaId, Set $set): void
+    {
+        $set('partidas', self::obtenerPartidasPendientesDeNVR($notaVentaRentaId));
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function obtenerPartidasPendientesDeNVR(?int $notaVentaRentaId): array
+    {
+        if (!$notaVentaRentaId) {
+            return [];
         }
 
         $envioIds = NotaEnvio::query()
             ->where('nota_venta_renta_id', $notaVentaRentaId)
+            ->where('estatus', 'Entregada')
             ->pluck('id');
 
         if ($envioIds->isEmpty()) {
-            $set('partidas', []);
-            return;
+            return [];
         }
 
         $partidasEnvio = NotaEnvioPartida::query()
@@ -63,7 +100,7 @@ class NotasDevolucionRentaForm
             ];
         }
 
-        $set('partidas', $partidas);
+        return $partidas;
     }
 
     public static function configure(Schema $schema): Schema
@@ -116,9 +153,10 @@ class NotasDevolucionRentaForm
                                 return NotasVentaRenta::query()
                                     ->with('cliente')
                                     ->whereHas('notasEnvio', function ($query) {
-                                        $query->whereHas('partidas', function ($q) {
-                                            $q->whereRaw('cantidad_devuelta < cantidad');
-                                        });
+                                        $query->where('estatus', 'Entregada')
+                                            ->whereHas('partidas', function ($q) {
+                                                $q->whereRaw('cantidad_devuelta < cantidad');
+                                            });
                                     })
                                     ->orderByDesc('id')
                                     ->get()
@@ -132,17 +170,10 @@ class NotasDevolucionRentaForm
                             ->searchable()
                             ->preload()
                             ->afterStateUpdated(function ($state, Set $set) {
-                                $set('cliente_id', null);
-                                $set('partidas', []);
-
-                                if (!$state) {
-                                    return;
-                                }
-
-                                $clienteId = NotasVentaRenta::query()->whereKey((int) $state)->value('cliente_id');
-                                $set('cliente_id', $clienteId);
-
-                                self::cargarPartidasPendientesDeNVR((int) $state, $set);
+                                self::cargarDatosDeNota((int) ($state ?: 0), $set);
+                            })
+                            ->afterStateHydrated(function (Select $component, Set $set): void {
+                                self::cargarDatosDeNota((int) ($component->getState() ?: 0), $set);
                             }),
                         Select::make('cliente_id')
                             ->relationship('cliente', 'nombre')

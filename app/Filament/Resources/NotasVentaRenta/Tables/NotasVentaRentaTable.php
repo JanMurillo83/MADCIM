@@ -104,19 +104,22 @@ class NotasVentaRentaTable
                         // Verificar estatus de entrega de las notas de envío
                         $totalEnvios = $envios->count();
                         $entregadas = $envios->where('estatus', 'Entregada')->count();
+                        $enviadas = $envios->where('estatus', 'Enviada')->count();
 
                         if ($envioCompleto && $entregadas >= $totalEnvios) return 'Entregada';
                         if ($entregadas > 0 && $entregadas < $totalEnvios) return 'Entregada Parcial';
-                        if ($envioCompleto) return 'Pendiente';
+                        if ($envioCompleto && $enviadas >= $totalEnvios) return 'Enviada';
+                        if ($enviadas > 0) return 'Envío Parcial';
                         return 'Envío Parcial';
                     })
                     ->colors([
                         'danger' => 'Pendiente.',
                         'warning' => 'Envío Parcial',
-                        'info' => 'Pendiente',
+                        'info' => 'Enviada',
+                        'gray' => 'Pendiente',
                         'primary' => 'Entregada Parcial',
                         'success' => 'Entregada',
-                        'gray' => 'Sin partidas',
+                        'secondary' => 'Sin partidas',
                     ]),
                 TextColumn::make('estatus_renta')
                     ->label('Estatus Renta')

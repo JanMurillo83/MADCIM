@@ -73,6 +73,17 @@ class CreateNotasEnvio extends CreateRecord
             ]);
         }
 
+        // Crear el envío solo confirma que salió del almacén. La entrega se
+        // confirma después mediante la acción "Marcar Entregada".
+        $record->update([
+            'estatus' => 'Enviada',
+            'estado_renta' => $record->nota_venta_renta_id ? 'Pendiente' : null,
+        ]);
+
+        if ($record->nota_venta_venta_id) {
+            $record->notaVentaVenta()->update(['estatus_envio' => 'Entregada']);
+        }
+
         // Abrir ticket de nota de envío en nueva pestaña
         $url = route('notas-envio.pdf.ticket', $record->id);
         $this->js("window.open('{$url}', '_blank')");

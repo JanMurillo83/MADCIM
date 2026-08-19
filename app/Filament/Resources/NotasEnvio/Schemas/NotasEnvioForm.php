@@ -14,9 +14,48 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 class NotasEnvioForm
 {
+    private static function partidasPendientesDeNota(NotasVentaRenta $nota): array
+    {
+        $partidasOrigen = $nota->esMaderaM2()
+            ? $nota->desgloseM2
+                ->map(fn ($fila) => (object) [
+                    'item' => $fila->producto_id,
+                    'descripcion' => $fila->descripcion ?: $fila->producto?->descripcion,
+                    'cantidad' => $fila->cantidad,
+                ])
+            : $nota->partidas
+                ->map(fn ($partida) => (object) [
+                    'item' => $partida->item,
+                    'descripcion' => $partida->descripcion,
+                    'cantidad' => $partida->cantidad,
+                ]);
+
+        $partidasData = [];
+        foreach ($partidasOrigen as $partida) {
+            $yaEnviado = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($query) use ($nota) {
+                $query->where('nota_venta_renta_id', $nota->id);
+            })->where('producto_id', $partida->item)->sum('cantidad');
+
+            $pendiente = (float) $partida->cantidad - (float) $yaEnviado;
+            if ($pendiente <= 0) {
+                continue;
+            }
+
+            $partidasData[] = [
+                'producto_id' => $partida->item,
+                'descripcion' => $partida->descripcion,
+                'cantidad' => $pendiente,
+                'observaciones' => $partida->descripcion,
+            ];
+        }
+
+        return $partidasData;
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -52,7 +91,9 @@ class NotasEnvioForm
                             ->options(function () {
                                 return NotasVentaRenta::query()
                                     ->whereIn('estatus', ['Activa', 'Pagada'])
+                                    ->with(['cliente', 'partidas', 'desgloseM2'])
                                     ->get()
+                                    ->filter(fn (NotasVentaRenta $nota) => self::partidasPendientesDeNota($nota) !== [])
                                     ->mapWithKeys(function ($nota) {
                                         $label = ($nota->serie ? $nota->serie . '-' : '') . $nota->folio . ' - ' . ($nota->cliente?->nombre ?? 'Sin cliente');
                                         return [$nota->id => $label];
@@ -78,32 +119,13 @@ class NotasEnvioForm
                                 }
                                 // Las NR M2 se surten con productos físicos del desglose,
                                 // no con la partida conceptual de renta.
-                                $partidasOrigen = $nota->esMaderaM2()
-                                    ? $nota->desgloseM2->map(fn ($fila) => (object) [
-                                        'item' => $fila->producto_id,
-                                        'descripcion' => $fila->descripcion ?: $fila->producto?->descripcion,
-                                        'cantidad' => $fila->cantidad,
-                                    ])
-                                    : $nota->partidas->map(fn ($partida) => (object) [
-                                        'item' => $partida->item,
-                                        'descripcion' => $partida->descripcion,
-                                        'cantidad' => $partida->cantidad,
-                                    ]);
-
-                                $partidasData = [];
-                                foreach ($partidasOrigen as $partida) {
-                                    $yaEnviado = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($nota) {
-                                        $q->where('nota_venta_renta_id', $nota->id);
-                                    })->where('producto_id', $partida->item)->sum('cantidad');
-                                    $pendiente = (float) $partida->cantidad - (float) $yaEnviado;
-                                    if ($pendiente > 0) {
-                                        $partidasData[] = [
-                                            'producto_id' => $partida->item,
-                                            'descripcion' => $partida->descripcion,
-                                            'cantidad' => $pendiente,
-                                            'observaciones' => $partida->descripcion,
-                                        ];
-                                    }
+                                $partidasData = self::partidasPendientesDeNota($nota);
+                                if ($partidasData === []) {
+                                    Notification::make()
+                                        ->title('NR sin partidas pendientes')
+                                        ->body('El desglose de esta Nota de Renta ya fue enviado por completo.')
+                                        ->warning()
+                                        ->send();
                                 }
                                 $set('partidas', $partidasData);
                             })

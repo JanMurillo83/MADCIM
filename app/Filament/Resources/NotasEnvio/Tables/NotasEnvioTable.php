@@ -10,7 +10,6 @@ use App\Models\MovimientoInventario;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use App\Models\NotaVentaRentaPartidas;
-use App\Models\Productos;
 use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use App\Services\CierreDevolucionRentaService;
@@ -164,7 +163,7 @@ class NotasEnvioTable
                     ->label('Marcar Entregada')
                     ->icon('heroicon-o-check')
                     ->color('success')
-                    ->visible(fn (NotaEnvio $record) => in_array($record->estatus, ['Pendiente', 'En Tránsito']))
+                    ->visible(fn (NotaEnvio $record) => in_array($record->estatus, ['Enviada', 'Pendiente', 'En Tránsito']))
                     ->requiresConfirmation()
                     ->modalHeading(fn (NotaEnvio $record) => 'Marcar Entregada - Envío Folio ' . $record->folio)
                     ->modalDescription('¿Confirma que este envío ha sido entregado?')
@@ -183,6 +182,7 @@ class NotasEnvioTable
                     ->color('info')
                     ->visible(function (NotaEnvio $record) {
                         return (bool) $record->nota_venta_renta_id
+                            && $record->estatus === 'Entregada'
                             && $record->partidas()->whereRaw('cantidad_devuelta < cantidad')->exists();
                     })
                     ->url(fn (NotaEnvio $record) => NotasDevolucionRentaResource::getUrl('create', ['nota_venta_renta_id' => $record->nota_venta_renta_id]))
@@ -194,7 +194,9 @@ class NotasEnvioTable
                     ->visible(function (NotaEnvio $record) {
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return false;
-                        return $record->estado_renta !== 'Devuelta' && $record->partidas()->where('estado', '!=', 'Devuelto')->exists();
+                        return $record->estatus === 'Entregada'
+                            && $record->estado_renta !== 'Devuelta'
+                            && $record->partidas()->where('estado', '!=', 'Devuelto')->exists();
                     })
                     ->modalHeading(fn (NotaEnvio $record) => 'Devolución Parcial - Envío Folio ' . $record->folio)
                     ->modalDescription('Registre las cantidades que se devuelven en esta entrega parcial.')
@@ -241,6 +243,15 @@ class NotasEnvioTable
                         return $fields;
                     })
                     ->action(function (NotaEnvio $record, array $data) {
+                        if ($record->estatus !== 'Entregada') {
+                            Notification::make()
+                                ->title('Envío no entregado')
+                                ->body('No se puede registrar una devolución parcial hasta marcar la Nota de Envío como Entregada.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return;
                         $items = $record->partidas()
