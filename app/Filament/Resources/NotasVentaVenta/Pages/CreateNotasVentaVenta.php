@@ -27,6 +27,14 @@ class CreateNotasVentaVenta extends CreateRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('cancelar_captura')
+                ->label('Cancelar')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Cancelar captura')
+                ->modalDescription('¿Deseas cancelar la captura y regresar al listado? Se perderán los datos no guardados.')
+                ->modalSubmitActionLabel('Sí, cancelar')
+                ->action(fn () => $this->cancelarCaptura()),
             Action::make('guardar')
                 ->label('Guardar')
                 ->color('primary')
@@ -71,6 +79,11 @@ class CreateNotasVentaVenta extends CreateRecord
                     $this->create();
                 }),
         ];
+    }
+
+    public function cancelarCaptura(): void
+    {
+        $this->redirect($this->getResource()::getUrl('index'));
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

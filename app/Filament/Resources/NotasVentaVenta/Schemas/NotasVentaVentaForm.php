@@ -17,11 +17,13 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
 use Filament\Notifications\Notification;
+use Filament\Actions\Action;
 use Illuminate\Support\Facades\Auth;
 
 class NotasVentaVentaForm
@@ -137,8 +139,8 @@ class NotasVentaVentaForm
                             ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
                             ->searchable()
                             ->preload()
-                            ->default(fn () => auth()->user()?->sucursal_id)
-                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
+                            ->default(fn () => Auth::user()?->sucursal_id)
+                            ->disabled(fn () => Auth::user()?->role !== 'Administrador'),
                         Hidden::make('user_id')
                             ->default(fn () => Auth::id()),
                         Placeholder::make('direccion_cliente')
@@ -354,6 +356,20 @@ class NotasVentaVentaForm
                         Hidden::make('saldo_pendiente')->default(0.0),
                     ])
                     ->columns(3),
+                Actions::make([
+                    Action::make('cancelar_captura_abajo')
+                        ->label('Cancelar')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Cancelar captura')
+                        ->modalDescription('¿Deseas cancelar la captura y regresar al listado? Se perderán los datos no guardados.')
+                        ->modalSubmitActionLabel('Sí, cancelar')
+                        ->action(fn ($livewire) => $livewire->cancelarCaptura()),
+                    Action::make('guardar_abajo')
+                        ->label('Guardar')
+                        ->color('primary')
+                        ->action(fn ($livewire) => $livewire->mountAction('guardar')),
+                ])->columnSpanFull(),
             ])
             ->columns(1);
     }
