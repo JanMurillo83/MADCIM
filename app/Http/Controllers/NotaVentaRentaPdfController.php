@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TipoNotaRenta;
 use App\Models\Caja;
 use App\Models\Configuracion;
 use App\Models\DevolucionesRenta;
@@ -9,6 +10,7 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Services\CierreDevolucionRentaService;
+use App\Services\RentaMaderaM2Service;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -207,6 +209,40 @@ class NotaVentaRentaPdfController extends Controller
         return [
             'notaVenta' => $notaVenta,
             'configuracion' => Configuracion::first(),
+            'conceptoM2' => $this->conceptoM2($notaVenta),
+        ];
+    }
+
+    private function conceptoM2(NotasVentaRenta $notaVenta): ?array
+    {
+        $tipo = TipoNotaRenta::tryFrom($notaVenta->tipo_nota_renta ?? '');
+
+        if (!$tipo?->esMaderaM2()) {
+            return null;
+        }
+
+        $partida = $notaVenta->partidas->first();
+        $metros = 0.0;
+
+        if ($partida && preg_match('/-\s*([\d.,]+)\s*M2\b/i', (string) $partida->descripcion, $matches)) {
+            $metros = (float) str_replace(',', '', $matches[1]);
+        }
+
+        $precios = RentaMaderaM2Service::preciosParaTipo($tipo);
+        if ($metros <= 0 && $precios['renta'] > 0) {
+            $metros = (float) ($notaVenta->subtotal ?? 0) / $precios['renta'];
+        }
+        if ($metros <= 0 && $precios['deposito'] > 0) {
+            $metros = (float) ($notaVenta->deposito ?? 0) / $precios['deposito'];
+        }
+
+        $total = (float) ($partida?->total ?? (($notaVenta->subtotal ?? 0) + ($notaVenta->impuestos_total ?? 0)));
+
+        return [
+            'descripcion' => 'Renta de Madera por M2',
+            'cantidad' => round($metros, 2),
+            'valor_unitario' => $metros > 0 ? $total / $metros : 0,
+            'total' => $total,
         ];
     }
 }

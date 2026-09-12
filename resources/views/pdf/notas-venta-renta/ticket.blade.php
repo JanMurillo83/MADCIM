@@ -236,15 +236,25 @@
             <span>CONCEPTO</span>
             <span>TOTAL</span>
         </div>
-        @foreach($notaVenta->partidas as $partida)
+        @if($conceptoM2)
         <div class="item-row">
-            <div class="item-desc">{{ $partida->descripcion }}</div>
+            <div class="item-desc">{{ $conceptoM2['descripcion'] }}</div>
             <div class="item-details">
-                <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
-                <span>${{ number_format($partida->total, 2) }}</span>
+                <span>{{ number_format($conceptoM2['cantidad'], 2) }} M2 x ${{ number_format($conceptoM2['valor_unitario'], 2) }}</span>
+                <span>${{ number_format($conceptoM2['total'], 2) }}</span>
             </div>
         </div>
-        @endforeach
+        @else
+            @foreach($notaVenta->partidas as $partida)
+            <div class="item-row">
+                <div class="item-desc">{{ $partida->descripcion }}</div>
+                <div class="item-details">
+                    <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                    <span>${{ number_format($partida->total, 2) }}</span>
+                </div>
+            </div>
+            @endforeach
+        @endif
     </div>
 
     <div class="totals">
