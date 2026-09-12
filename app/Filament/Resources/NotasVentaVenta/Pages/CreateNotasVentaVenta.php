@@ -64,21 +64,24 @@ class CreateNotasVentaVenta extends CreateRecord
                         ->minValue(0)
                         ->visible(fn (Get $get): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado' && $get('metodo_pago') === '01'),
                 ])
-                ->action(function (array $data): void {
-                    if (($this->data['condicion_pago'] ?? 'contado') === 'contado' && ($data['metodo_pago'] ?? null) === '01') {
-                        $importe = (float) ($this->data['total'] ?? 0);
-                        $recibido = (float) ($data['importe_recibido'] ?? 0);
-                        if ($recibido < $importe) {
-                            throw ValidationException::withMessages([
-                                'importe_recibido' => 'El importe recibido no puede ser menor al total de la nota.',
-                            ]);
-                        }
-                    }
-
-                    $this->pagoCapturado = $data;
-                    $this->create();
-                }),
+                ->action(fn (array $data) => $this->guardarConPago($data)),
         ];
+    }
+
+    public function guardarConPago(array $data): void
+    {
+        if (($this->data['condicion_pago'] ?? 'contado') === 'contado' && ($data['metodo_pago'] ?? null) === '01') {
+            $importe = (float) ($this->data['total'] ?? 0);
+            $recibido = (float) ($data['importe_recibido'] ?? 0);
+            if ($recibido < $importe) {
+                throw ValidationException::withMessages([
+                    'importe_recibido' => 'El importe recibido no puede ser menor al total de la nota.',
+                ]);
+            }
+        }
+
+        $this->pagoCapturado = $data;
+        $this->create();
     }
 
     public function cancelarCaptura(): void
