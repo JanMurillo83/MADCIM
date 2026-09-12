@@ -88,7 +88,7 @@
         }
         .firma-dato-label {
             display: block;
-            margin-bottom: 9px;
+            margin-top: 9px;
         }
         .firma-dato-linea {
             border-top: 1px solid #999;
@@ -215,7 +215,6 @@
             <div class="item-desc">{{ $partida->producto->descripcion ?? $partida->descripcion }}</div>
             <div class="item-details">
                 <span>{{ number_format($partida->cantidad, 2) }} pzas</span>
-                <span>{{ number_format($partida->cantidad, 2) }}</span>
             </div>
             @if($partida->observaciones && $partida->observaciones !== $partida->descripcion)
             <div style="font-size: 11px;">{{ $partida->observaciones }}</div>
@@ -233,12 +232,12 @@
 
     <div class="firma-section">
         <div class="firma-dato">
-            <span class="firma-dato-label">Nombre de quien recibe:</span>
             <div class="firma-dato-linea"></div>
+            <span class="firma-dato-label">Nombre de quien recibe:</span>
         </div>
         <div class="firma-dato">
-            <span class="firma-dato-label">Fecha y hora de recepcion:</span>
             <div class="firma-dato-linea"></div>
+            <span class="firma-dato-label">Fecha y hora de recepcion:</span>
         </div>
 
         <div class="firma-linea"></div>
