@@ -137,11 +137,14 @@ class CreateNotasVentaVenta extends CreateRecord
                     : null,
             ]);
         }
+
+        $ticketUrl = route('notas-venta-venta.pdf.ticket', ['id' => $record->id]);
+        $this->js("window.open('{$ticketUrl}', '_blank');");
     }
 
     protected function getRedirectUrl(): string
     {
-        return route('notas-venta-venta.pdf.ticket', ['id' => $this->record->id]);
+        return $this->getResource()::getUrl('index');
     }
 
     protected function getCreateFormAction(): Action

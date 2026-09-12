@@ -140,16 +140,8 @@
     </div>
 
     <div class="totals">
-        <div class="total-row">
-            <span class="total-label">Subtotal:</span>
-            <span>${{ number_format($notaVenta->subtotal, 2) }}</span>
-        </div>
-        <div class="total-row">
-            <span class="total-label">IVA (16%):</span>
-            <span>${{ number_format($notaVenta->impuestos_total, 2) }}</span>
-        </div>
         <div class="total-row grand-total">
-            <span class="total-label">TOTAL:</span>
+            <span class="total-label">TOTAL (IVA incluido):</span>
             <span>${{ number_format($notaVenta->total, 2) }}</span>
         </div>
     </div>
