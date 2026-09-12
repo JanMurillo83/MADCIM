@@ -78,13 +78,18 @@
             font-size: 13px;
         }
         .firma-section {
-            margin-top: 20px;
+            margin-top: 24px;
             text-align: center;
+        }
+        .firma-dato {
+            font-size: 12px;
+            line-height: 1.4;
+            margin-bottom: 12px;
         }
         .firma-linea {
             border-top: 1px solid #000;
-            margin: 20px auto 5px;
-            width: 80%;
+            margin: 32px auto 7px;
+            width: 90%;
         }
         .firma-label {
             font-size: 11px;
@@ -92,21 +97,19 @@
         }
         .footer {
             text-align: center;
-            margin-top: 15px;
+            margin-top: 20px;
             border-top: 1px dashed #000;
-            padding-top: 10px;
-            font-size: 12px;
-            margin-left: 0;
-            margin-right: 0;
-            max-width: 100%;
+            padding: 10px 1mm 0;
+            font-size: 11px;
+            line-height: 1.35;
+            width: 100%;
         }
         .legend {
-            margin-top: 6px;
-            font-size: 11px;
-            text-align: justify;
-            text-justify: inter-word;
-            overflow-wrap: break-word;
-            word-break: break-word;
+            margin-top: 8px;
+            font-size: 10px;
+            text-align: left;
+            overflow-wrap: normal;
+            word-break: normal;
         }
         .text-right {
             text-align: right;
@@ -218,13 +221,13 @@
     @endif
 
     <div class="firma-section">
-        <div style="font-size: 12px; margin-bottom: 5px;">Nombre de quien recibe: _________________________</div>
-        <div style="font-size: 12px; margin-bottom: 15px;">Fecha y hora de recepcion: _________________________</div>
+        <div class="firma-dato">Nombre de quien recibe: _________________________</div>
+        <div class="firma-dato">Fecha y hora de recepcion: _________________________</div>
 
         <div class="firma-linea"></div>
         <div class="firma-label">Entrego (Chofer / Responsable)</div>
 
-        <div class="firma-linea" style="margin-top: 35px;"></div>
+        <div class="firma-linea"></div>
         <div class="firma-label">Recibio (Cliente)</div>
     </div>
 
