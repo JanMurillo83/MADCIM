@@ -39,7 +39,7 @@ class CreateNotasVentaRenta extends CreateRecord
                 ->modalDescription(fn () => $this->buildRentaPeriodoDescription())
                 ->modalSubmitActionLabel('Guardar')
                 ->modalCancelActionLabel('Revisar')
-                ->action('guardarCaptura'),
+                ->action(fn () => $this->create()),
         ];
     }
 
