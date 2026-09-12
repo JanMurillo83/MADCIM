@@ -84,7 +84,16 @@
         .firma-dato {
             font-size: 12px;
             line-height: 1.4;
-            margin-bottom: 12px;
+            margin-bottom: 18px;
+        }
+        .firma-dato-label {
+            display: block;
+            margin-bottom: 9px;
+        }
+        .firma-dato-linea {
+            border-top: 1px solid #999;
+            width: 72%;
+            margin: 0 auto;
         }
         .firma-linea {
             border-top: 1px solid #000;
@@ -106,9 +115,11 @@
         }
         .legend {
             margin-top: 8px;
-            font-size: 10px;
-            text-align: left;
-            overflow-wrap: normal;
+            padding: 0 2mm;
+            font-size: 9px;
+            line-height: 1.45;
+            text-align: center;
+            overflow-wrap: break-word;
             word-break: normal;
         }
         .text-right {
@@ -221,8 +232,14 @@
     @endif
 
     <div class="firma-section">
-        <div class="firma-dato">Nombre de quien recibe: _________________________</div>
-        <div class="firma-dato">Fecha y hora de recepcion: _________________________</div>
+        <div class="firma-dato">
+            <span class="firma-dato-label">Nombre de quien recibe:</span>
+            <div class="firma-dato-linea"></div>
+        </div>
+        <div class="firma-dato">
+            <span class="firma-dato-label">Fecha y hora de recepcion:</span>
+            <div class="firma-dato-linea"></div>
+        </div>
 
         <div class="firma-linea"></div>
         <div class="firma-label">Entrego (Chofer / Responsable)</div>
