@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\NotasVentaVenta;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\Request;
 
 class NotaVentaVentaPdfController extends Controller
 {
@@ -13,7 +12,7 @@ class NotaVentaVentaPdfController extends Controller
      */
     public function ticket($id)
     {
-        $notaVenta = NotasVentaVenta::with(['cliente', 'partidas'])->findOrFail($id);
+        $notaVenta = NotasVentaVenta::with(['cliente', 'partidas', 'pagos'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-venta.ticket', [
             'notaVenta' => $notaVenta

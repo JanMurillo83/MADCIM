@@ -117,6 +117,10 @@
             <span class="label">Cliente:</span>
             <span>{{ $notaVenta->cliente->nombre }}</span>
         </div>
+        <div class="info-row">
+            <span class="label">Condición de pago:</span>
+            <span>{{ $notaVenta->condicion_pago === 'contado' ? 'Contado' : 'Crédito' }}</span>
+        </div>
     </div>
 
     <div class="items-table">
@@ -128,7 +132,7 @@
         <div class="item-row">
             <div class="item-desc">{{ $partida->descripcion }}</div>
             <div class="item-details">
-                <span>{{ $partida->cantidad }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                <span>{{ number_format($partida->cantidad, 0) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
                 <span>${{ number_format($partida->total, 2) }}</span>
             </div>
         </div>
@@ -148,6 +152,38 @@
             <span class="total-label">TOTAL:</span>
             <span>${{ number_format($notaVenta->total, 2) }}</span>
         </div>
+    </div>
+
+    <div class="info-section">
+        @if($notaVenta->condicion_pago === 'contado')
+            @forelse($notaVenta->pagos as $pago)
+                <div class="info-row">
+                    <span class="label">Forma de pago:</span>
+                    <span>{{ match ($pago->forma_pago) {
+                        '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia',
+                        '04' => 'Tarjeta de crédito', '28' => 'Tarjeta de débito',
+                        default => $pago->forma_pago,
+                    } }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Pago:</span>
+                    <span>${{ number_format($pago->importe, 2) }}</span>
+                </div>
+                @if($pago->forma_pago === '01')
+                <div class="info-row">
+                    <span class="label">Cambio:</span>
+                    <span>${{ number_format($pago->cambio ?? 0, 2) }}</span>
+                </div>
+                @endif
+            @empty
+                <div>Pago pendiente</div>
+            @endforelse
+        @else
+            <div class="info-row">
+                <span class="label">Saldo pendiente:</span>
+                <span>${{ number_format($notaVenta->saldo_pendiente ?? $notaVenta->total, 2) }}</span>
+            </div>
+        @endif
     </div>
 
     <div class="footer">

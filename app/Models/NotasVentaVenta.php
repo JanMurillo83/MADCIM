@@ -127,4 +127,11 @@ class NotasVentaVenta extends Model
     {
         return $this->hasMany(DevolucionesVenta::class, 'documento_origen_id');
     }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pagos::class, 'documento_id')
+            ->where('documento_tipo', 'notas_venta_venta')
+            ->orderBy('id');
+    }
 }
