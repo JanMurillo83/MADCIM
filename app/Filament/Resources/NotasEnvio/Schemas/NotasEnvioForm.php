@@ -20,6 +20,10 @@ class NotasEnvioForm
 {
     private static function partidasPendientesDeNota(NotasVentaRenta $nota): array
     {
+        if ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty()) {
+            return [];
+        }
+
         $partidasOrigen = $nota->esMaderaM2()
             ? $nota->desgloseM2
                 ->map(fn ($fila) => (object) [
@@ -93,7 +97,10 @@ class NotasEnvioForm
                                     ->whereIn('estatus', ['Activa', 'Pagada'])
                                     ->with(['cliente', 'partidas', 'desgloseM2'])
                                     ->get()
-                                    ->filter(fn (NotasVentaRenta $nota) => self::partidasPendientesDeNota($nota) !== [])
+                                    ->filter(fn (NotasVentaRenta $nota) =>
+                                        ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty())
+                                        || self::partidasPendientesDeNota($nota) !== []
+                                    )
                                     ->mapWithKeys(function ($nota) {
                                         $label = ($nota->serie ? $nota->serie . '-' : '') . $nota->folio . ' - ' . ($nota->cliente?->nombre ?? 'Sin cliente');
                                         return [$nota->id => $label];
@@ -120,11 +127,17 @@ class NotasEnvioForm
                                 // Las NR M2 se surten con productos físicos del desglose,
                                 // no con la partida conceptual de renta.
                                 $partidasData = self::partidasPendientesDeNota($nota);
-                                if ($partidasData === []) {
+                                if ($partidasData === [] && !($nota->esMaderaM2() && $nota->desgloseM2->isEmpty())) {
                                     Notification::make()
                                         ->title('NR sin partidas pendientes')
                                         ->body('El desglose de esta Nota de Renta ya fue enviado por completo.')
                                         ->warning()
+                                        ->send();
+                                } elseif ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty()) {
+                                    Notification::make()
+                                        ->title('Desglose pendiente')
+                                        ->body('Agregue los productos y cantidades que se enviarán en esta Nota de Envío.')
+                                        ->info()
                                         ->send();
                                 }
                                 $set('partidas', $partidasData);
