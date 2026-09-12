@@ -886,7 +886,7 @@ class NotasVentaRentaForm
                         ->modalDescription(fn ($livewire) => $livewire->buildRentaPeriodoDescription())
                         ->modalSubmitActionLabel('Guardar')
                         ->modalCancelActionLabel('Revisar')
-                        ->action(fn ($livewire) => $livewire->create()),
+                        ->action(fn ($livewire) => $livewire->guardarCaptura()),
                 ])
                     ->columnSpanFull(),
             ])

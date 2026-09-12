@@ -11,6 +11,7 @@ use App\Services\RentaMaderaM2Service;
 use Carbon\Carbon;
 use DomainException;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
@@ -39,13 +40,27 @@ class CreateNotasVentaRenta extends CreateRecord
                 ->modalDescription(fn () => $this->buildRentaPeriodoDescription())
                 ->modalSubmitActionLabel('Guardar')
                 ->modalCancelActionLabel('Revisar')
-                ->action(fn () => $this->create()),
+                ->action(fn () => $this->guardarCaptura()),
         ];
     }
 
     public function guardarCaptura(): void
     {
-        $this->create();
+        try {
+            $this->create();
+        } catch (ValidationException $exception) {
+            $mensaje = collect($exception->errors())
+                ->flatten()
+                ->filter()
+                ->implode(' ');
+
+            Notification::make()
+                ->danger()
+                ->title('No se pudo guardar la nota')
+                ->body($mensaje ?: 'Revise los datos capturados e intente nuevamente.')
+                ->persistent()
+                ->send();
+        }
     }
 
     public function cancelarCaptura(): void
@@ -273,7 +288,7 @@ class CreateNotasVentaRenta extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return route('notas-venta-renta.preview', ['id' => $this->record->id]);
+        return route('notas-venta-renta.pdf.ticket', ['id' => $this->record->id]);
     }
 
     protected function getCreateAnotherFormAction(): \Filament\Actions\Action

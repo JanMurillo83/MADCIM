@@ -249,7 +249,7 @@
             <div class="item-row">
                 <div class="item-desc">{{ $partida->descripcion }}</div>
                 <div class="item-details">
-                    <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                    <span>{{ number_format($partida->cantidad, 0) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
                     <span>${{ number_format($partida->total, 2) }}</span>
                 </div>
             </div>
@@ -276,36 +276,41 @@
         </div>
     </div>
 
-    @if($condicionPago === 'contado')
     <div class="payment-section">
-        <div class="payment-title">Pago de contado</div>
-        @forelse($notaVenta->pagos as $pago)
+        <div class="payment-title">Estado de pago: {{ $condicionPagoTexto }}</div>
+        @if($condicionPago === 'credito')
             <div class="total-row">
-                <span>{{ match ($pago->forma_pago) {
-                    '01' => 'Efectivo',
-                    '02' => 'Cheque',
-                    '03' => 'Transferencia',
-                    '04' => 'Tarjeta credito',
-                    '28' => 'Tarjeta debito',
-                    default => $pago->forma_pago ?: 'N/A',
-                } }}:</span>
-                <span>${{ number_format($pago->importe, 2) }}</span>
+                <span>Saldo pendiente:</span>
+                <span>${{ number_format($notaVenta->saldo_pendiente ?? $notaVenta->total, 2) }}</span>
             </div>
-            @if($pago->forma_pago === '01')
-            <div class="total-row">
-                <span>Recibido:</span>
-                <span>${{ number_format($pago->importe_recibido ?? $pago->importe, 2) }}</span>
-            </div>
-            <div class="total-row">
-                <span>Cambio:</span>
-                <span>${{ number_format($pago->cambio ?? 0, 2) }}</span>
-            </div>
-            @endif
-        @empty
-            <div>Pago pendiente</div>
-        @endforelse
+        @else
+            @forelse($notaVenta->pagos as $pago)
+                <div class="total-row">
+                    <span>{{ match ($pago->forma_pago) {
+                        '01' => 'Efectivo',
+                        '02' => 'Cheque',
+                        '03' => 'Transferencia',
+                        '04' => 'Tarjeta credito',
+                        '28' => 'Tarjeta debito',
+                        default => $pago->forma_pago ?: 'N/A',
+                    } }}:</span>
+                    <span>${{ number_format($pago->importe, 2) }}</span>
+                </div>
+                @if($pago->forma_pago === '01')
+                <div class="total-row">
+                    <span>Recibido:</span>
+                    <span>${{ number_format($pago->importe_recibido ?? $pago->importe, 2) }}</span>
+                </div>
+                <div class="total-row">
+                    <span>Cambio:</span>
+                    <span>${{ number_format($pago->cambio ?? 0, 2) }}</span>
+                </div>
+                @endif
+            @empty
+                <div>Pago pendiente</div>
+            @endforelse
+        @endif
     </div>
-    @endif
 
     <div class="footer">
         <div>¡Gracias por su preferencia!</div>
