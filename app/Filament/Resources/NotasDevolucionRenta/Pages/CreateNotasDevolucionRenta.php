@@ -5,6 +5,7 @@ namespace App\Filament\Resources\NotasDevolucionRenta\Pages;
 use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\ClienteDireccionEntrega;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -12,6 +13,59 @@ use Illuminate\Validation\ValidationException;
 class CreateNotasDevolucionRenta extends CreateRecord
 {
     protected static string $resource = NotasDevolucionRentaResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('cancelar_captura')
+                ->label('Cancelar')
+                ->icon('heroicon-o-x-mark')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Cancelar captura')
+                ->modalDescription('¿Deseas cancelar la captura y regresar al listado? Se perderán los datos no guardados.')
+                ->modalSubmitActionLabel('Sí, cancelar')
+                ->action(fn () => $this->cancelarCaptura()),
+            Action::make('guardar')
+                ->label('Guardar')
+                ->icon('heroicon-o-check')
+                ->color('primary')
+                ->action(fn () => $this->guardarCaptura()),
+        ];
+    }
+
+    public function guardarCaptura(): void
+    {
+        try {
+            $this->create();
+        } catch (ValidationException $exception) {
+            $mensaje = collect($exception->errors())
+                ->flatten()
+                ->filter()
+                ->implode(' ');
+
+            Notification::make()
+                ->danger()
+                ->title('No se pudo guardar la nota')
+                ->body($mensaje ?: 'Revise los datos capturados e intente nuevamente.')
+                ->persistent()
+                ->send();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            Notification::make()
+                ->danger()
+                ->title('Error al guardar la nota')
+                ->body('Ocurrió un error al guardar la devolución. Revise los datos e intente nuevamente.')
+                ->persistent()
+                ->send();
+        }
+    }
+
+    public function cancelarCaptura(): void
+    {
+        $this->redirect($this->getResource()::getUrl('index'));
+    }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -69,10 +123,12 @@ class CreateNotasDevolucionRenta extends CreateRecord
 
     protected function getCancelFormAction(): Action
     {
-        return parent::getCancelFormAction()
-            ->alpineClickHandler(
-                'window.location.href = ' . json_encode($this->getResource()::getUrl('index'))
-            );
+        return parent::getCancelFormAction()->hidden();
+    }
+
+    protected function getCreateFormAction(): Action
+    {
+        return parent::getCreateFormAction()->hidden();
     }
 
     protected function afterCreate(): void
