@@ -57,7 +57,7 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('fuente', 'Devolución depósito renta')
             ->sum('importe');
 
-        $depositosNetosDelMes = $depositosCobradosDelMes - $depositosDevueltosDelMes;
+        $depositosPendientesDelMes = $depositosCobradosDelMes - $depositosDevueltosDelMes;
 
         $depositosCobradosDelAnio = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
@@ -70,7 +70,7 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('fuente', 'Devolución depósito renta')
             ->sum('importe');
 
-        $depositosNetosDelAnio = $depositosCobradosDelAnio - $depositosDevueltosDelAnio;
+        $depositosPendientesDelAnio = $depositosCobradosDelAnio - $depositosDevueltosDelAnio;
 
         $rentasMaderaDelMes = NotaVentaRentaPartidas::query()
             ->whereHas('documento', function ($query) use ($inicioMes, $finMes) {
@@ -147,10 +147,14 @@ class IndicadoresDashboard extends StatsOverviewWidget
                 ->description($this->descriptionWithLink('Notas de renta del mes (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-receipt-refund')
                 ->color('info'),
-            Stat::make('Mensual | Depósitos Netos', $this->formatCurrency((float) $depositosNetosDelMes))
-                ->description($this->descriptionWithLink('Depósitos cobrados menos devoluciones del mes', '/control-depositos'))
+            Stat::make('Mensual | Depósitos Totales', $this->formatCurrency((float) $depositosCobradosDelMes))
+                ->description($this->descriptionWithLink('Monto total de depósitos cobrados en el mes', '/control-depositos'))
                 ->icon('heroicon-o-shield-check')
                 ->color('info'),
+            Stat::make('Mensual | Depósitos Pendientes de Devolver', $this->formatCurrency((float) $depositosPendientesDelMes))
+                ->description($this->descriptionWithLink('Monto de depósitos del mes aún pendiente de devolver', '/control-depositos'))
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('warning'),
             Stat::make('Anual | Ventas Acumuladas', $this->formatCurrency((float) $ventasDelAnio))
                 ->description($this->descriptionWithLink('Notas de venta y facturas del año', '/notas-venta-venta/notas-venta-ventas'))
                 ->icon('heroicon-o-chart-bar-square')
@@ -163,10 +167,14 @@ class IndicadoresDashboard extends StatsOverviewWidget
                 ->description($this->descriptionWithLink('Notas de renta del año (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-wrench-screwdriver')
                 ->color('success'),
-            Stat::make('Anual | Depósitos Netos', $this->formatCurrency((float) $depositosNetosDelAnio))
-                ->description($this->descriptionWithLink('Depósitos cobrados menos devoluciones del año', '/control-depositos'))
+            Stat::make('Anual | Depósitos Totales', $this->formatCurrency((float) $depositosCobradosDelAnio))
+                ->description($this->descriptionWithLink('Monto total de depósitos cobrados en el año', '/control-depositos'))
                 ->icon('heroicon-o-calendar-days')
                 ->color('success'),
+            Stat::make('Anual | Depósitos Pendientes de Devolver', $this->formatCurrency((float) $depositosPendientesDelAnio))
+                ->description($this->descriptionWithLink('Monto de depósitos del año aún pendiente de devolver', '/control-depositos'))
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('warning'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
                 ->description($this->descriptionWithLink('Rentas sin devolucion', '/notas-rentadas'))
                 ->icon('heroicon-o-exclamation-triangle')

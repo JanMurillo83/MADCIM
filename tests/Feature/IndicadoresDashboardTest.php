@@ -27,7 +27,7 @@ class IndicadoresDashboardTest extends TestCase
         return null;
     }
 
-    public function test_rentas_madera_y_equipo_del_mes_separadas_y_depositos_neto_del_mes_considera_devoluciones(): void
+    public function test_rentas_madera_y_equipo_del_mes_separadas_y_depositos_totales_y_pendientes_consideran_devoluciones(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-03-03 10:00:00'));
 
@@ -104,8 +104,11 @@ class IndicadoresDashboardTest extends TestCase
 
         $stats = $widget->stats();
 
-        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Renta de Madera del mes'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Renta de Equipo del mes'));
-        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos del mes'));
+        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Mensual | Renta Madera'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Mensual | Renta Equipo'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Mensual | Depósitos Totales'));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Mensual | Depósitos Pendientes de Devolver'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Anual | Depósitos Totales'));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Anual | Depósitos Pendientes de Devolver'));
     }
 }
