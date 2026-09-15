@@ -52,7 +52,7 @@ class NotasDevolucionRentaForm
             ->with('producto')
             ->where('cliente_id', $clienteId)
             ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId))
-            ->whereColumn('cantidad_devuelta', '<', 'cantidad')
+            ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
             ->whereDoesntHave('producto', fn ($query) => $query->where('clave', 'SRENTA-M2'))
             ->get()
             ->groupBy('producto_id');
@@ -147,7 +147,7 @@ class NotasDevolucionRentaForm
                                     ->where('activa', true)
                                     ->whereHas('cliente.notasVentaRenta', function ($query) {
                                         $query->whereHas('registrosRenta', function ($registroQuery) {
-                                            $registroQuery->whereColumn('cantidad_devuelta', '<', 'cantidad');
+                                            $registroQuery->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad');
                                         });
                                     })
                                     ->orderBy('nombre_direccion')

@@ -15,6 +15,7 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\NotaVentaVentaPartidas;
 use App\Models\Pagos;
+use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use Illuminate\Support\Facades\DB;
 
@@ -179,6 +180,16 @@ class CierreDevolucionRentaService
                 $cajaUsada = true;
             }
 
+            if ($this->tieneRegistrosAcumulados($nota)) {
+                RegistroRenta::query()
+                    ->where('cliente_id', $nota->cliente_id)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+                    ->update([
+                        'cantidad_devuelta' => DB::raw('cantidad'),
+                        'estado' => 'Devuelto',
+                    ]);
+            }
+
             // La renta queda cerrada también cuando el faltante ya se convirtió
             // en venta; evita que vuelva a aparecer como devolución pendiente.
             NotaEnvioPartida::query()
@@ -211,6 +222,10 @@ class CierreDevolucionRentaService
 
     private function asegurarEntradaInventarioRenta(NotasVentaRenta $nota, ?int $userId, string $referencia): void
     {
+        if ($this->tieneRegistrosAcumulados($nota)) {
+            return;
+        }
+
         $cantidadesEnviadas = [];
 
         foreach ($nota->notasEnvio as $envio) {
@@ -294,6 +309,10 @@ class CierreDevolucionRentaService
 
     private function calcularResumen(NotasVentaRenta $nota): array
     {
+        if ($this->tieneRegistrosAcumulados($nota)) {
+            return $this->calcularResumenAcumulado($nota);
+        }
+
         $rowsByKey = [];
 
         $nota->loadMissing(['notasEnvio.partidas.producto', 'cliente']);
@@ -365,6 +384,75 @@ class CierreDevolucionRentaService
                 'deposito_aplicado' => $depositoAplicado,
                 'saldo_por_cobrar' => $saldoPorCobrar,
                 'deposito_devolver' => $depositoDevolver,
+            ],
+        ];
+    }
+
+    private function tieneRegistrosAcumulados(NotasVentaRenta $nota): bool
+    {
+        return $nota->cliente_id
+            && $nota->direccion_entrega_id
+            && RegistroRenta::query()
+                ->where('cliente_id', $nota->cliente_id)
+                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+                ->exists();
+    }
+
+    private function calcularResumenAcumulado(NotasVentaRenta $nota): array
+    {
+        $registros = RegistroRenta::query()
+            ->with('producto')
+            ->where('cliente_id', $nota->cliente_id)
+            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+            ->get()
+            ->groupBy('producto_id');
+
+        $rows = [];
+        foreach ($registros as $productoId => $registrosProducto) {
+            $registro = $registrosProducto->first();
+            if (($registro->producto?->clave ?? '') === 'SRENTA-M2') {
+                continue;
+            }
+
+            $cantidad = (float) $registrosProducto->sum('cantidad');
+            $devuelta = (float) $registrosProducto->sum(fn ($item) => (float) ($item->cantidad_devuelta ?? 0));
+            $faltante = max(0, $cantidad - $devuelta);
+            if ($faltante <= 0) {
+                continue;
+            }
+
+            $precioUnitario = (float) ($registro->producto?->precio_venta ?? 0);
+            $subtotal = round($faltante * $precioUnitario, 2);
+            $iva = round($subtotal * 0.16, 2);
+
+            $rows[] = [
+                'producto_id' => (int) $productoId,
+                'clave' => (string) ($registro->producto?->clave ?? 'SIN-CLAVE'),
+                'producto' => (string) ($registro->producto?->descripcion ?? 'Item'),
+                'faltante' => $faltante,
+                'precio_unitario' => $precioUnitario,
+                'subtotal' => $subtotal,
+                'iva' => $iva,
+                'total' => round($subtotal + $iva, 2),
+            ];
+        }
+
+        $subtotalFaltantes = round(array_sum(array_column($rows, 'subtotal')), 2);
+        $ivaFaltantes = round(array_sum(array_column($rows, 'iva')), 2);
+        $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
+        $deposito = (float) ($nota->deposito ?? 0);
+        $depositoAplicado = min($deposito, $totalFaltantes);
+
+        return [
+            'rows' => $rows,
+            'totales' => [
+                'deposito' => $deposito,
+                'subtotal_faltantes' => $subtotalFaltantes,
+                'iva_faltantes' => $ivaFaltantes,
+                'total_faltantes' => $totalFaltantes,
+                'deposito_aplicado' => $depositoAplicado,
+                'saldo_por_cobrar' => max(0, $totalFaltantes - $depositoAplicado),
+                'deposito_devolver' => max(0, $deposito - $depositoAplicado),
             ],
         ];
     }

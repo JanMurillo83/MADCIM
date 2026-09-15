@@ -4,6 +4,7 @@ namespace App\Filament\Resources\NotasDevolucionRenta\Pages;
 
 use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\ClienteDireccionEntrega;
+use App\Models\RegistroRenta;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -96,7 +97,14 @@ class CreateNotasDevolucionRenta extends CreateRecord
             $devuelta = (float) ($partida['cantidad_devuelta'] ?? 0);
             $aDevolver = (float) ($partida['cantidad_a_devolver'] ?? 0);
             $totalADevolver += $aDevolver;
-            if ($aDevolver < 0 || $aDevolver > $enviada - $devuelta) {
+            $pendienteActual = (float) RegistroRenta::query()
+                ->where('cliente_id', $clienteId)
+                ->where('producto_id', $partida['producto_id'] ?? 0)
+                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $direccionId))
+                ->selectRaw('COALESCE(SUM(cantidad), 0) - COALESCE(SUM(cantidad_devuelta), 0) as pendiente')
+                ->value('pendiente');
+
+            if ($aDevolver < 0 || $aDevolver > max(0, $pendienteActual)) {
                 throw ValidationException::withMessages([
                     "partidas.{$index}.cantidad_a_devolver" => 'La cantidad a devolver no puede superar la cantidad pendiente.',
                 ]);
