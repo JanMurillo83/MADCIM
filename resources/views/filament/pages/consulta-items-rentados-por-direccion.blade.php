@@ -82,8 +82,9 @@
                                     <tr>
                                         <th class="px-4 py-2 text-left text-gray-600 dark:text-gray-300">Clave</th>
                                         <th class="px-4 py-2 text-left text-gray-600 dark:text-gray-300">Producto</th>
-                                        <th class="px-4 py-2 text-center text-gray-600 dark:text-gray-300">Cantidad</th>
-                                        <th class="px-4 py-2 text-center text-gray-600 dark:text-gray-300">Días Renta</th>
+                                        <th class="px-4 py-2 text-center text-gray-600 dark:text-gray-300">Cantidad Enviada</th>
+                                        <th class="px-4 py-2 text-center text-gray-600 dark:text-gray-300">Devueltos</th>
+                                        <th class="px-4 py-2 text-center text-gray-600 dark:text-gray-300">Pendientes</th>
                                         <th class="px-4 py-2 text-right text-gray-600 dark:text-gray-300">Importe Renta</th>
                                         <th class="px-4 py-2 text-right text-gray-600 dark:text-gray-300">Precio Venta Unit.</th>
                                         <th class="px-4 py-2 text-right text-gray-600 dark:text-gray-300">Total Precio Venta</th>
@@ -93,17 +94,29 @@
                                     @foreach($itemsGrupo as $item)
                                         @php
                                             $precioVenta = $item->producto?->precio_venta ?? 0;
+                                            $cantidad = (float) $item->cantidad;
+                                            $devueltos = (float) $item->cantidad_devuelta;
                                         @endphp
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                             <td class="px-4 py-2 text-gray-700 dark:text-gray-300">{{ $item->producto?->clave ?? 'N/A' }}</td>
                                             <td class="px-4 py-2 text-gray-700 dark:text-gray-300">{{ $item->producto?->descripcion ?? 'N/A' }}</td>
-                                            <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ $item->cantidad }}</td>
-                                            <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ $item->dias_renta }}</td>
+                                            <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ $cantidad }}</td>
+                                            <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ $devueltos }}</td>
+                                            <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ max(0, $cantidad - $devueltos) }}</td>
                                             <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($item->importe_renta, 2) }}</td>
                                             <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta, 2) }}</td>
-                                            <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta * $item->cantidad, 2) }}</td>
+                                            <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta * $cantidad, 2) }}</td>
                                         </tr>
                                     @endforeach
+                                    <tr class="bg-gray-100 font-semibold dark:bg-gray-600">
+                                        <td colspan="2" class="px-4 py-2 text-gray-700 dark:text-gray-200">Subtotal dirección</td>
+                                        <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ $itemsGrupo->sum('cantidad') }}</td>
+                                        <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ $itemsGrupo->sum('cantidad_devuelta') }}</td>
+                                        <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ max(0, $itemsGrupo->sum('cantidad') - $itemsGrupo->sum('cantidad_devuelta')) }}</td>
+                                        <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-200">${{ number_format($subtotalRenta, 2) }}</td>
+                                        <td class="px-4 py-2"></td>
+                                        <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-200">${{ number_format($subtotalVenta, 2) }}</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>

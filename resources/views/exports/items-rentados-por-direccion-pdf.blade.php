@@ -37,8 +37,9 @@
                 <tr>
                     <th>Clave</th>
                     <th>Producto</th>
-                    <th class="text-center">Cantidad</th>
-                    <th class="text-center">Días Renta</th>
+                    <th class="text-center">Cantidad Enviada</th>
+                    <th class="text-center">Devueltos</th>
+                    <th class="text-center">Pendientes</th>
                     <th class="text-right">Importe Renta</th>
                     <th class="text-right">Precio Venta Unit.</th>
                     <th class="text-right">Total Precio Venta</th>
@@ -46,23 +47,28 @@
             </thead>
             <tbody>
                 @foreach($itemsGrupo as $item)
-                    @php $precioVenta = $item->producto?->precio_venta ?? 0; @endphp
+                    @php
+                        $precioVenta = $item->producto?->precio_venta ?? 0;
+                        $cantidad = (float) $item->cantidad;
+                        $devueltos = (float) $item->cantidad_devuelta;
+                    @endphp
                     <tr>
                         <td>{{ $item->producto?->clave ?? 'N/A' }}</td>
                         <td>{{ $item->producto?->descripcion ?? 'N/A' }}</td>
-                        <td class="text-center">{{ $item->cantidad }}</td>
-                        <td class="text-center">{{ $item->dias_renta }}</td>
+                        <td class="text-center">{{ $cantidad }}</td>
+                        <td class="text-center">{{ $devueltos }}</td>
+                        <td class="text-center">{{ max(0, $cantidad - $devueltos) }}</td>
                         <td class="text-right">${{ number_format($item->importe_renta, 2) }}</td>
                         <td class="text-right">${{ number_format($precioVenta, 2) }}</td>
-                        <td class="text-right">${{ number_format($precioVenta * $item->cantidad, 2) }}</td>
+                        <td class="text-right">${{ number_format($precioVenta * $cantidad, 2) }}</td>
                     </tr>
                 @endforeach
                 <tr class="subtotal-row">
                     <td colspan="2">Subtotal dirección</td>
                     <td class="text-center">{{ $itemsGrupo->sum('cantidad') }}</td>
-                    <td></td>
+                    <td class="text-center">{{ $itemsGrupo->sum('cantidad_devuelta') }}</td>
+                    <td class="text-center">{{ max(0, $itemsGrupo->sum('cantidad') - $itemsGrupo->sum('cantidad_devuelta')) }}</td>
                     <td class="text-right">${{ number_format($subtotalRenta, 2) }}</td>
-                    <td></td>
                     <td class="text-right">${{ number_format($subtotalVenta, 2) }}</td>
                 </tr>
             </tbody>

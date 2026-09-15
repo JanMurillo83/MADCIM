@@ -150,6 +150,26 @@ class CreateNotasDevolucionRenta extends CreateRecord
         return parent::getCreateFormAction()->hidden();
     }
 
+    protected function getFormActions(): array
+    {
+        return [
+            Action::make('guardar_abajo')
+                ->label('Guardar')
+                ->icon('heroicon-o-check')
+                ->color('primary')
+                ->action(fn () => $this->guardarCaptura()),
+            Action::make('cancelar_abajo')
+                ->label('Cancelar')
+                ->icon('heroicon-o-x-mark')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Cancelar captura')
+                ->modalDescription('¿Deseas cancelar la captura y regresar al listado? Se perderán los datos no guardados.')
+                ->modalSubmitActionLabel('Sí, cancelar')
+                ->action(fn () => $this->cancelarCaptura()),
+        ];
+    }
+
     protected function afterCreate(): void
     {
         $this->record->aplicarCantidadesRecogidas();

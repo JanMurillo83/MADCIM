@@ -186,7 +186,7 @@ class NotasDevolucionRentaForm
                                 Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Cantidad enviada'),
                                 Repeater\TableColumn::make('Cantidad devuelta'),
-                                Repeater\TableColumn::make('Cantidad a devolver'),
+                                Repeater\TableColumn::make('Devolución'),
                             ])
                             ->schema([
                                 Hidden::make('producto_id'),
@@ -205,7 +205,7 @@ class NotasDevolucionRentaForm
                                     ->numeric()
                                     ->readOnly(),
                                 TextInput::make('cantidad_a_devolver')
-                                    ->label('Cantidad a devolver')
+                                    ->label('Devolución')
                                     ->numeric()
                                     ->minValue(0)
                                     ->maxValue(fn (callable $get): float => max(0, (float) $get('cantidad_enviada') - (float) $get('cantidad_devuelta')))

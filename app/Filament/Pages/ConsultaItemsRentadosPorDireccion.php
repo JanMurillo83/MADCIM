@@ -83,12 +83,8 @@ class ConsultaItemsRentadosPorDireccion extends Page
                 ->map(function (Collection $itemsProducto) {
                     $item = clone $itemsProducto->first();
                     $item->cantidad = $itemsProducto->sum('cantidad');
+                    $item->cantidad_devuelta = $itemsProducto->sum('cantidad_devuelta');
                     $item->importe_renta = $itemsProducto->sum('importe_renta');
-
-                    $diasRenta = $itemsProducto->pluck('dias_renta')->unique()->values();
-                    $item->dias_renta = $diasRenta->count() === 1
-                        ? $diasRenta->first()
-                        : $diasRenta->implode(', ');
 
                     return $item;
                 })->values();
@@ -142,27 +138,49 @@ class ConsultaItemsRentadosPorDireccion extends Page
         $cliente = Clientes::find($this->cliente_id);
 
         $csvData = [];
-        $csvData[] = ['Dirección de Entrega', 'Producto', 'Clave', 'Cantidad', 'Días Renta', 'Importe Renta', 'Precio Venta Unit.', 'Total Precio Venta'];
+        $csvData[] = ['Dirección de Entrega', 'Producto', 'Clave', 'Cantidad Enviada', 'Devueltos', 'Pendientes', 'Importe Renta', 'Precio Venta Unit.', 'Total Precio Venta'];
 
-        foreach ($this->itemsAgrupados->flatten(1) as $item) {
-            $direccion = $item->notaVentaRenta?->direccionEntrega;
-            $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $item->cliente_direccion;
-            $precioVenta = $item->producto?->precio_venta ?? 0;
+        foreach ($this->itemsAgrupados as $itemsGrupo) {
+            $direccion = $itemsGrupo->first()->notaVentaRenta?->direccionEntrega;
+            $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $itemsGrupo->first()->cliente_direccion;
+            $subtotalRenta = $itemsGrupo->sum('importe_renta');
+            $subtotalVenta = $itemsGrupo->sum(fn ($item) => ($item->producto?->precio_venta ?? 0) * $item->cantidad);
+            $cantidad = $itemsGrupo->sum('cantidad');
+            $devueltos = $itemsGrupo->sum('cantidad_devuelta');
+
+            foreach ($itemsGrupo as $item) {
+                $precioVenta = $item->producto?->precio_venta ?? 0;
+                $cantidadItem = (float) $item->cantidad;
+                $devueltosItem = (float) $item->cantidad_devuelta;
+
+                $csvData[] = [
+                    $direccionNombre,
+                    $item->producto?->descripcion ?? 'N/A',
+                    $item->producto?->clave ?? 'N/A',
+                    $cantidadItem,
+                    $devueltosItem,
+                    max(0, $cantidadItem - $devueltosItem),
+                    number_format($item->importe_renta, 2),
+                    number_format($precioVenta, 2),
+                    number_format($precioVenta * $cantidadItem, 2),
+                ];
+            }
 
             $csvData[] = [
                 $direccionNombre,
-                $item->producto?->descripcion ?? 'N/A',
-                $item->producto?->clave ?? 'N/A',
-                $item->cantidad,
-                $item->dias_renta,
-                number_format($item->importe_renta, 2),
-                number_format($precioVenta, 2),
-                number_format($precioVenta * $item->cantidad, 2),
+                'Subtotal dirección',
+                '',
+                $cantidad,
+                $devueltos,
+                max(0, $cantidad - $devueltos),
+                number_format($subtotalRenta, 2),
+                '',
+                number_format($subtotalVenta, 2),
             ];
         }
 
         $csvData[] = [];
-        $csvData[] = ['', '', '', '', 'TOTALES:', number_format($this->totalImporteRenta, 2), '', number_format($this->totalPrecioVenta, 2)];
+        $csvData[] = ['', '', '', '', '', '', 'TOTALES:', number_format($this->totalImporteRenta, 2), number_format($this->totalPrecioVenta, 2)];
 
         $filename = 'items_rentados_' . $cliente->nombre . '_' . now()->format('Ymd_His') . '.csv';
 
