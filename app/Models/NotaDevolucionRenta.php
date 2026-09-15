@@ -19,6 +19,7 @@ class NotaDevolucionRenta extends Model
     protected $fillable = [
         'serie',
         'folio',
+        'folio_interno',
         'nota_envio_id',
         'nota_venta_renta_id',
         'cliente_id',

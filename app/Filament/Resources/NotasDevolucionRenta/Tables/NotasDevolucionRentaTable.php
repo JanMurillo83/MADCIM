@@ -23,6 +23,9 @@ class NotasDevolucionRentaTable
                 TextColumn::make('folio')
                     ->label('Folio')
                     ->searchable(),
+                TextColumn::make('folio_interno')
+                    ->label('Folio interno')
+                    ->searchable(),
                 TextColumn::make('notaOrigen.folio')
                     ->label('Nota origen')
                     ->searchable(),

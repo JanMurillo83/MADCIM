@@ -20,6 +20,9 @@
 
     <div class="block">
         <div class="row"><span><strong>Serie/Folio:</strong> {{ $nota->serie }}-{{ $nota->folio }}</span><span><strong>Fecha:</strong> {{ optional($nota->fecha_emision)->format('d/m/Y') }}</span></div>
+        @if($nota->folio_interno)
+            <div><strong>Folio interno:</strong> {{ $nota->folio_interno }}</div>
+        @endif
         <div><strong>Cliente:</strong> {{ $nota->cliente->nombre ?? 'N/A' }}</div>
         <div><strong>Nota origen (renta):</strong> {{ $nota->notaOrigen ? (($nota->notaOrigen->serie ?? '') . $nota->notaOrigen->folio) : 'N/A' }}</div>
     </div>
