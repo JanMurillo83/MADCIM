@@ -16,7 +16,7 @@ class EditNotasDevolucionRenta extends EditRecord
 
         Notification::make()
             ->title('Cantidades aplicadas')
-            ->body('La nota de envio se actualizo con las cantidades recogidas.')
+            ->body('Las cantidades acumuladas de la obra fueron actualizadas.')
             ->success()
             ->send();
     }

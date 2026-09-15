@@ -185,7 +185,7 @@ class NotasEnvioTable
                             && $record->estatus === 'Entregada'
                             && $record->partidas()->whereRaw('cantidad_devuelta < cantidad')->exists();
                     })
-                    ->url(fn (NotaEnvio $record) => NotasDevolucionRentaResource::getUrl('create', ['nota_venta_renta_id' => $record->nota_venta_renta_id]))
+                    ->url(fn () => NotasDevolucionRentaResource::getUrl('create'))
                     ->openUrlInNewTab(),
                 Action::make('devolver')
                     ->label('Devolución Parcial')

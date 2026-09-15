@@ -11,6 +11,7 @@ class NotaDevolucionRentaPdfController extends Controller
     {
         $nota = NotaDevolucionRenta::with([
             'cliente',
+            'direccionEntrega',
             'notaOrigen',
             'notaEnvio.direccionEntrega',
             'partidas.producto',

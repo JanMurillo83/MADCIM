@@ -3,8 +3,7 @@
 namespace App\Filament\Resources\NotasDevolucionRenta\Pages;
 
 use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
-use App\Filament\Resources\NotasDevolucionRenta\Schemas\NotasDevolucionRentaForm;
-use App\Models\NotaEnvio;
+use App\Models\ClienteDireccionEntrega;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -14,40 +13,50 @@ class CreateNotasDevolucionRenta extends CreateRecord
 {
     protected static string $resource = NotasDevolucionRentaResource::class;
 
-    public function mount(): void
-    {
-        parent::mount();
-
-        $notaVentaRentaId = request()->integer('nota_venta_renta_id') ?: null;
-        if (!$notaVentaRentaId) {
-            return;
-        }
-
-        $datos = NotasDevolucionRentaForm::obtenerDatosIniciales($notaVentaRentaId);
-        $this->form->fill(array_merge($this->data ?? [], [
-            'nota_venta_renta_id' => $notaVentaRentaId,
-            'cliente_id' => $datos['cliente_id'],
-            'partidas' => $datos['partidas'],
-        ]));
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $notaVentaRentaId = (int) ($data['nota_venta_renta_id'] ?? 0);
-        $tieneEnvioEntregado = $notaVentaRentaId > 0
-            && NotaEnvio::query()
-                ->where('nota_venta_renta_id', $notaVentaRentaId)
-                ->where('estatus', 'Entregada')
-                ->whereHas('partidas', fn ($query) => $query->whereRaw('cantidad_devuelta < cantidad'))
+        $clienteId = (int) ($data['cliente_id'] ?? 0);
+        $direccionId = (int) ($data['direccion_entrega_id'] ?? 0);
+        $direccionValida = $direccionId > 0
+            && ClienteDireccionEntrega::query()
+                ->whereKey($direccionId)
+                ->where('cliente_id', $clienteId)
+                ->where('activa', true)
                 ->exists();
 
-        if (!$tieneEnvioEntregado) {
+        if (!$clienteId || !$direccionValida) {
             throw ValidationException::withMessages([
-                'nota_venta_renta_id' => 'No se puede crear la Nota de Devolución hasta que la Nota de Envío esté marcada como Entregada.',
+                'direccion_entrega_id' => 'Seleccione una obra válida para el cliente.',
+            ]);
+        }
+
+        if (empty($data['partidas'])) {
+            throw ValidationException::withMessages([
+                'partidas' => 'No hay productos pendientes de devolución para esta obra.',
+            ]);
+        }
+
+        $totalADevolver = 0.0;
+        foreach ($data['partidas'] as $index => $partida) {
+            $enviada = (float) ($partida['cantidad_enviada'] ?? 0);
+            $devuelta = (float) ($partida['cantidad_devuelta'] ?? 0);
+            $aDevolver = (float) ($partida['cantidad_a_devolver'] ?? 0);
+            $totalADevolver += $aDevolver;
+            if ($aDevolver < 0 || $aDevolver > $enviada - $devuelta) {
+                throw ValidationException::withMessages([
+                    "partidas.{$index}.cantidad_a_devolver" => 'La cantidad a devolver no puede superar la cantidad pendiente.',
+                ]);
+            }
+        }
+
+        if ($totalADevolver <= 0) {
+            throw ValidationException::withMessages([
+                'partidas' => 'Capture al menos una cantidad a devolver.',
             ]);
         }
 
         $data['user_id'] = Auth::id();
+        $data['fecha_emision'] ??= now()->toDateString();
         $data['estatus'] = 'Pendiente';
 
         return $data;

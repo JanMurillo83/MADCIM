@@ -24,7 +24,7 @@
             <div><strong>Folio interno:</strong> {{ $nota->folio_interno }}</div>
         @endif
         <div><strong>Cliente:</strong> {{ $nota->cliente->nombre ?? 'N/A' }}</div>
-        <div><strong>Nota origen (renta):</strong> {{ $nota->notaOrigen ? (($nota->notaOrigen->serie ?? '') . $nota->notaOrigen->folio) : 'N/A' }}</div>
+        <div><strong>Obra:</strong> {{ $nota->direccionEntrega?->nombre_direccion ?? 'N/A' }}</div>
     </div>
 
     <div class="block">
@@ -32,16 +32,18 @@
             <thead>
                 <tr>
                     <th>Item</th>
-                    <th class="right">Prog.</th>
-                    <th class="right">Rec.</th>
+                    <th class="right">Enviada</th>
+                    <th class="right">Devuelta</th>
+                    <th class="right">A devolver</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($nota->partidas as $partida)
                     <tr>
                         <td>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Item') }}</td>
-                        <td class="right">{{ number_format((float) $partida->cantidad_programada, 2) }}</td>
-                        <td class="right">{{ number_format((float) $partida->cantidad_recogida, 2) }}</td>
+                        <td class="right">{{ number_format((float) $partida->cantidad_enviada, 2) }}</td>
+                        <td class="right">{{ number_format((float) $partida->cantidad_devuelta, 2) }}</td>
+                        <td class="right">{{ number_format((float) $partida->cantidad_a_devolver, 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>

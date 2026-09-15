@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use App\Models\NotaDevolucionRentaPartida;
+use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,7 @@ class NotaDevolucionRenta extends Model
         'nota_envio_id',
         'nota_venta_renta_id',
         'cliente_id',
+        'direccion_entrega_id',
         'fecha_emision',
         'estatus',
         'observaciones',
@@ -50,6 +52,11 @@ class NotaDevolucionRenta extends Model
         return $this->belongsTo(Clientes::class, 'cliente_id');
     }
 
+    public function direccionEntrega(): BelongsTo
+    {
+        return $this->belongsTo(ClienteDireccionEntrega::class, 'direccion_entrega_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -64,6 +71,96 @@ class NotaDevolucionRenta extends Model
     {
         $this->loadMissing(['partidas']);
 
+        DB::transaction(function () {
+            if ($this->cliente_id && $this->direccion_entrega_id) {
+                $this->aplicarCantidadesPorClienteObra();
+                return;
+            }
+
+            $this->aplicarCantidadesPorEnvio();
+        });
+    }
+
+    private function aplicarCantidadesPorClienteObra(): void
+    {
+        foreach ($this->partidas as $partida) {
+            $cantidadObjetivo = max(0, (float) $partida->cantidad_a_devolver);
+            $cantidadAplicada = (float) $partida->cantidad_aplicada;
+            $delta = $cantidadObjetivo - $cantidadAplicada;
+
+            if (abs($delta) < 0.00001) {
+                continue;
+            }
+
+            $registros = RegistroRenta::query()
+                ->where('cliente_id', $this->cliente_id)
+                ->where('producto_id', $partida->producto_id)
+                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $pendiente = abs($delta);
+            foreach ($registros as $registro) {
+                $disponible = $delta > 0
+                    ? max(0, (float) $registro->cantidad - (float) $registro->cantidad_devuelta)
+                    : max(0, (float) $registro->cantidad_devuelta);
+                $movimiento = min($pendiente, $disponible);
+
+                if ($movimiento <= 0) {
+                    continue;
+                }
+
+                $registro->cantidad_devuelta = (float) $registro->cantidad_devuelta + ($delta > 0 ? $movimiento : -$movimiento);
+                $registro->estado = $registro->cantidad_devuelta >= $registro->cantidad ? 'Devuelto' : 'Activo';
+                $registro->save();
+                $pendiente -= $movimiento;
+
+                if ($pendiente < 0.00001) {
+                    break;
+                }
+            }
+
+            $cantidadMovida = abs($delta) - $pendiente;
+            if ($cantidadMovida > 0.00001) {
+                $producto = Productos::find($partida->producto_id);
+                if ($producto) {
+                    $referencia = $this->serie . $this->folio;
+                    if ($delta > 0) {
+                        InventarioMovimientoService::entrada(
+                            productoId: $producto->id,
+                            cantidad: $cantidadMovida,
+                            motivo: "Devolución de renta {$referencia}",
+                            documentoReferencia: $referencia,
+                        );
+                    } else {
+                        InventarioMovimientoService::salida(
+                            productoId: $producto->id,
+                            cantidad: $cantidadMovida,
+                            motivo: "Cancelación de devolución de renta {$referencia}",
+                            documentoReferencia: $referencia,
+                        );
+                    }
+                }
+            }
+
+            $partida->update([
+                'cantidad_a_devolver' => $cantidadAplicada + ($delta > 0 ? $cantidadMovida : -$cantidadMovida),
+                'cantidad_aplicada' => $cantidadAplicada + ($delta > 0 ? $cantidadMovida : -$cantidadMovida),
+            ]);
+        }
+
+        $estado = $this->calcularEstadoDesdePartidas(
+            $this->partidas,
+            static fn (NotaDevolucionRentaPartida $partida): float => (float) $partida->cantidad_a_devolver,
+            static fn (NotaDevolucionRentaPartida $partida): float => (float) $partida->cantidad_aplicada,
+        );
+
+        $this->forceFill(['estatus' => $estado, 'aplicada_en' => now()])->saveQuietly();
+    }
+
+    private function aplicarCantidadesPorEnvio(): void
+    {
         DB::transaction(function () {
             $envioIdsAfectados = [];
 
@@ -190,6 +287,16 @@ class NotaDevolucionRenta extends Model
 
         DB::transaction(function () {
             if (in_array($this->estatus, ['Cancelada', 'Devuelta'], true)) {
+                return;
+            }
+
+            if ($this->cliente_id && $this->direccion_entrega_id) {
+                $this->partidas->each(function (NotaDevolucionRentaPartida $partida): void {
+                    $partida->update(['cantidad_a_devolver' => 0]);
+                });
+
+                $this->aplicarCantidadesPorClienteObra();
+                $this->forceFill(['estatus' => 'Cancelada'])->saveQuietly();
                 return;
             }
 

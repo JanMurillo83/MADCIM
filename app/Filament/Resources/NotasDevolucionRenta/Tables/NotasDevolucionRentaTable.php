@@ -26,8 +26,8 @@ class NotasDevolucionRentaTable
                 TextColumn::make('folio_interno')
                     ->label('Folio interno')
                     ->searchable(),
-                TextColumn::make('notaOrigen.folio')
-                    ->label('Nota origen')
+                TextColumn::make('direccionEntrega.nombre_direccion')
+                    ->label('Obra')
                     ->searchable(),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
@@ -49,11 +49,14 @@ class NotasDevolucionRentaTable
                         };
                     }),
                 TextColumn::make('items_programados')
-                    ->label('Items programados')
-                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_programada'), 2, '.', ',')),
+                    ->label('Enviados')
+                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_enviada'), 2, '.', ',')),
                 TextColumn::make('items_recogidos')
-                    ->label('Items recogidos')
-                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_recogida'), 2, '.', ',')),
+                    ->label('Devueltos')
+                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_devuelta'), 2, '.', ',')),
+                TextColumn::make('items_a_devolver')
+                    ->label('A devolver')
+                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_a_devolver'), 2, '.', ',')),
                 TextColumn::make('aplicada_en')
                     ->label('Aplicada en')
                     ->dateTime('d/m/Y H:i')
