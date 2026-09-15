@@ -78,6 +78,20 @@ class ConsultaItemsRentadosPorDireccion extends Page
         return $this->items->groupBy(function ($item) {
             $direccion = $item->notaVentaRenta?->direccionEntrega;
             return $direccion ? $direccion->id : 0;
+        })->map(function (Collection $itemsGrupo) {
+            return $itemsGrupo->groupBy(fn ($item) => $item->producto_id ?? $item->producto?->descripcion ?? 'sin-producto')
+                ->map(function (Collection $itemsProducto) {
+                    $item = clone $itemsProducto->first();
+                    $item->cantidad = $itemsProducto->sum('cantidad');
+                    $item->importe_renta = $itemsProducto->sum('importe_renta');
+
+                    $diasRenta = $itemsProducto->pluck('dias_renta')->unique()->values();
+                    $item->dias_renta = $diasRenta->count() === 1
+                        ? $diasRenta->first()
+                        : $diasRenta->implode(', ');
+
+                    return $item;
+                })->values();
         });
     }
 
@@ -130,7 +144,7 @@ class ConsultaItemsRentadosPorDireccion extends Page
         $csvData = [];
         $csvData[] = ['Dirección de Entrega', 'Producto', 'Clave', 'Cantidad', 'Días Renta', 'Importe Renta', 'Precio Venta Unit.', 'Total Precio Venta'];
 
-        foreach ($items as $item) {
+        foreach ($this->itemsAgrupados->flatten(1) as $item) {
             $direccion = $item->notaVentaRenta?->direccionEntrega;
             $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $item->cliente_direccion;
             $precioVenta = $item->producto?->precio_venta ?? 0;

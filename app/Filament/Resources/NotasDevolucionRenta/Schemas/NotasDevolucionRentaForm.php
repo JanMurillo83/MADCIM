@@ -143,6 +143,7 @@ class NotasDevolucionRentaForm
                             ->helperText('Se asigna al guardar.'),
                         TextInput::make('folio_interno')
                             ->label('Folio interno')
+                            ->required()
                             ->maxLength(100)
                             ->placeholder('Referencia interna'),
                         DatePicker::make('fecha_emision')
