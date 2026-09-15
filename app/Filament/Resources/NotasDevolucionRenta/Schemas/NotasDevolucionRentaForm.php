@@ -209,6 +209,7 @@ class NotasDevolucionRentaForm
                                     ->numeric()
                                     ->minValue(0)
                                     ->maxValue(fn (callable $get): float => max(0, (float) $get('cantidad_enviada') - (float) $get('cantidad_devuelta')))
+                                    ->dehydrated()
                                     ->required()
                                     ->columnSpan(1),
                             ])

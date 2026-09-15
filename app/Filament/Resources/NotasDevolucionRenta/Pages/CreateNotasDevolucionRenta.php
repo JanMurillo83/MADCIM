@@ -70,6 +70,17 @@ class CreateNotasDevolucionRenta extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $partidas = $data['partidas'] ?? [];
+        if (empty($partidas)) {
+            $partidas = $this->form->getRawState()['partidas'] ?? [];
+        }
+
+        $partidas = array_values(array_filter(
+            $partidas,
+            fn (array $partida): bool => (float) ($partida['cantidad_a_devolver'] ?? 0) > 0,
+        ));
+
+        $data['partidas'] = $partidas;
         $clienteId = (int) ($data['cliente_id'] ?? 0);
         $direccionId = (int) ($data['direccion_entrega_id'] ?? 0);
         $direccionValida = $direccionId > 0
@@ -85,14 +96,14 @@ class CreateNotasDevolucionRenta extends CreateRecord
             ]);
         }
 
-        if (empty($data['partidas'])) {
+        if (empty($partidas)) {
             throw ValidationException::withMessages([
-                'partidas' => 'No hay productos pendientes de devolución para esta obra.',
+                'partidas' => 'Capture al menos una cantidad a devolver mayor que cero.',
             ]);
         }
 
         $totalADevolver = 0.0;
-        foreach ($data['partidas'] as $index => $partida) {
+        foreach ($partidas as $index => $partida) {
             $enviada = (float) ($partida['cantidad_enviada'] ?? 0);
             $devuelta = (float) ($partida['cantidad_devuelta'] ?? 0);
             $aDevolver = (float) ($partida['cantidad_a_devolver'] ?? 0);
