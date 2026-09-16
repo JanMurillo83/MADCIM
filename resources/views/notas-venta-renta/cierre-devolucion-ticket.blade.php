@@ -176,8 +176,8 @@
                 <div class="item-desc">{{ $row['producto'] }}</div>
                 <div class="item-details">
                     <span>Faltante: {{ number_format((float) $row['faltante'], 2) }}</span>
-                    <span>Precio unitario (IVA incluido): ${{ number_format((float) ($row['faltante'] > 0 ? $row['total'] / $row['faltante'] : 0), 2) }}</span>
-                    <span>Total (IVA incluido): ${{ number_format((float) $row['total'], 2) }}</span>
+                    <span>Precio unitario: ${{ number_format((float) ($row['faltante'] > 0 ? $row['total'] / $row['faltante'] : 0), 2) }}</span>
+                    <span>Total: ${{ number_format((float) $row['total'], 2) }}</span>
                 </div>
             </div>
         @empty
@@ -188,7 +188,7 @@
 
         <div class="totals-section">
             <div class="total-row">
-                <span class="label">Total de Madera Faltante (IVA incluido):</span>
+                <span class="label">Total de Madera Faltante:</span>
                 <span>${{ number_format((float) $resumen['totales']['total_faltantes'], 2) }}</span>
             </div>
             <div class="total-row">
