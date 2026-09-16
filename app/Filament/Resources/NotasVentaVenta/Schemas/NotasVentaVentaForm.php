@@ -182,8 +182,7 @@ class NotasVentaVentaForm
                             ->table([
                                 Repeater\TableColumn::make('Cantidad'),
                                 Repeater\TableColumn::make('Producto'),
-                                Repeater\TableColumn::make('Precio'),
-                                Repeater\TableColumn::make('Subtotal'),
+                                Repeater\TableColumn::make('Precio Unitario'),
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
@@ -253,7 +252,7 @@ class NotasVentaVentaForm
                                 Hidden::make('descripcion'),
                                 TextInput::make('valor_unitario')
                                     ->columnSpan(1)
-                                    ->label('Precio')
+                                    ->label('Precio Unitario')
                                     ->numeric()
                                     ->prefix('$')
                                     ->mask(RawJs::make("\$money(\$input, ',', '.')"))
@@ -266,15 +265,8 @@ class NotasVentaVentaForm
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),
-                                TextInput::make('subtotal')
-                                    ->columnSpan(1)
-                                    ->numeric()
-                                    ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
-                                    ->stripCharacters(',')
-                                    ->required()
-                                    ->default(0.0)
-                                    ->readOnly(),
+                                Hidden::make('subtotal')
+                                    ->default(0.0),
                                 Hidden::make('impuestos')
                                     ->default(0.0),
                                 TextInput::make('total')
