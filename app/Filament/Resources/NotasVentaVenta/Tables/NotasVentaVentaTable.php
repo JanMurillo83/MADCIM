@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\NotasVentaVenta\Tables;
 
 use App\Models\NotasVentaVenta;
+use App\Models\Pagos;
 use App\Models\Productos;
+use App\Services\InventarioMovimientoService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
@@ -13,6 +15,7 @@ use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class NotasVentaVentaTable
 {
@@ -138,25 +141,39 @@ class NotasVentaVentaTable
                         ->modalHeading('Cancelar Nota de Venta Venta')
                         ->modalDescription('¿Estás seguro de que deseas cancelar esta nota de venta? Esta acción no se puede deshacer.')
                         ->modalSubmitActionLabel('Sí, cancelar')
-                        ->visible(fn ($record) => $record->estatus === 'Activa')
-                        ->action(function ($record) {
-                            $referencia = $record->serie . $record->folio;
+                        ->visible(fn (NotasVentaVenta $record) => in_array($record->estatus, ['Activa', 'Pagada'], true))
+                        ->action(function (NotasVentaVenta $record) {
+                            DB::transaction(function () use ($record): void {
+                                $nota = NotasVentaVenta::query()
+                                    ->lockForUpdate()
+                                    ->findOrFail($record->id);
 
-                            foreach ($record->partidas as $partida) {
-                                $producto = Productos::find($partida->item);
-                                if (! $producto) {
-                                    continue;
+                                if (! in_array($nota->estatus, ['Activa', 'Pagada'], true)) {
+                                    return;
                                 }
 
-                                \App\Services\InventarioMovimientoService::entrada(
-                                    productoId: $producto->id,
-                                    cantidad: (float) $partida->cantidad,
-                                    motivo: "Cancelación de nota de venta {$referencia}",
-                                    documentoReferencia: $referencia
-                                );
-                            }
+                                $referencia = $nota->serie . $nota->folio;
 
-                            $record->update(['estatus' => 'Cancelada']);
+                                foreach ($nota->partidas as $partida) {
+                                    $producto = Productos::findOrFail($partida->item);
+
+                                    InventarioMovimientoService::entrada(
+                                        productoId: $producto->id,
+                                        cantidad: (float) $partida->cantidad,
+                                        motivo: "Cancelación de nota de venta {$referencia}",
+                                        documentoReferencia: $referencia
+                                    );
+                                }
+
+                                $nota->pagos()->get()->each(function (Pagos $pago): void {
+                                    $pago->delete();
+                                });
+
+                                $nota->update([
+                                    'estatus' => 'Cancelada',
+                                    'saldo_pendiente' => 0,
+                                ]);
+                            });
 
                             Notification::make()
                                 ->title('Nota cancelada')
