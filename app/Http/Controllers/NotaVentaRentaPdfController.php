@@ -60,16 +60,22 @@ class NotaVentaRentaPdfController extends Controller
     public function cierreDevolucionTicket($id)
     {
         $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'notasEnvio'])->findOrFail($id);
+        $notasOrigen = NotasVentaRenta::query()
+            ->where('cliente_id', $notaVenta->cliente_id)
+            ->where('direccion_entrega_id', $notaVenta->direccion_entrega_id)
+            ->where('estatus', '!=', 'Cancelada')
+            ->orderBy('id')
+            ->get(['id', 'serie', 'folio', 'fecha_emision']);
         $resumen = session('cierre_devolucion_resumen_nvr_' . $notaVenta->id)
             ?? app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
 
         $notaVentaVenta = NotasVentaVenta::query()
-            ->where('documento_origen_id', $notaVenta->id)
+            ->whereIn('documento_origen_id', $notasOrigen->pluck('id'))
             ->latest()
             ->first();
 
         $devolucion = DevolucionesRenta::query()
-            ->where('documento_origen_id', $notaVenta->id)
+            ->whereIn('documento_origen_id', $notasOrigen->pluck('id'))
             ->latest()
             ->first();
 
@@ -77,6 +83,7 @@ class NotaVentaRentaPdfController extends Controller
 
         return view('notas-venta-renta.cierre-devolucion-ticket', [
             'notaVenta' => $notaVenta,
+            'notasOrigen' => $notasOrigen,
             'resumen' => $resumen,
             'notaVentaVenta' => $notaVentaVenta,
             'devolucion' => $devolucion,

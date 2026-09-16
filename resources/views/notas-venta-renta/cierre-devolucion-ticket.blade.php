@@ -147,9 +147,15 @@
 
         <div class="info-section">
             <div class="info-row">
-                <span class="label">Nota Renta:</span>
-                <span>{{ $notaVenta->serie ?? '' }}-{{ $notaVenta->folio ?? '' }}</span>
+                <span class="label">Nota de Renta Origen:</span>
+                <span>{{ $notasOrigen->map(fn ($nota) => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')))->implode(', ') }}</span>
             </div>
+            @if($notaVentaVenta)
+                <div class="info-row">
+                    <span class="label">Nota de Venta:</span>
+                    <span>{{ $notaVentaVenta->serie }}-{{ $notaVentaVenta->folio }}</span>
+                </div>
+            @endif
             <div class="info-row">
                 <span class="label">Cliente:</span>
                 <span>{{ $notaVenta->cliente->nombre ?? '-' }}</span>
@@ -170,10 +176,8 @@
                 <div class="item-desc">{{ $row['producto'] }}</div>
                 <div class="item-details">
                     <span>Faltante: {{ number_format((float) $row['faltante'], 2) }}</span>
-                    <span>Precio venta: ${{ number_format((float) $row['precio_unitario'], 2) }}</span>
-                    <span>Subtotal: ${{ number_format((float) $row['subtotal'], 2) }}</span>
-                    <span>IVA: ${{ number_format((float) $row['iva'], 2) }}</span>
-                    <span>Total: ${{ number_format((float) $row['total'], 2) }}</span>
+                    <span>Precio unitario (IVA incluido): ${{ number_format((float) ($row['faltante'] > 0 ? $row['total'] / $row['faltante'] : 0), 2) }}</span>
+                    <span>Total (IVA incluido): ${{ number_format((float) $row['total'], 2) }}</span>
                 </div>
             </div>
         @empty
@@ -184,51 +188,18 @@
 
         <div class="totals-section">
             <div class="total-row">
-                <span class="label">Depósito:</span>
-                <span>${{ number_format((float) $resumen['totales']['deposito'], 2) }}</span>
-            </div>
-            <div class="total-row">
-                <span class="label">Subtotal faltantes:</span>
-                <span>${{ number_format((float) $resumen['totales']['subtotal_faltantes'], 2) }}</span>
-            </div>
-            <div class="total-row">
-                <span class="label">IVA faltantes:</span>
-                <span>${{ number_format((float) $resumen['totales']['iva_faltantes'], 2) }}</span>
-            </div>
-            <div class="total-row">
-                <span class="label">Total faltantes:</span>
+                <span class="label">Total de Madera Faltante (IVA incluido):</span>
                 <span>${{ number_format((float) $resumen['totales']['total_faltantes'], 2) }}</span>
             </div>
             <div class="total-row">
-                <span class="label">Depósito aplicado:</span>
-                <span>${{ number_format((float) $resumen['totales']['deposito_aplicado'], 2) }}</span>
+                <span class="label">Total Depósito:</span>
+                <span>${{ number_format((float) $resumen['totales']['deposito'], 2) }}</span>
             </div>
             <div class="total-row">
                 <span class="label">Saldo por cobrar:</span>
                 <span>${{ number_format((float) $resumen['totales']['saldo_por_cobrar'], 2) }}</span>
             </div>
-            <div class="total-row grand">
-                <span>Depósito a devolver:</span>
-                <span>${{ number_format((float) $resumen['totales']['deposito_devolver'], 2) }}</span>
-            </div>
         </div>
-
-        @if($notaVentaVenta)
-            <div class="box">
-                <strong>Nota de Venta generada por faltantes</strong><br>
-                {{ $notaVentaVenta->serie }}-{{ $notaVentaVenta->folio }}<br>
-                Total: ${{ number_format((float) $notaVentaVenta->total, 2) }}<br>
-                Saldo: ${{ number_format((float) $notaVentaVenta->saldo_pendiente, 2) }}
-            </div>
-        @endif
-
-        @if($devolucion)
-            <div class="box">
-                <strong>Documento de devolución</strong><br>
-                {{ $devolucion->serie }}-{{ $devolucion->folio }}<br>
-                Total: ${{ number_format((float) $devolucion->total, 2) }}
-            </div>
-        @endif
 
         @if($observaciones)
             <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 8px;">
