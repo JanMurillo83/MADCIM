@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use DomainException;
 use App\Services\InventarioMovimientoService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
@@ -42,7 +43,59 @@ class CreateNotasVentaVenta extends CreateRecord
                 ->modalHeading('Confirmar nota de venta')
                 ->modalSubmitActionLabel('Guardar')
                 ->modalCancelActionLabel('Revisar')
-                ->form([
+                ->form(fn (): array => $this->formularioPagosContado())
+                ->action(fn (array $data) => $this->guardarConPago($data)),
+        ];
+    }
+
+    public function guardarConPago(array $data): void
+    {
+        if (($this->data['condicion_pago'] ?? 'contado') === 'contado') {
+            $pagos = $data['pagos'] ?? [];
+            $totalNota = round((float) ($this->data['total'] ?? 0), 2);
+            $totalAplicado = round(array_sum(array_map(
+                static fn (array $pago): float => (float) ($pago['importe'] ?? 0),
+                $pagos
+            )), 2);
+
+            if (abs($totalAplicado - $totalNota) > 0.009) {
+                throw ValidationException::withMessages([
+                    'pagos' => 'La suma de los importes aplicados debe cubrir exactamente el total de la nota.',
+                ]);
+            }
+
+            foreach ($pagos as $indice => $pago) {
+                $importe = (float) ($pago['importe'] ?? 0);
+                $recibido = (float) ($pago['importe_recibido'] ?? $importe);
+
+                if ($importe <= 0) {
+                    throw ValidationException::withMessages([
+                        "pagos.{$indice}.importe" => 'El importe aplicado debe ser mayor a cero.',
+                    ]);
+                }
+
+                if (($pago['metodo_pago'] ?? null) === '01' && $recibido < $importe) {
+                    throw ValidationException::withMessages([
+                        "pagos.{$indice}.importe_recibido" => 'El importe recibido no puede ser menor al importe aplicado.',
+                    ]);
+                }
+            }
+
+            $this->pagoCapturado = $pagos;
+        } else {
+            $this->pagoCapturado = null;
+        }
+
+        $this->create();
+    }
+
+    public function formularioPagosContado(): array
+    {
+        return [
+            Repeater::make('pagos')
+                ->label('Formas de pago')
+                ->visible(fn (): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado')
+                ->schema([
                     Select::make('metodo_pago')
                         ->label('Forma de pago')
                         ->options([
@@ -53,35 +106,29 @@ class CreateNotasVentaVenta extends CreateRecord
                             '28' => 'Tarjeta de débito',
                         ])
                         ->default('01')
-                        ->required(fn (): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado')
-                        ->visible(fn (): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado'),
+                        ->live()
+                        ->required(),
+                    TextInput::make('importe')
+                        ->label('Importe aplicado')
+                        ->numeric()
+                        ->prefix('$')
+                        ->default(fn (): float => (float) ($this->data['total'] ?? 0))
+                        ->required()
+                        ->minValue(0.01),
                     TextInput::make('importe_recibido')
                         ->label('Importe recibido')
                         ->numeric()
                         ->prefix('$')
-                        ->default(fn (): float => (float) ($this->data['total'] ?? 0))
-                        ->required(fn (Get $get): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado' && $get('metodo_pago') === '01')
+                        ->default(fn (Get $get): float => (float) ($get('importe') ?? 0))
+                        ->required(fn (Get $get): bool => $get('metodo_pago') === '01')
                         ->minValue(0)
-                        ->visible(fn (Get $get): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado' && $get('metodo_pago') === '01'),
+                        ->visible(fn (Get $get): bool => $get('metodo_pago') === '01'),
                 ])
-                ->action(fn (array $data) => $this->guardarConPago($data)),
+                ->defaultItems(1)
+                ->addActionLabel('Agregar forma de pago')
+                ->reorderable(false)
+                ->required(),
         ];
-    }
-
-    public function guardarConPago(array $data): void
-    {
-        if (($this->data['condicion_pago'] ?? 'contado') === 'contado' && ($data['metodo_pago'] ?? null) === '01') {
-            $importe = (float) ($this->data['total'] ?? 0);
-            $recibido = (float) ($data['importe_recibido'] ?? 0);
-            if ($recibido < $importe) {
-                throw ValidationException::withMessages([
-                    'importe_recibido' => 'El importe recibido no puede ser menor al total de la nota.',
-                ]);
-            }
-        }
-
-        $this->pagoCapturado = $data;
-        $this->create();
     }
 
     public function cancelarCaptura(): void
@@ -130,28 +177,32 @@ class CreateNotasVentaVenta extends CreateRecord
         }
 
         if ($record->condicion_pago === 'contado' && $this->pagoCapturado) {
-            $formaPago = $this->pagoCapturado['metodo_pago'];
-            $importe = (float) $record->total;
             $userId = Auth::id();
-            $importeRecibido = $formaPago === '01'
-                ? (float) ($this->pagoCapturado['importe_recibido'] ?? $importe)
-                : $importe;
 
-            Pagos::create([
-                'documento_tipo' => 'notas_venta_venta',
-                'documento_id' => $record->id,
-                'cliente_id' => $record->cliente_id,
-                'fecha_pago' => now(),
-                'forma_pago' => $formaPago,
-                'importe' => $importe,
-                'importe_recibido' => $importeRecibido,
-                'cambio' => $formaPago === '01' ? round($importeRecibido - $importe, 2) : 0,
-                'referencia' => 'Pago de contado al crear nota de venta',
-                'user_id' => $userId,
-                'caja_id' => $formaPago === '01'
-                    ? Caja::where('estatus', 'Abierta')->where('usuario_apertura_id', $userId)->value('id')
-                    : null,
-            ]);
+            foreach ($this->pagoCapturado as $pagoCapturado) {
+                $formaPago = $pagoCapturado['metodo_pago'];
+                $importe = (float) $pagoCapturado['importe'];
+                $esEfectivo = $formaPago === '01';
+                $importeRecibido = $esEfectivo
+                    ? (float) ($pagoCapturado['importe_recibido'] ?? $importe)
+                    : $importe;
+
+                Pagos::create([
+                    'documento_tipo' => 'notas_venta_venta',
+                    'documento_id' => $record->id,
+                    'cliente_id' => $record->cliente_id,
+                    'fecha_pago' => now(),
+                    'forma_pago' => $formaPago,
+                    'importe' => $importe,
+                    'importe_recibido' => $importeRecibido,
+                    'cambio' => $esEfectivo ? round($importeRecibido - $importe, 2) : 0,
+                    'referencia' => 'Pago de contado al crear nota de venta',
+                    'user_id' => $userId,
+                    'caja_id' => $esEfectivo
+                        ? Caja::where('estatus', 'Abierta')->where('usuario_apertura_id', $userId)->value('id')
+                        : null,
+                ]);
+            }
         }
 
         $ticketUrl = route('notas-venta-venta.pdf.ticket', ['id' => $record->id]);

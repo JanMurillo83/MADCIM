@@ -419,28 +419,7 @@ class NotasVentaVentaForm
                         ->modalHeading('Confirmar nota de venta')
                         ->modalSubmitActionLabel('Guardar')
                         ->modalCancelActionLabel('Revisar')
-                        ->form([
-                            Select::make('metodo_pago')
-                                ->label('Forma de pago')
-                                ->options([
-                                    '01' => 'Efectivo',
-                                    '02' => 'Cheque',
-                                    '03' => 'Transferencia',
-                                    '04' => 'Tarjeta de crédito',
-                                    '28' => 'Tarjeta de débito',
-                                ])
-                                ->default('01')
-                                ->required(fn ($livewire): bool => ($livewire->data['condicion_pago'] ?? 'contado') === 'contado')
-                                ->visible(fn ($livewire): bool => ($livewire->data['condicion_pago'] ?? 'contado') === 'contado'),
-                            TextInput::make('importe_recibido')
-                                ->label('Importe recibido')
-                                ->numeric()
-                                ->prefix('$')
-                                ->default(fn ($livewire): float => (float) ($livewire->data['total'] ?? 0))
-                                ->required(fn ($livewire, Get $get): bool => ($livewire->data['condicion_pago'] ?? 'contado') === 'contado' && $get('metodo_pago') === '01')
-                                ->minValue(0)
-                                ->visible(fn ($livewire, Get $get): bool => ($livewire->data['condicion_pago'] ?? 'contado') === 'contado' && $get('metodo_pago') === '01'),
-                        ])
+                        ->form(fn ($livewire): array => $livewire->formularioPagosContado())
                         ->action(fn ($livewire, array $data) => $livewire->guardarConPago($data)),
                 ])->columnSpanFull(),
             ])
