@@ -17,7 +17,9 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -30,58 +32,72 @@ class ProductosTable
             ->recordAction('view')
             ->columns([
                 TextColumn::make('clave')
+                    ->label('Cve.')
                     ->searchable(),
                 TextColumn::make('descripcion')
+                    ->label('Desc.')
                     ->searchable(),
                 TextColumn::make('precio_renta_dia')
+                    ->label('R. día')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('precio_renta_semana')
+                    ->label('R. sem.')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('precio_renta_mes')
+                    ->label('R. mes')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('costo')
-                    ->label('Costo promedio')
+                    ->label('C. prom.')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('ultimo_costo')
-                    ->label('Ultimo costo')
+                    ->label('U. costo')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('precio_venta')
+                    ->label('P. venta')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
                 TextColumn::make('m2_cubre')
+                    ->label('m²')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
                 TextColumn::make('existencia')
+                    ->label('Exist.')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
                 TextColumn::make('grupo')
+                    ->label('Gpo.')
                     ->searchable(),
                 TextColumn::make('linea')
+                    ->label('Lín.')
                     ->searchable(),
                 TextColumn::make('largo')
+                    ->label('L')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
                 TextColumn::make('ancho')
+                    ->label('A')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable()
             ])
             ->filters([
-                //
+                Filter::make('con_existencias')
+                    ->label('Con existencias')
+                    ->query(fn (Builder $query): Builder => $query->where('existencia', '>', 0)),
             ])
             ->recordActions([
                 ActionGroup::make([
