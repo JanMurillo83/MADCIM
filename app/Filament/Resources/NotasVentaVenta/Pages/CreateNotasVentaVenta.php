@@ -14,7 +14,9 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Placeholder;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -92,6 +94,25 @@ class CreateNotasVentaVenta extends CreateRecord
     public function formularioPagosContado(): array
     {
         return [
+            Placeholder::make('resumen_pagos')
+                ->label('Resumen del pago')
+                ->content(function (Get $get): string {
+                    $total = round((float) ($this->data['total'] ?? 0), 2);
+                    $pagos = $get('pagos') ?? [];
+                    $aplicado = round(is_array($pagos) ? array_sum(array_map(
+                        static fn (array $pago): float => (float) ($pago['importe'] ?? 0),
+                        $pagos
+                    )) : 0, 2);
+                    $faltante = round(max($total - $aplicado, 0), 2);
+
+                    return sprintf(
+                        'Total de la nota: $%s | Aplicado: $%s | Falta por cubrir: $%s',
+                        number_format($total, 2),
+                        number_format($aplicado, 2),
+                        number_format($faltante, 2)
+                    );
+                })
+                ->live(),
             Repeater::make('pagos')
                 ->label('Formas de pago')
                 ->visible(fn (): bool => ($this->data['condicion_pago'] ?? 'contado') === 'contado')
@@ -107,19 +128,27 @@ class CreateNotasVentaVenta extends CreateRecord
                         ])
                         ->default('01')
                         ->live()
+                        ->afterStateUpdated(function (?string $state, Get $get, Set $set): void {
+                            if ($state === '01' && blank($get('importe_recibido'))) {
+                                $set('importe_recibido', $get('importe') ?? 0);
+                            }
+                        })
                         ->required(),
                     TextInput::make('importe')
-                        ->label('Importe aplicado')
+                        ->label('Importe aplicado a la nota')
                         ->numeric()
                         ->prefix('$')
-                        ->default(fn (): float => (float) ($this->data['total'] ?? 0))
+                        ->default(fn (Get $get): float => $this->importeRestante($get))
+                        ->helperText('Monto de esta forma de pago que se abona al total.')
+                        ->live(onBlur: true)
                         ->required()
                         ->minValue(0.01),
                     TextInput::make('importe_recibido')
-                        ->label('Importe recibido')
+                        ->label('Efectivo recibido')
                         ->numeric()
                         ->prefix('$')
                         ->default(fn (Get $get): float => (float) ($get('importe') ?? 0))
+                        ->helperText('Cantidad física recibida. El excedente se registra como cambio.')
                         ->required(fn (Get $get): bool => $get('metodo_pago') === '01')
                         ->minValue(0)
                         ->visible(fn (Get $get): bool => $get('metodo_pago') === '01'),
@@ -129,6 +158,18 @@ class CreateNotasVentaVenta extends CreateRecord
                 ->reorderable(false)
                 ->required(),
         ];
+    }
+
+    private function importeRestante(Get $get): float
+    {
+        $pagos = $get('../../pagos') ?? [];
+        $total = (float) ($this->data['total'] ?? 0);
+        $aplicado = is_array($pagos) ? array_sum(array_map(
+            static fn (array $pago): float => (float) ($pago['importe'] ?? 0),
+            $pagos
+        )) : 0;
+
+        return round(max($total - $aplicado, 0), 2);
     }
 
     public function cancelarCaptura(): void
