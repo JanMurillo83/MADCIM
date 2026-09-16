@@ -8,6 +8,7 @@ use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
 use App\Models\Sucursal;
+use App\Models\User;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -25,6 +26,8 @@ use Filament\Support\RawJs;
 use Filament\Notifications\Notification;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class NotasVentaVentaForm
 {
@@ -173,6 +176,58 @@ class NotasVentaVentaForm
                     ->columns(5),
                 Section::make('Partidas')
                     ->schema([
+                        Hidden::make('precios_desbloqueados')
+                            ->default(false),
+                        Actions::make([
+                            Action::make('desbloquear_precios')
+                                ->label('Desbloquear precios')
+                                ->icon('heroicon-o-lock-open')
+                                ->color('warning')
+                                ->visible(fn (Get $get): bool => ! (bool) $get('precios_desbloqueados'))
+                                ->form([
+                                    TextInput::make('usuario_autorizador')
+                                        ->label('Usuario Administrador o Supervisor')
+                                        ->email()
+                                        ->required(),
+                                    TextInput::make('clave_autorizacion')
+                                        ->label('Clave')
+                                        ->password()
+                                        ->required(),
+                                ])
+                                ->action(function (array $data, Set $set): void {
+                                    $usuario = User::query()
+                                        ->whereIn('role', ['Administrador', 'Supervisor'])
+                                        ->where('email', $data['usuario_autorizador'] ?? '')
+                                        ->first();
+
+                                    if (! $usuario || ! Hash::check($data['clave_autorizacion'] ?? '', $usuario->password)) {
+                                        throw ValidationException::withMessages([
+                                            'usuario_autorizador' => 'Las credenciales no corresponden a un Administrador o Supervisor.',
+                                        ]);
+                                    }
+
+                                    $set('precios_desbloqueados', true);
+
+                                    Notification::make()
+                                        ->title('Precios desbloqueados')
+                                        ->body('Puedes modificar el precio unitario de todas las partidas de esta nota.')
+                                        ->success()
+                                        ->send();
+                                }),
+                            Action::make('bloquear_precios')
+                                ->label('Bloquear precios')
+                                ->icon('heroicon-o-lock-closed')
+                                ->color('gray')
+                                ->visible(fn (Get $get): bool => (bool) $get('precios_desbloqueados'))
+                                ->action(function (Set $set): void {
+                                    $set('precios_desbloqueados', false);
+
+                                    Notification::make()
+                                        ->title('Precios bloqueados')
+                                        ->success()
+                                        ->send();
+                                }),
+                        ])->columnSpanFull(),
                         Repeater::make('partidas')
                             ->relationship()
                             ->afterStateUpdated(function (Get $get, Set $set) {
@@ -260,7 +315,7 @@ class NotasVentaVentaForm
                                     ->required()
                                     ->default(0.0)
                                     ->live(onBlur: true)
-                                    ->readOnly()
+                                    ->readOnly(fn (Get $get): bool => ! (bool) $get('../../precios_desbloqueados'))
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
