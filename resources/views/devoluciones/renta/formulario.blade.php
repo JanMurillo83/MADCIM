@@ -17,6 +17,10 @@
                     <div>
                         <p><span class="font-medium">Folio:</span> {{ $nota->folio }}</p>
                         <p><span class="font-medium">Cliente:</span> {{ $nota->cliente->nombre }}</p>
+                        <p><span class="font-medium">Obra:</span> {{ $nota->direccionEntrega?->nombre_direccion ?? 'Sin obra asignada' }}</p>
+                        @if($nota->direccionEntrega)
+                            <p class="text-sm text-gray-600">{{ $nota->direccionEntrega->direccion_completa }}</p>
+                        @endif
                     </div>
                     <div>
                         <p><span class="font-medium">Fecha Emisión:</span> {{ $nota->fecha_emision->format('d/m/Y') }}</p>
@@ -41,8 +45,8 @@
                             <tr>
                                 <th class="border border-gray-300 px-4 py-2">Producto</th>
                                 <th class="border border-gray-300 px-4 py-2">Cantidad Rentada</th>
-                                <th class="border border-gray-300 px-4 py-2">Cantidad Devuelta</th>
-                                <th class="border border-gray-300 px-4 py-2">Precio Unitario</th>
+                                <th class="border border-gray-300 px-4 py-2">Devuelta acumulada</th>
+                                <th class="border border-gray-300 px-4 py-2">Devolución ahora</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -50,19 +54,17 @@
                                 <tr>
                                     <td class="border border-gray-300 px-4 py-2">{{ $item->producto->descripcion }}</td>
                                     <td class="border border-gray-300 px-4 py-2 text-center">{{ $item->cantidad }}</td>
+                                    <td class="border border-gray-300 px-4 py-2 text-center">{{ (float) ($item->cantidad_devuelta ?? 0) }}</td>
                                     <td class="border border-gray-300 px-4 py-2">
                                         <input
                                             type="number"
                                             name="items[{{ $item->id }}][cantidad_devuelta]"
-                                            value="{{ $item->cantidad }}"
+                                            value="0"
                                             min="0"
-                                            max="{{ $item->cantidad }}"
+                                            max="{{ max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0)) }}"
                                             class="w-full px-2 py-1 border rounded"
                                             required
                                         >
-                                    </td>
-                                    <td class="border border-gray-300 px-4 py-2 text-right">
-                                        ${{ number_format($item->producto->precio_venta, 2) }}
                                     </td>
                                 </tr>
                             @endforeach

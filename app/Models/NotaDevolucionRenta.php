@@ -150,13 +150,10 @@ class NotaDevolucionRenta extends Model
             ]);
         }
 
-        $estado = $this->calcularEstadoDesdePartidas(
-            $this->partidas,
-            static fn (NotaDevolucionRentaPartida $partida): float => (float) $partida->cantidad_a_devolver,
-            static fn (NotaDevolucionRentaPartida $partida): float => (float) $partida->cantidad_aplicada,
-        );
-
-        $this->forceFill(['estatus' => $estado, 'aplicada_en' => now()])->saveQuietly();
+        $this->forceFill([
+            'estatus' => 'Aplicada',
+            'aplicada_en' => now(),
+        ])->saveQuietly();
     }
 
     private function aplicarCantidadesPorEnvio(): void

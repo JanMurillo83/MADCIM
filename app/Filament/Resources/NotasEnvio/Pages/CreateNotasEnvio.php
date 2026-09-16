@@ -4,6 +4,7 @@ namespace App\Filament\Resources\NotasEnvio\Pages;
 
 use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
 use App\Models\NotaEnvio;
+use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
@@ -11,6 +12,9 @@ use App\Services\InventarioMovimientoService;
 use Carbon\Carbon;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 class CreateNotasEnvio extends CreateRecord
 {
@@ -18,6 +22,34 @@ class CreateNotasEnvio extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Solo persiste columnas propias de nota_envio_partidas.
+        $data['partidas'] = collect($data['partidas'] ?? [])
+            ->map(function (array $partida): array {
+                unset($partida['m2_cubre']);
+
+                return $partida;
+            })
+            ->all();
+
+        $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
+        if ($nota?->esMaderaM2()) {
+            $objetivoM2 = $nota->metrosM2();
+            $cubiertoM2 = collect($data['partidas'] ?? [])->sum(function (array $partida): float {
+                $producto = Productos::find($partida['producto_id'] ?? null);
+                return (float) ($partida['cantidad'] ?? 0) * (float) ($producto?->m2_cubre ?? 0);
+            });
+
+            if ($objetivoM2 !== null && $cubiertoM2 + 0.0001 < $objetivoM2) {
+                throw ValidationException::withMessages([
+                    'partidas' => sprintf(
+                        'El envío cubre %.2f M2, pero la Nota de Venta Renta requiere %.2f M2.',
+                        $cubiertoM2,
+                        $objetivoM2,
+                    ),
+                ]);
+            }
+        }
+
         $data['folio'] = (NotaEnvio::max('folio') ?? 0) + 1;
         $data['user_id'] = Auth::id();
 
@@ -31,62 +63,92 @@ class CreateNotasEnvio extends CreateRecord
 
         if (!$nota) return;
 
-        $cliente = $nota->cliente;
-        $fechaEmision = Carbon::parse($nota->fecha_emision);
-        $diasRenta = $record->dias_renta ?? $nota->dias_renta ?? 30;
-        $fechaVencimiento = $record->fecha_vencimiento?->toDateString()
-            ?? $nota->fecha_vencimiento?->toDateString()
-            ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
+        try {
+            DB::transaction(function () use ($record, $nota): void {
+                $cliente = $nota->cliente;
+                $fechaEmision = Carbon::parse($nota->fecha_emision);
+                $diasRenta = $record->dias_renta ?? $nota->dias_renta ?? 30;
+                $fechaVencimiento = $record->fecha_vencimiento?->toDateString()
+                    ?? $nota->fecha_vencimiento?->toDateString()
+                    ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
 
-        $referencia = $record->serie . $record->folio;
+                $referencia = $record->serie . $record->folio;
 
-        foreach ($record->partidas as $partida) {
-            $producto = Productos::find($partida->producto_id);
-            if ($producto) {
-                InventarioMovimientoService::salida(
-                    productoId: $producto->id,
-                    cantidad: (float) $partida->cantidad,
-                    motivo: "Envío de renta {$referencia}",
-                    documentoReferencia: $referencia
-                );
-            }
+                foreach ($record->partidas as $partida) {
+                    $producto = Productos::find($partida->producto_id);
+                    if (!$producto) {
+                        throw new \RuntimeException("No se encontró el producto {$partida->producto_id}.");
+                    }
 
-            RegistroRenta::create([
-                'nota_venta_renta_id' => $nota->id,
-                'cliente_id' => $nota->cliente_id,
-                'cliente_nombre' => $cliente->nombre ?? '',
-                'cliente_contacto' => $cliente->contacto ?? null,
-                'cliente_telefono' => $cliente->telefono ?? null,
-                'cliente_direccion' => $cliente ? implode(', ', array_filter([
-                    $cliente->calle, $cliente->exterior, $cliente->colonia,
-                    $cliente->municipio, $cliente->estado,
-                ])) : null,
-                'producto_id' => $partida->producto_id,
-                'cantidad' => $partida->cantidad,
-                'dias_renta' => $diasRenta,
-                'fecha_renta' => $fechaEmision->toDateString(),
-                'fecha_vencimiento' => $fechaVencimiento,
-                'importe_renta' => 0,
-                'importe_deposito' => $nota->deposito ?? 0,
-                'estado' => 'Activo',
-                'observaciones' => $partida->descripcion,
-            ]);
-        }
+                    InventarioMovimientoService::salida(
+                        productoId: $producto->id,
+                        cantidad: (float) $partida->cantidad,
+                        motivo: "Envío de renta {$referencia}",
+                        documentoReferencia: $referencia
+                    );
 
-        // Crear el envío solo confirma que salió del almacén. La entrega se
-        // confirma después mediante la acción "Marcar Entregada".
-        $record->update([
-            'estatus' => 'Enviada',
-            'estado_renta' => $record->nota_venta_renta_id ? 'Pendiente' : null,
-        ]);
+                    RegistroRenta::create([
+                        'nota_venta_renta_id' => $nota->id,
+                        'cliente_id' => $nota->cliente_id,
+                        'cliente_nombre' => $cliente->nombre ?? '',
+                        'cliente_contacto' => $cliente->contacto ?? null,
+                        'cliente_telefono' => $cliente->telefono ?? null,
+                        'cliente_direccion' => $cliente ? implode(', ', array_filter([
+                            $cliente->calle, $cliente->exterior, $cliente->colonia,
+                            $cliente->municipio, $cliente->estado,
+                        ])) : null,
+                        'producto_id' => $partida->producto_id,
+                        'cantidad' => $partida->cantidad,
+                        'dias_renta' => $diasRenta,
+                        'fecha_renta' => $fechaEmision->toDateString(),
+                        'fecha_vencimiento' => $fechaVencimiento,
+                        'importe_renta' => 0,
+                        'importe_deposito' => $nota->deposito ?? 0,
+                        'estado' => 'Activo',
+                        'observaciones' => $partida->descripcion,
+                    ]);
+                }
 
-        if ($record->nota_venta_venta_id) {
-            $record->notaVentaVenta()->update(['estatus_envio' => 'Entregada']);
+                // Crear el envío solo confirma que salió del almacén. La entrega se
+                // confirma después mediante la acción "Marcar Entregada".
+                $record->update([
+                    'estatus' => 'Enviada',
+                    'estado_renta' => $record->nota_venta_renta_id ? 'Pendiente' : null,
+                ]);
+
+                if ($record->nota_venta_venta_id) {
+                    $record->notaVentaVenta()->update(['estatus_envio' => 'Entregada']);
+                }
+            });
+        } catch (\Throwable $exception) {
+            report($exception);
+            throw $exception;
         }
 
         // Abrir ticket de nota de envío en nueva pestaña
         $url = route('notas-envio.pdf.ticket', $record->id);
         $this->js("window.open('{$url}', '_blank')");
+    }
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        $partidas = $data['partidas'] ?? [];
+        unset($data['partidas']);
+
+        $record = new NotaEnvio($data);
+        $record->save();
+
+        foreach ($partidas as $partida) {
+            NotaEnvioPartida::create([
+                'nota_envio_id' => $record->id,
+                'producto_id' => $partida['producto_id'] ?? null,
+                'descripcion' => $partida['descripcion'] ?? null,
+                'cantidad' => $partida['cantidad'] ?? 0,
+                'observaciones' => $partida['observaciones'] ?? null,
+            ]);
+        }
+
+        return $record;
     }
 
     protected function getRedirectUrl(): string

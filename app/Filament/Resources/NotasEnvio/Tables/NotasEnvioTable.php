@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\NotasEnvio\Tables;
 
-use App\Filament\Resources\NotasDevolucionRenta\NotasDevolucionRentaResource;
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
 use App\Models\NotaEnvio;
@@ -177,27 +176,22 @@ class NotasEnvioTable
                             ->send();
                     }),
                 Action::make('crear_nota_devolucion')
-                    ->label('Crear Nota Devolucion')
+                    ->label('Devolución')
                     ->icon('heroicon-o-document-plus')
                     ->color('info')
                     ->visible(function (NotaEnvio $record) {
                         return (bool) $record->nota_venta_renta_id
                             && $record->estatus === 'Entregada'
-                            && $record->partidas()->whereRaw('cantidad_devuelta < cantidad')->exists();
+                            && $record->partidas()->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')->exists();
                     })
-                    ->url(fn () => NotasDevolucionRentaResource::getUrl('create'))
+                    ->url(fn (NotaEnvio $record) => route('notas-venta-renta.devolucion', $record->nota_venta_renta_id))
                     ->openUrlInNewTab(),
                 Action::make('devolver')
                     ->label('Devolución Parcial')
+                    ->visible(false)
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(function (NotaEnvio $record) {
-                        $nota = $record->notaVentaRenta;
-                        if (!$nota) return false;
-                        return $record->estatus === 'Entregada'
-                            && $record->estado_renta !== 'Devuelta'
-                            && $record->partidas()->where('estado', '!=', 'Devuelto')->exists();
-                    })
+                    ->visible(false)
                     ->modalHeading(fn (NotaEnvio $record) => 'Devolución Parcial - Envío Folio ' . $record->folio)
                     ->modalDescription('Registre las cantidades que se devuelven en esta entrega parcial.')
                     ->modalWidth('7xl')
@@ -348,10 +342,18 @@ class NotasEnvioTable
                     ->action(function (NotaEnvio $record, array $data) {
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return;
-                        $resultado = app(CierreDevolucionRentaService::class)
-                            ->cerrar($nota, $data['observaciones'] ?? null, Auth::id());
+                        $servicioCierre = app(CierreDevolucionRentaService::class);
+                        $resultado = $nota->direccion_entrega_id
+                            ? $servicioCierre->cerrarPorObra(
+                                $nota->cliente_id,
+                                $nota->direccion_entrega_id,
+                                $data['observaciones'] ?? null,
+                                Auth::id(),
+                            )
+                            : $servicioCierre->cerrar($nota, $data['observaciones'] ?? null, Auth::id());
 
                         $totales = $resultado['resumen']['totales'];
+                        session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
 
                         if (!empty($resultado['already_closed'])) {
                             Notification::make()

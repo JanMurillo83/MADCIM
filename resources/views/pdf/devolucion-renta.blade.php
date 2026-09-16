@@ -99,7 +99,6 @@
                 <th class="text-center">Rentada</th>
                 <th class="text-center">Devuelta</th>
                 <th class="text-center">Faltante</th>
-                <th class="text-right">Descuento</th>
             </tr>
         </thead>
         <tbody>
@@ -109,23 +108,10 @@
                     <td class="text-center">{{ $item['cantidad_rentada'] }}</td>
                     <td class="text-center">{{ $item['cantidad_devuelta'] }}</td>
                     <td class="text-center">{{ $item['cantidad_faltante'] }}</td>
-                    <td class="text-right">${{ number_format($item['descuento'], 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
-
-    @if($total_descuento > 0)
-        <div class="warning">
-            <strong>⚠ ATENCIÓN:</strong> Se han detectado faltantes. El depósito será ajustado según el precio de venta de los items faltantes.
-        </div>
-    @endif
-
-    <div class="totals">
-        <p><strong>Depósito Inicial:</strong> <span style="float: right;">${{ number_format($deposito_inicial, 2) }}</span></p>
-        <p><strong>Descuento por Faltantes:</strong> <span style="float: right;">-${{ number_format($total_descuento, 2) }}</span></p>
-        <p class="final"><strong>Depósito a Devolver:</strong> <span style="float: right;">${{ number_format($deposito_devolver, 2) }}</span></p>
-    </div>
 
     <div class="footer">
         <p>──────────────────────────────────</p>

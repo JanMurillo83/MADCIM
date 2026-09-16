@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
+use App\Models\CierreDevolucionRenta;
 use App\Models\Clientes;
 use App\Models\DevolucionesRenta;
 use App\Models\DevolucionRentaPartidas;
@@ -21,6 +22,116 @@ use Illuminate\Support\Facades\DB;
 
 class CierreDevolucionRentaService
 {
+    public function procesarDepositoPendiente(int $cierreId, ?int $userId = null): bool
+    {
+        return DB::transaction(function () use ($cierreId, $userId): bool {
+            $cierre = CierreDevolucionRenta::query()->lockForUpdate()->findOrFail($cierreId);
+            if ($cierre->estatus !== 'PendienteCaja') {
+                return $cierre->estatus === 'Procesado';
+            }
+
+            $nota = NotasVentaRenta::query()
+                ->where('cliente_id', $cierre->cliente_id)
+                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                ->where('estatus', '!=', 'Cancelada')
+                ->orderByDesc('id')
+                ->firstOrFail();
+
+            return $this->registrarDepositoPendiente($cierre, $nota, $cierre->observaciones, $userId);
+        });
+    }
+
+    public function cerrarPorObra(
+        int $clienteId,
+        int $direccionEntregaId,
+        ?string $observaciones = null,
+        ?int $userId = null,
+        string $modo = 'devolucion',
+    ): array
+    {
+        $cierreExistente = CierreDevolucionRenta::query()
+            ->where('cliente_id', $clienteId)
+            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($cierreExistente?->estatus === 'Procesado') {
+            return [
+                'already_closed' => true,
+                'resumen' => $this->resumenDesdeCierre($cierreExistente),
+                'nota_id' => NotasVentaRenta::query()
+                    ->where('cliente_id', $clienteId)
+                    ->where('direccion_entrega_id', $direccionEntregaId)
+                    ->orderByDesc('id')
+                    ->value('id'),
+                'cierre_id' => $cierreExistente->id,
+                'cierre_estatus' => $cierreExistente->estatus,
+            ];
+        }
+
+        $nota = NotasVentaRenta::query()
+            ->where('cliente_id', $clienteId)
+            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->where('estatus', '!=', 'Cancelada')
+            ->orderBy('id')
+            ->firstOrFail();
+
+        // El depósito pertenece al conjunto de rentas de la obra, no a una sola nota.
+        $nota->deposito = (float) NotasVentaRenta::query()
+            ->where('cliente_id', $clienteId)
+            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('deposito');
+
+        if ($cierreExistente?->estatus === 'PendienteCaja') {
+            $cajaUsada = $this->registrarDepositoPendiente($cierreExistente, $nota, $observaciones, $userId);
+
+            return [
+                'already_closed' => false,
+                'resumen' => $this->resumenDesdeCierre($cierreExistente->fresh()),
+                'nota_id' => $nota->id,
+                'cierre_id' => $cierreExistente->id,
+                'cierre_estatus' => $cierreExistente->fresh()->estatus,
+                'caja_usada' => $cajaUsada,
+            ];
+        }
+
+        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true);
+
+        NotasVentaRenta::query()
+            ->where('cliente_id', $clienteId)
+            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->where('estatus', '!=', 'Cancelada')
+            ->update(['estatus' => $modo === 'venta_madera' ? 'Vendida' : 'Devuelta']);
+
+        $totales = $resultado['resumen']['totales'];
+        $cierre = CierreDevolucionRenta::create([
+            'cliente_id' => $clienteId,
+            'direccion_entrega_id' => $direccionEntregaId,
+            'estatus' => $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])
+                ? 'PendienteCaja'
+                : 'Procesado',
+            'deposito_acumulado' => $totales['deposito'],
+            'deposito_aplicado' => $totales['deposito_aplicado'],
+            'deposito_a_devolver' => $totales['deposito_devolver'],
+            'total_faltantes' => $totales['total_faltantes'],
+            'saldo_por_cobrar' => $totales['saldo_por_cobrar'],
+            'nota_venta_venta_id' => $resultado['nota_venta_venta_id'],
+            'devolucion_renta_id' => $resultado['devolucion_renta_id'],
+            'caja_movimiento_id' => $resultado['caja_movimiento_id'] ?? null,
+            'observaciones' => $observaciones,
+            'user_id' => $userId,
+            'cerrada_en' => now(),
+        ]);
+
+        return [
+            ...$resultado,
+            'nota_id' => $nota->id,
+            'cierre_id' => $cierre->id,
+            'cierre_estatus' => $cierre->estatus,
+        ];
+    }
+
     public function obtenerResumen(NotasVentaRenta $nota): array
     {
         return $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
@@ -31,15 +142,23 @@ class CierreDevolucionRentaService
         ?string $observaciones = null,
         ?int $userId = null,
         string $modo = 'devolucion',
+        bool $forzarCierre = false,
     ): array
     {
-        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo) {
+        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre) {
             $nota = NotasVentaRenta::query()
                 ->whereKey($nota->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (in_array($nota->estatus, ['Devuelta', 'Vendida'], true)) {
+            $hayPendientesAcumulados = $this->tieneRegistrosAcumulados($nota)
+                && RegistroRenta::query()
+                    ->where('cliente_id', $nota->cliente_id)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+                    ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
+                    ->exists();
+
+            if (!$forzarCierre && in_array($nota->estatus, ['Devuelta', 'Vendida'], true) && !$hayPendientesAcumulados) {
                 $resumen = $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
                 return [
                     'already_closed' => true,
@@ -143,6 +262,7 @@ class CierreDevolucionRentaService
             }
 
             $cajaUsada = false;
+            $cajaMovimientoId = null;
             if ((float) $resumen['totales']['deposito_devolver'] > 0) {
                 $cajaAbierta = Caja::query()
                     ->where('estatus', 'Abierta')
@@ -153,31 +273,30 @@ class CierreDevolucionRentaService
                     $cajaAbierta = Caja::query()->where('estatus', 'Abierta')->first();
                 }
 
-                if (!$cajaAbierta) {
-                    throw new \RuntimeException('No hay una caja abierta para devolver el depósito en efectivo.');
+                if ($cajaAbierta) {
+                    $cajaMovimiento = CajaMovimiento::create([
+                        'caja_id' => $cajaAbierta->id,
+                        'tipo' => 'Egreso',
+                        'fuente' => 'Devolución depósito renta',
+                        'metodo_pago' => 'Efectivo',
+                        'importe' => $resumen['totales']['deposito_devolver'],
+                        'referencia' => 'Cierre devolución NVR ' . ($nota->serie ?? '') . '-' . ($nota->folio ?? ''),
+                        'observaciones' => $observaciones,
+                        'user_id' => $userId,
+                        'fecha' => now(),
+                        'movimentable_type' => DevolucionesRenta::class,
+                        'movimentable_id' => $devolucion->id,
+                    ]);
+                    $cajaMovimientoId = $cajaMovimiento->id;
+
+                    $eg = $cajaAbierta->movimientos()
+                        ->where('tipo', 'Egreso')
+                        ->where('metodo_pago', 'Efectivo')
+                        ->sum('importe');
+
+                    $cajaAbierta->update(['total_egresos_cash' => $eg]);
+                    $cajaUsada = true;
                 }
-
-                CajaMovimiento::create([
-                    'caja_id' => $cajaAbierta->id,
-                    'tipo' => 'Egreso',
-                    'fuente' => 'Devolución depósito renta',
-                    'metodo_pago' => 'Efectivo',
-                    'importe' => $resumen['totales']['deposito_devolver'],
-                    'referencia' => 'Cierre devolución NVR ' . ($nota->serie ?? '') . '-' . ($nota->folio ?? ''),
-                    'observaciones' => $observaciones,
-                    'user_id' => $userId,
-                    'fecha' => now(),
-                    'movimentable_type' => DevolucionesRenta::class,
-                    'movimentable_id' => $devolucion->id,
-                ]);
-
-                $eg = $cajaAbierta->movimientos()
-                    ->where('tipo', 'Egreso')
-                    ->where('metodo_pago', 'Efectivo')
-                    ->sum('importe');
-
-                $cajaAbierta->update(['total_egresos_cash' => $eg]);
-                $cajaUsada = true;
             }
 
             if ($this->tieneRegistrosAcumulados($nota)) {
@@ -215,6 +334,7 @@ class CierreDevolucionRentaService
                 'nota_venta_venta_id' => $notaVentaVenta?->id,
                 'devolucion_renta_id' => $devolucion->id,
                 'caja_usada' => $cajaUsada,
+                'caja_movimiento_id' => $cajaMovimientoId,
                 'modo' => $modo,
             ];
         });
@@ -305,6 +425,72 @@ class CierreDevolucionRentaService
         ]);
 
         return 'DR';
+    }
+
+    private function registrarDepositoPendiente(
+        CierreDevolucionRenta $cierre,
+        NotasVentaRenta $nota,
+        ?string $observaciones,
+        ?int $userId,
+    ): bool {
+        if ((float) $cierre->deposito_a_devolver <= 0) {
+            $cierre->update(['estatus' => 'Procesado', 'observaciones' => $observaciones ?? $cierre->observaciones]);
+            return false;
+        }
+
+        $cajaAbierta = Caja::query()
+            ->where('estatus', 'Abierta')
+            ->when($userId, fn ($query) => $query->where('usuario_apertura_id', $userId))
+            ->first()
+            ?? Caja::query()->where('estatus', 'Abierta')->first();
+
+        if (!$cajaAbierta) {
+            return false;
+        }
+
+        $movimiento = CajaMovimiento::create([
+            'caja_id' => $cajaAbierta->id,
+            'tipo' => 'Egreso',
+            'fuente' => 'Devolución depósito renta',
+            'metodo_pago' => 'Efectivo',
+            'importe' => $cierre->deposito_a_devolver,
+            'referencia' => 'Cierre devolución obra ' . $nota->cliente_id . '-' . $cierre->direccion_entrega_id,
+            'observaciones' => $observaciones ?? $cierre->observaciones,
+            'user_id' => $userId,
+            'fecha' => now(),
+            'movimentable_type' => CierreDevolucionRenta::class,
+            'movimentable_id' => $cierre->id,
+        ]);
+
+        $egresos = $cajaAbierta->movimientos()
+            ->where('tipo', 'Egreso')
+            ->where('metodo_pago', 'Efectivo')
+            ->sum('importe');
+
+        $cajaAbierta->update(['total_egresos_cash' => $egresos]);
+        $cierre->update([
+            'estatus' => 'Procesado',
+            'caja_movimiento_id' => $movimiento->id,
+            'observaciones' => $observaciones ?? $cierre->observaciones,
+        ]);
+
+        return true;
+    }
+
+    private function resumenDesdeCierre(CierreDevolucionRenta $cierre): array
+    {
+        return [
+            'rows' => [],
+            'totales' => [
+                'deposito' => (float) $cierre->deposito_acumulado,
+                'subtotal_faltantes' => round((float) $cierre->total_faltantes / 1.16, 2),
+                'iva_faltantes' => round((float) $cierre->total_faltantes - ((float) $cierre->total_faltantes / 1.16), 2),
+                'total_faltantes' => (float) $cierre->total_faltantes,
+                'deposito_aplicado' => (float) $cierre->deposito_aplicado,
+                'saldo_por_cobrar' => (float) $cierre->saldo_por_cobrar,
+                'deposito_devolver' => (float) $cierre->deposito_a_devolver,
+            ],
+        ];
     }
 
     private function calcularResumen(NotasVentaRenta $nota): array

@@ -73,26 +73,49 @@
                                 <td>${{ number_format($nota['total'], 2) }}</td>
                                 <td><strong>${{ number_format($nota['saldo'], 2) }}</strong></td>
                                 <td>
-                                    <div class="cobros-actions">
-                                        <x-filament::button
-                                            size="sm"
-                                            color="success"
-                                            icon="heroicon-o-banknotes"
-                                            wire:click="abrirPago('{{ $nota['tipo'] }}', {{ $nota['id'] }})"
-                                        >
-                                            Pagar
-                                        </x-filament::button>
-                                        <x-filament::button
-                                            tag="a"
-                                            size="sm"
-                                            color="gray"
-                                            icon="heroicon-o-printer"
-                                            href="{{ $nota['tipo'] === 'notas_venta_renta' ? route('notas-venta-renta.pdf.ticket', $nota['id']) : route('notas-venta-venta.pdf.ticket', $nota['id']) }}"
-                                            target="_blank"
-                                        >
-                                            Imprimir
-                                        </x-filament::button>
-                                    </div>
+                                    @if ($nota['es_movimiento'] ?? false)
+                                        <div class="cobros-actions">
+                                            <x-filament::button
+                                                size="sm"
+                                                color="warning"
+                                                icon="heroicon-o-arrow-down-circle"
+                                                wire:click="registrarDevolucionEnCaja({{ $nota['id'] }})"
+                                            >
+                                                Aplicar a caja
+                                            </x-filament::button>
+                                            <x-filament::button
+                                                tag="a"
+                                                size="sm"
+                                                color="gray"
+                                                icon="heroicon-o-printer"
+                                                href="{{ route('caja-movimientos.devolucion-deposito.ticket', $nota['id']) }}"
+                                                target="_blank"
+                                            >
+                                                Imprimir
+                                            </x-filament::button>
+                                        </div>
+                                    @else
+                                        <div class="cobros-actions">
+                                            <x-filament::button
+                                                size="sm"
+                                                color="success"
+                                                icon="heroicon-o-banknotes"
+                                                wire:click="abrirPago('{{ $nota['tipo'] }}', {{ $nota['id'] }})"
+                                            >
+                                                Pagar
+                                            </x-filament::button>
+                                            <x-filament::button
+                                                tag="a"
+                                                size="sm"
+                                                color="gray"
+                                                icon="heroicon-o-printer"
+                                                href="{{ $nota['tipo'] === 'notas_venta_renta' ? route('notas-venta-renta.pdf.ticket', $nota['id']) : route('notas-venta-venta.pdf.ticket', $nota['id']) }}"
+                                                target="_blank"
+                                            >
+                                                Imprimir
+                                            </x-filament::button>
+                                        </div>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

@@ -64,6 +64,44 @@
             </x-filament::button>
         </div>
 
+        <div class="bg-white rounded-xl shadow border border-amber-200 overflow-hidden">
+            <div class="px-4 py-3 bg-amber-50 border-b border-amber-200">
+                <h2 class="font-semibold text-amber-900">Depósitos pendientes de cierre de obra</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-amber-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Cliente</th>
+                            <th class="px-4 py-2 text-left">Obra</th>
+                            <th class="px-4 py-2 text-right">Depósito acumulado</th>
+                            <th class="px-4 py-2 text-right">A devolver</th>
+                            <th class="px-4 py-2 text-left">Estatus</th>
+                            <th class="px-4 py-2 text-right">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-amber-100">
+                        @forelse($this->cierresPendientes as $cierre)
+                            <tr>
+                                <td class="px-4 py-2">{{ $cierre->cliente?->nombre ?? 'N/A' }}</td>
+                                <td class="px-4 py-2">{{ $cierre->direccionEntrega?->nombre_direccion ?? 'N/A' }}</td>
+                                <td class="px-4 py-2 text-right">${{ number_format((float) $cierre->deposito_acumulado, 2) }}</td>
+                                <td class="px-4 py-2 text-right">${{ number_format((float) $cierre->deposito_a_devolver, 2) }}</td>
+                                <td class="px-4 py-2">{{ $cierre->estatus }}</td>
+                                <td class="px-4 py-2 text-right">
+                                    <x-filament::button wire:click="procesarDeposito({{ $cierre->id }})" size="sm" color="warning">
+                                        Procesar egreso
+                                    </x-filament::button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">No hay depósitos pendientes.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">

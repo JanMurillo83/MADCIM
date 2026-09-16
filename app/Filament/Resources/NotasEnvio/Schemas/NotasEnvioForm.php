@@ -1,8 +1,10 @@
 <?php
 namespace App\Filament\Resources\NotasEnvio\Schemas;
+use App\Enums\TipoNotaRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Productos;
+use App\Services\DesgloseM2Service;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -10,6 +12,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Placeholder;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -20,44 +23,99 @@ class NotasEnvioForm
 {
     private static function partidasPendientesDeNota(NotasVentaRenta $nota): array
     {
-        if ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty()) {
-            return [];
-        }
-
         $partidasOrigen = $nota->esMaderaM2()
-            ? $nota->desgloseM2
-                ->map(fn ($fila) => (object) [
-                    'item' => $fila->producto_id,
-                    'descripcion' => $fila->descripcion ?: $fila->producto?->descripcion,
-                    'cantidad' => $fila->cantidad,
-                ])
+            ? ($nota->desgloseM2->isNotEmpty()
+                ? $nota->desgloseM2
+                : collect(self::desgloseSugerido($nota)))
+                ->map(function ($fila) {
+                    $productoId = is_array($fila) ? ($fila['producto_id'] ?? null) : $fila->producto_id;
+                    $descripcion = is_array($fila) ? ($fila['descripcion'] ?? null) : $fila->descripcion;
+                    $producto = is_array($fila) ? null : $fila->producto;
+                    $cantidad = is_array($fila) ? ($fila['cantidad'] ?? 0) : $fila->cantidad;
+                    $m2Cubre = is_array($fila) ? ($fila['m2_cubre'] ?? 0) : ($fila->m2_cubre ?? $producto?->m2_cubre);
+
+                    return (object) [
+                        'item' => $productoId,
+                        'descripcion' => $descripcion ?: $producto?->descripcion,
+                        'cantidad' => $cantidad,
+                        'm2_cubre' => $m2Cubre,
+                    ];
+                })
             : $nota->partidas
                 ->map(fn ($partida) => (object) [
                     'item' => $partida->item,
                     'descripcion' => $partida->descripcion,
                     'cantidad' => $partida->cantidad,
+                    'm2_cubre' => null,
                 ]);
 
-        $partidasData = [];
+        $objetivos = [];
         foreach ($partidasOrigen as $partida) {
-            $yaEnviado = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($query) use ($nota) {
-                $query->where('nota_venta_renta_id', $nota->id);
-            })->where('producto_id', $partida->item)->sum('cantidad');
+            if (!$partida->item) {
+                continue;
+            }
 
-            $pendiente = (float) $partida->cantidad - (float) $yaEnviado;
+            $productoId = (int) $partida->item;
+            $objetivos[$productoId] ??= [
+                'descripcion' => $partida->descripcion,
+                'cantidad' => 0.0,
+                'm2_cubre' => (float) ($partida->m2_cubre ?? 0),
+            ];
+            $objetivos[$productoId]['cantidad'] += (float) $partida->cantidad;
+        }
+
+        $enviados = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($query) use ($nota) {
+            $query->where('nota_venta_renta_id', $nota->id);
+        })->get(['producto_id', 'cantidad'])
+            ->groupBy('producto_id')
+            ->map(fn ($partidas) => $partidas->sum(fn ($partida) => (float) $partida->cantidad));
+
+        $partidasData = [];
+        foreach ($objetivos as $productoId => $objetivo) {
+            $pendiente = $objetivo['cantidad'] - (float) ($enviados->get($productoId) ?? 0);
             if ($pendiente <= 0) {
                 continue;
             }
 
             $partidasData[] = [
-                'producto_id' => $partida->item,
-                'descripcion' => $partida->descripcion,
+                'producto_id' => $productoId,
+                'descripcion' => $objetivo['descripcion'],
                 'cantidad' => $pendiente,
-                'observaciones' => $partida->descripcion,
+                'observaciones' => $objetivo['descripcion'],
             ];
         }
 
         return $partidasData;
+    }
+
+    private static function desgloseSugerido(NotasVentaRenta $nota): array
+    {
+        $tipo = TipoNotaRenta::tryFrom($nota->tipo_nota_renta ?? '');
+        $metros = $nota->metrosM2();
+
+        if (!$tipo?->esMaderaM2() || $metros === null || $metros <= 0) {
+            return [];
+        }
+
+        return DesgloseM2Service::generar($tipo, $metros);
+    }
+
+    private static function notasRentaOptions(): array
+    {
+        return NotasVentaRenta::query()
+            ->whereIn('estatus', ['Activa', 'Pagada'])
+            ->with(['cliente', 'partidas', 'desgloseM2'])
+            ->get()
+            ->filter(fn (NotasVentaRenta $nota) => self::partidasPendientesDeNota($nota) !== [])
+            ->mapWithKeys(function (NotasVentaRenta $nota): array {
+                $label = ($nota->serie ? $nota->serie . '-' : '')
+                    . $nota->folio
+                    . ' - '
+                    . ($nota->cliente?->nombre ?? 'Sin cliente');
+
+                return [$nota->id => $label];
+            })
+            ->all();
     }
 
     public static function configure(Schema $schema): Schema
@@ -92,23 +150,8 @@ class NotasEnvioForm
                             ->dehydrated(false),
                         Select::make('nota_venta_renta_id')
                             ->label('Nota de Venta Renta (Origen)')
-                            ->options(function () {
-                                return NotasVentaRenta::query()
-                                    ->whereIn('estatus', ['Activa', 'Pagada'])
-                                    ->with(['cliente', 'partidas', 'desgloseM2'])
-                                    ->get()
-                                    ->filter(fn (NotasVentaRenta $nota) =>
-                                        ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty())
-                                        || self::partidasPendientesDeNota($nota) !== []
-                                    )
-                                    ->mapWithKeys(function ($nota) {
-                                        $label = ($nota->serie ? $nota->serie . '-' : '') . $nota->folio . ' - ' . ($nota->cliente?->nombre ?? 'Sin cliente');
-                                        return [$nota->id => $label];
-                                    })
-                                    ->all();
-                            })
-                            ->searchable()
-                            ->preload()
+                            ->options(self::notasRentaOptions())
+                            ->native()
                             ->live()
                             ->visible(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta')
                             ->required(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta')
@@ -133,10 +176,16 @@ class NotasEnvioForm
                                         ->body('El desglose de esta Nota de Renta ya fue enviado por completo.')
                                         ->warning()
                                         ->send();
+                                } elseif ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty() && $nota->metrosM2() === null) {
+                                    Notification::make()
+                                        ->title('M2 no identificado')
+                                        ->body('Agregue los productos y cantidades manualmente; la Nota de Venta Renta no tiene M2 persistidos.')
+                                        ->warning()
+                                        ->send();
                                 } elseif ($nota->esMaderaM2() && $nota->desgloseM2->isEmpty()) {
                                     Notification::make()
-                                        ->title('Desglose pendiente')
-                                        ->body('Agregue los productos y cantidades que se enviarán en esta Nota de Envío.')
+                                        ->title('Desglose sugerido generado')
+                                        ->body('Puede ajustar las partidas. El totalizador debe cubrir todos los M2 de la Nota de Venta Renta.')
                                         ->info()
                                         ->send();
                                 }
@@ -224,8 +273,39 @@ class NotasEnvioForm
                 Section::make('Items a Enviar')
                     ->description('Seleccione los productos y cantidades que se enviarán al cliente.')
                     ->schema([
+                        Placeholder::make('m2_cubiertos')
+                            ->label('Cobertura M2')
+                            ->visible(function (Get $get): bool {
+                                if (($get('tipo_origen') ?? 'renta') !== 'renta' || !$get('nota_venta_renta_id')) {
+                                    return false;
+                                }
+
+                                return NotasVentaRenta::find($get('nota_venta_renta_id'))?->esMaderaM2() ?? false;
+                            })
+                            ->content(function (Get $get): string {
+                                $nota = NotasVentaRenta::find($get('nota_venta_renta_id'));
+                                $objetivo = $nota?->metrosM2();
+                                $cubierto = collect($get('partidas') ?? [])->sum(function (array $partida): float {
+                                    $cantidad = (float) ($partida['cantidad'] ?? 0);
+                                    $m2Cubre = (float) ($partida['m2_cubre'] ?? 0);
+
+                                    if ($m2Cubre <= 0 && !empty($partida['producto_id'])) {
+                                        $m2Cubre = (float) (Productos::find($partida['producto_id'])?->m2_cubre ?? 0);
+                                    }
+
+                                    return $cantidad * $m2Cubre;
+                                });
+
+                                if ($objetivo === null) {
+                                    return 'Objetivo: no identificado | Cubierto: ' . number_format($cubierto, 2) . ' M2';
+                                }
+
+                                $faltante = max(0, $objetivo - $cubierto);
+                                return 'Objetivo: ' . number_format($objetivo, 2) . ' M2 | Cubierto: '
+                                    . number_format($cubierto, 2) . ' M2 | Faltante: ' . number_format($faltante, 2) . ' M2';
+                            })
+                            ->columnSpanFull(),
                         Repeater::make('partidas')
-                            ->relationship()
                             ->table([
                                 Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Cantidad'),

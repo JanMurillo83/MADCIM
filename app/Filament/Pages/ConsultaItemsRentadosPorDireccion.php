@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
+use App\Models\CierreDevolucionRenta;
 use App\Models\RegistroRenta;
 use Barryvdh\DomPDF\Facade\Pdf;
 use BackedEnum;
@@ -29,8 +30,12 @@ class ConsultaItemsRentadosPorDireccion extends Page
     {
         return Clientes::orderBy('nombre')
             ->whereHas('notasVentaRenta', function ($q) {
-                $q->whereHas('registrosRenta', fn ($q2) => $q2->where('estado', 'Activo'));
+                $q->whereNotIn('estatus', ['Cancelada', 'Devuelta', 'Vendida'])
+                    ->whereHas('registrosRenta');
             })
+            ->orWhereIn('id', CierreDevolucionRenta::query()
+                ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+                ->select('cliente_id'))
             ->get()
             ->mapWithKeys(fn ($c) => [$c->id => $c->nombre]);
     }
@@ -61,7 +66,7 @@ class ConsultaItemsRentadosPorDireccion extends Page
 
         $query = RegistroRenta::with(['producto', 'notaVentaRenta.direccionEntrega'])
             ->where('cliente_id', $this->cliente_id)
-            ->where('estado', 'Activo');
+            ;
 
         if ($this->direccion_entrega_id) {
             $query->whereHas('notaVentaRenta', function ($q) {
@@ -69,7 +74,23 @@ class ConsultaItemsRentadosPorDireccion extends Page
             });
         }
 
-        return $query->get();
+        $items = collect($query->get());
+        $cierresPendientes = CierreDevolucionRenta::query()
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+            ->where('cliente_id', $this->cliente_id)
+            ->when($this->direccion_entrega_id, fn ($builder) => $builder->where('direccion_entrega_id', $this->direccion_entrega_id))
+            ->get(['cliente_id', 'direccion_entrega_id'])
+            ->mapWithKeys(fn ($cierre) => [$cierre->cliente_id . '-' . $cierre->direccion_entrega_id => true]);
+
+        return $items
+            ->groupBy(fn ($item) => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0))
+            ->filter(function (Collection $grupo, string $clave) use ($cierresPendientes): bool {
+                return $grupo->contains(fn ($item) => (float) ($item->cantidad_devuelta ?? 0) < (float) $item->cantidad)
+                    || $grupo->contains(fn ($item) => !in_array($item->notaVentaRenta?->estatus, ['Cancelada', 'Devuelta', 'Vendida'], true))
+                    || $cierresPendientes->has($clave);
+            })
+            ->flatten(1)
+            ->values();
     }
 
     #[Computed]

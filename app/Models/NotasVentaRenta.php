@@ -37,6 +37,7 @@ class NotasVentaRenta extends Model
         'saldo_pendiente',
         'estatus',
         'tipo_nota_renta',
+        'metros_m2',
         'dias_solicitados',
         'uso_cfdi',
         'forma_pago',
@@ -53,6 +54,7 @@ class NotasVentaRenta extends Model
         'fecha_emision' => 'datetime',
         'fecha_vencimiento' => 'date',
         'fecha_vencimiento_pago' => 'date',
+        'metros_m2' => 'decimal:2',
     ];
 
     protected static function booted(): void
@@ -152,5 +154,19 @@ class NotasVentaRenta extends Model
     public function esMadera(): bool
     {
         return \App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMadera() ?? false;
+    }
+
+    public function metrosM2(): ?float
+    {
+        if ($this->metros_m2 !== null) {
+            return (float) $this->metros_m2;
+        }
+
+        $descripcion = (string) $this->partidas()->value('descripcion');
+        if (preg_match('/([0-9]+(?:[.,][0-9]+)?)\s*M2\b/i', $descripcion, $matches) !== 1) {
+            return null;
+        }
+
+        return (float) str_replace(',', '.', $matches[1]);
     }
 }

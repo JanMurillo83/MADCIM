@@ -60,7 +60,8 @@ class NotaVentaRentaPdfController extends Controller
     public function cierreDevolucionTicket($id)
     {
         $notaVenta = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'notasEnvio'])->findOrFail($id);
-        $resumen = app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
+        $resumen = session('cierre_devolucion_resumen_nvr_' . $notaVenta->id)
+            ?? app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
 
         $notaVentaVenta = NotasVentaVenta::query()
             ->where('documento_origen_id', $notaVenta->id)

@@ -15,6 +15,7 @@ class ResetOperationalDataService
         'cfdi_pago_doctos',
         'cfdi_partida_impuestos',
         'cfdi_relacionados',
+        'cierres_devolucion_renta',
         'nota_devolucion_renta_partidas',
         'notas_devolucion_renta',
         'nota_envio_partidas',

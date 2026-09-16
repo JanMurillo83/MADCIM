@@ -82,6 +82,9 @@ class NotasDevolucionRentaForm
 
     public static function configure(Schema $schema): Schema
     {
+        $clienteDefault = request()->integer('cliente_id') ?: null;
+        $direccionDefault = request()->integer('direccion_entrega_id') ?: null;
+
         return $schema
             ->components([
                 Section::make('Encabezado')
@@ -124,6 +127,7 @@ class NotasDevolucionRentaForm
                         Select::make('cliente_id')
                             ->label('Cliente')
                             ->required()
+                            ->default($clienteDefault)
                             ->options(fn () => Clientes::query()->orderBy('nombre')->pluck('nombre', 'id')->all())
                             ->disabledOn('edit')
                             ->live()
@@ -136,6 +140,7 @@ class NotasDevolucionRentaForm
                         Select::make('direccion_entrega_id')
                             ->label('Obra')
                             ->required()
+                            ->default($direccionDefault)
                             ->options(function (callable $get) {
                                 $clienteId = (int) ($get('cliente_id') ?: 0);
                                 if (!$clienteId) {
@@ -161,6 +166,12 @@ class NotasDevolucionRentaForm
                             ->live()
                             ->searchable()
                             ->preload()
+                            ->afterStateHydrated(function (Select $component, Set $set, callable $get): void {
+                                $direccionId = (int) ($component->getState() ?: 0);
+                                if ($direccionId) {
+                                    self::cargarPartidas((int) ($get('cliente_id') ?: 0), $direccionId, $set);
+                                }
+                            })
                             ->afterStateUpdated(function ($state, Set $set, callable $get) {
                                 self::cargarPartidas((int) ($get('cliente_id') ?: 0), (int) ($state ?: 0), $set);
                             }),

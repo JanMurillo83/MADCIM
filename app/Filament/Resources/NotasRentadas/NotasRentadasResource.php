@@ -14,7 +14,6 @@ use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Textarea;
@@ -23,7 +22,6 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use App\Filament\Concerns\HasRoleResourceAccess;
 
@@ -154,7 +152,7 @@ class NotasRentadasResource extends Resource
                     ->label('Devolución Parcial')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn (NotasVentaRenta $record) => $record->estatus !== 'Devuelta')
+                    ->visible(false)
                     ->modalHeading(fn (NotasVentaRenta $record) => 'Devolución Parcial - Folio ' . $record->folio)
                     ->modalDescription(fn (NotasVentaRenta $record) => 'Registre las cantidades que se devuelven en esta entrega parcial.')
                     ->modalWidth('7xl')
@@ -246,6 +244,19 @@ class NotasRentadasResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Action::make('crear_nota_devolucion')
+                    ->label('Devolución')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(function (NotasVentaRenta $record): bool {
+                        return $record->direccion_entrega_id !== null
+                            && RegistroRenta::query()
+                                ->where('nota_venta_renta_id', $record->id)
+                                ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
+                                ->exists();
+                    })
+                    ->url(fn (NotasVentaRenta $record): string => route('notas-venta-renta.devolucion', $record->id))
+                    ->openUrlInNewTab(),
                 Action::make('cerrar_devolucion')
                     ->label('Cerrar Devolución')
                     ->icon('heroicon-o-check-circle')

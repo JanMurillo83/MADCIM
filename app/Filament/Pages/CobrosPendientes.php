@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Models\CajaMovimiento;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Services\CobroNotaService;
@@ -46,6 +47,34 @@ class CobrosPendientes extends Page implements HasActions
         $this->mountAction('pagar');
     }
 
+    public function registrarDevolucionEnCaja(int $movimientoId): void
+    {
+        $movimiento = CajaMovimiento::query()
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->where('aplicado_a_caja', false)
+            ->findOrFail($movimientoId);
+
+        $this->dispatch(
+            'abrir-ticket-pago',
+            url: route('caja-movimientos.devolucion-deposito.ticket', $movimiento->id),
+        );
+
+        $caja = $movimiento->caja;
+        $caja->update([
+            'total_ingresos_cash' => $caja->movimientos()->where('tipo', 'Ingreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+            'total_egresos_cash' => $caja->movimientos()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+        ]);
+
+        $movimiento->update(['aplicado_a_caja' => true]);
+
+        Notification::make()
+            ->title('Devolución aplicada a caja')
+            ->body('El egreso quedó incluido en los saldos y en el corte de caja.')
+            ->success()
+            ->send();
+    }
+
     #[Computed]
     public function notasPendientes(): Collection
     {
@@ -81,7 +110,29 @@ class CobrosPendientes extends Page implements HasActions
                 'saldo' => (float) $nota->saldo_pendiente,
             ]);
 
-        return $rentas->concat($ventas)->sortByDesc('fecha')->values();
+        $devolucionesDeposito = CajaMovimiento::query()
+            ->with('movimentable.documentoOrigen.cliente')
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->where('aplicado_a_caja', false)
+            ->get()
+            ->map(fn (CajaMovimiento $movimiento): array => [
+                'tipo' => 'devolucion_deposito',
+                'tipo_label' => 'Devolución depósito',
+                'id' => $movimiento->id,
+                'folio' => $movimiento->referencia ?: 'Movimiento de caja',
+                'fecha' => optional($movimiento->fecha)->format('d/m/Y'),
+                'cliente' => $movimiento->movimentable?->documentoOrigen?->cliente?->nombre ?? 'N/A',
+                'total' => -1 * (float) $movimiento->importe,
+                'saldo' => -1 * (float) $movimiento->importe,
+                'es_movimiento' => true,
+            ]);
+
+        return $rentas
+            ->concat($ventas)
+            ->concat($devolucionesDeposito)
+            ->sortByDesc(fn (array $nota): string => $nota['fecha'] ?? '')
+            ->values();
     }
 
     public function saldoSeleccionado(): float
@@ -146,7 +197,11 @@ class CobrosPendientes extends Page implements HasActions
                                 ->visible(fn (Get $get): bool => $get('forma_pago') === '01')
                                 ->required(fn (Get $get): bool => $get('forma_pago') === '01'),
                         ])
-                        ->defaultItems(1)
+                        ->default(fn (): array => [[
+                            'forma_pago' => '01',
+                            'importe' => $this->saldoSeleccionado(),
+                            'importe_recibido' => $this->saldoSeleccionado(),
+                        ]])
                         ->addActionLabel('Agregar otra forma de pago')
                         ->columns(3)
                         ->columnSpanFull(),

@@ -179,11 +179,11 @@ class NotasVentaRentaTable
                         ->modalWidth('full'),
                     Action::make('devolucion')
                         ->label('Registrar Devolución')
-                        ->visible(false)
+                        ->visible(fn (NotasVentaRenta $record): bool => $record->direccion_entrega_id !== null)
                         ->icon('fas-undo')
                         ->color('success')
-                        //->visible(fn ($record) => $record->estatus === 'Activa' || $record->estatus === 'Pagada')
-                        ->url(fn ($record) => route('notas-venta-renta.devolucion', $record->id)),
+                        ->url(fn (NotasVentaRenta $record): string => route('notas-venta-renta.devolucion', $record->id))
+                        ->openUrlInNewTab(),
                     Action::make('imprimir_ticket')
                         ->label('Imprimir Ticket')
                         ->icon('fas-receipt')
@@ -367,8 +367,16 @@ class NotasVentaRentaTable
                             ];
                         })
                         ->action(function (NotasVentaRenta $record, array $data): void {
-                            $resultado = app(CierreDevolucionRentaService::class)
-                                ->cerrar(
+                            $servicioCierre = app(CierreDevolucionRentaService::class);
+                            $resultado = $record->direccion_entrega_id
+                                ? $servicioCierre->cerrarPorObra(
+                                    $record->cliente_id,
+                                    $record->direccion_entrega_id,
+                                    $data['observaciones'] ?? null,
+                                    Auth::id(),
+                                    $data['modo_cierre'] ?? 'devolucion',
+                                )
+                                : $servicioCierre->cerrar(
                                     $record,
                                     $data['observaciones'] ?? null,
                                     Auth::id(),
@@ -376,6 +384,7 @@ class NotasVentaRentaTable
                                 );
 
                             $totales = $resultado['resumen']['totales'];
+                            session(['cierre_devolucion_resumen_nvr_' . $record->id => $resultado['resumen']]);
 
                             if (!empty($resultado['already_closed'])) {
                                 Notification::make()

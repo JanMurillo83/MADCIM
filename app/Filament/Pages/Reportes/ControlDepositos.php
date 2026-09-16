@@ -3,12 +3,16 @@
 namespace App\Filament\Pages\Reportes;
 
 use App\Models\Clientes;
+use App\Models\CierreDevolucionRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\Sucursal;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
+use Filament\Notifications\Notification;
+use App\Services\CierreDevolucionRentaService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
@@ -51,6 +55,44 @@ class ControlDepositos extends Page
             'Pagada' => 'Pagada',
             'Cancelada' => 'Cancelada',
         ];
+    }
+
+    #[Computed]
+    public function cierresPendientes(): Collection
+    {
+        return CierreDevolucionRenta::query()
+            ->with(['cliente', 'direccionEntrega'])
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+            ->when($this->cliente_id, fn ($query) => $query->where('cliente_id', $this->cliente_id))
+            ->when($this->fecha_inicio, fn ($query) => $query->whereDate('created_at', '>=', $this->fecha_inicio))
+            ->when($this->fecha_fin, fn ($query) => $query->whereDate('created_at', '<=', $this->fecha_fin))
+            ->get();
+    }
+
+    public function procesarDeposito(int $cierreId): void
+    {
+        try {
+            $procesado = app(CierreDevolucionRentaService::class)->procesarDepositoPendiente($cierreId, Auth::id());
+
+            $notificacion = Notification::make()
+                ->title($procesado ? 'Depósito procesado' : 'Caja no disponible')
+                ->body($procesado ? 'El egreso fue registrado en caja.' : 'Abra una caja para registrar el egreso.');
+
+            if ($procesado) {
+                $notificacion->success();
+            } else {
+                $notificacion->warning();
+            }
+
+            $notificacion->send();
+        } catch (\Throwable $exception) {
+            report($exception);
+            Notification::make()
+                ->danger()
+                ->title('No se pudo procesar el depósito')
+                ->body('Revise el cierre y vuelva a intentarlo.')
+                ->send();
+        }
     }
 
     public function getSucursalesProperty(): Collection

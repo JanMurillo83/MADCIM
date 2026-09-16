@@ -355,8 +355,7 @@ class ClientesTable
                                 ->with(['producto', 'notaVentaRenta'])
                                 ->where('cliente_id', $record->id)
                                 ->where(function ($query) {
-                                    $query->where('estado', '!=', 'Devuelto')
-                                        ->orWhereColumn('cantidad_devuelta', '<', 'cantidad');
+                                    $query->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad');
                                 })
                                 ->orderByDesc('fecha_renta')
                                 ->get();
@@ -365,14 +364,14 @@ class ClientesTable
                                 ->filter(function (NotasVentaRenta $nota) {
                                     return $nota->registrosRenta->contains(function ($registro) {
                                         $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
-                                        return $registro->estado !== 'Devuelto' && $pendiente > 0;
+                                        return $pendiente > 0;
                                     });
                                 })
                                 ->map(function (NotasVentaRenta $nota) use ($estadoRenta) {
                                     $items = $nota->registrosRenta
                                         ->filter(function ($registro) {
                                             $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
-                                            return $registro->estado !== 'Devuelto' && $pendiente > 0;
+                                            return $pendiente > 0;
                                         })
                                         ->map(function ($registro) {
                                             $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);

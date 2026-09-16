@@ -3,10 +3,8 @@
 namespace App\Filament\Resources\NotasDevolucionRenta\Tables;
 
 use Filament\Actions\Action;
-use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
-use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
@@ -44,7 +42,8 @@ class NotasDevolucionRentaTable
                             'Parcial' => 'info',
                             'Devuelta' => 'success',
                             'Cancelada' => 'danger',
-                            'Borrador', 'Aplicada' => 'gray',
+                            'Aplicada' => 'success',
+                            'Borrador' => 'gray',
                             default => 'gray',
                         };
                     }),
@@ -63,10 +62,6 @@ class NotasDevolucionRentaTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('id', 'desc')
-            ->headerActions([
-                CreateAction::make()
-                    ->createAnother(false),
-            ], HeaderActionsPosition::Bottom)
             ->recordActions([
                 ViewAction::make()
                     ->label('Ver')
@@ -80,7 +75,7 @@ class NotasDevolucionRentaTable
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn ($record): bool => !in_array($record->estatus, ['Cancelada', 'Devuelta'], true))
+                    ->visible(fn ($record): bool => $record->estatus !== 'Cancelada')
                     ->requiresConfirmation()
                     ->modalHeading('Cancelar nota de devolucion')
                     ->modalDescription('La nota se marcara como cancelada. Si estaba aplicada, se revertiran las cantidades en la nota de envio.')

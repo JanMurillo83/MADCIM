@@ -265,30 +265,31 @@ class CreateNotasVentaRenta extends CreateRecord
         $record = $this->record;
         $tipoNotaRenta = TipoNotaRenta::tryFrom($record->tipo_nota_renta ?? '');
 
-        if ($tipoNotaRenta?->esMaderaM2() !== true) {
-            return;
+        if ($tipoNotaRenta?->esMaderaM2() === true) {
+            $desglose = $this->data['desglose_m2'] ?? [];
+            foreach ($desglose as $fila) {
+                $record->desgloseM2()->create([
+                    'producto_id' => $fila['producto_id'] ?? null,
+                    'clave' => $fila['clave'] ?? null,
+                    'descripcion' => $fila['descripcion'] ?? null,
+                    'cantidad' => $fila['cantidad'] ?? 0,
+                    'm2_cubre' => $fila['m2_cubre'] ?? 0,
+                    'm2_total' => $fila['m2_total'] ?? 0,
+                    'tipo_madera' => $tipoNotaRenta->tipoMaderaParaDesglose(),
+                    'observaciones' => $fila['observaciones'] ?? null,
+                ]);
+            }
         }
 
-        $desglose = $this->data['desglose_m2'] ?? [];
-        foreach ($desglose as $fila) {
-            $record->desgloseM2()->create([
-                'producto_id' => $fila['producto_id'] ?? null,
-                'clave' => $fila['clave'] ?? null,
-                'descripcion' => $fila['descripcion'] ?? null,
-                'cantidad' => $fila['cantidad'] ?? 0,
-                'm2_cubre' => $fila['m2_cubre'] ?? 0,
-                'm2_total' => $fila['m2_total'] ?? 0,
-                'tipo_madera' => $tipoNotaRenta->tipoMaderaParaDesglose(),
-                'observaciones' => $fila['observaciones'] ?? null,
-            ]);
-        }
+        $ticketUrl = route('notas-venta-renta.pdf.ticket', ['id' => $record->id]);
+        $this->js("window.open('{$ticketUrl}', '_blank');");
     }
 
     // Los registros de renta se crean desde las Notas de Envío
 
     protected function getRedirectUrl(): string
     {
-        return route('notas-venta-renta.pdf.ticket', ['id' => $this->record->id]);
+        return $this->getResource()::getUrl('index');
     }
 
     protected function getCreateAnotherFormAction(): \Filament\Actions\Action

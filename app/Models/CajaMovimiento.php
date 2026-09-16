@@ -22,11 +22,13 @@ class CajaMovimiento extends Model
         'fecha',
         'movimentable_type',
         'movimentable_id',
+        'aplicado_a_caja',
     ];
 
     protected $casts = [
         'fecha' => 'datetime',
         'importe' => 'decimal:2',
+        'aplicado_a_caja' => 'boolean',
     ];
 
     public function caja(): BelongsTo

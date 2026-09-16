@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CotizacionPdfController;
+use App\Http\Controllers\CajaMovimientoTicketController;
 use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth'])->group(function () {
     Route::get('/pagos/{id}/ticket', PagoTicketController::class)
         ->name('pagos.ticket');
+    Route::get('/caja-movimientos/{id}/devolucion-deposito/ticket', [CajaMovimientoTicketController::class, 'devolucionDeposito'])
+        ->name('caja-movimientos.devolucion-deposito.ticket');
 });
 
 Route::middleware(['auth'])->group(function () {
