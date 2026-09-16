@@ -8,6 +8,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
@@ -38,9 +39,18 @@ class ClientesForm
                             ->disk('local')
                             ->directory('clientes/ine')
                             ->image()
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                            ->extraAttributes(['data-ine-upload' => true])
+                            ->extraInputAttributes([
+                                'accept' => 'image/*',
+                                'capture' => 'environment',
+                            ])
                             ->maxSize(5120)
                             ->openable()
                             ->downloadable(),
+                        ViewField::make('ine_camera')
+                            ->view('filament.forms.ine-camera')
+                            ->dehydrated(false),
                         TextInput::make('folio_ine')
                             ->label('Folio de INE')
                             ->maxLength(30)

@@ -20,6 +20,83 @@
 }
 
 @layer components {
+    .ine-camera-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: rgb(0 0 0 / 0.7);
+    }
+
+    .ine-camera-dialog {
+        width: min(100%, 42rem);
+        overflow: hidden;
+        border-radius: 0.5rem;
+        background: white;
+        box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.3);
+    }
+
+    .ine-camera-header,
+    .ine-camera-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+
+    .ine-camera-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .ine-camera-header button {
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+
+    .ine-camera-dialog video {
+        display: block;
+        width: 100%;
+        max-height: 65vh;
+        background: #111;
+        object-fit: contain;
+    }
+
+    .ine-camera-message {
+        min-height: 1.25rem;
+        margin: 0;
+        padding: 0 1rem;
+        color: #4b5563;
+        font-size: 0.8rem;
+    }
+
+    .ine-camera-primary,
+    .ine-camera-secondary {
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .ine-camera-primary {
+        background: #139043;
+        color: white;
+    }
+
+    .ine-camera-primary:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+
+    .ine-camera-secondary {
+        background: #e5e7eb;
+        color: #1f2937;
+    }
+
     .fi-sidebar .fi-icon,
     .fi-topbar .fi-icon {
         color: #68590D;
