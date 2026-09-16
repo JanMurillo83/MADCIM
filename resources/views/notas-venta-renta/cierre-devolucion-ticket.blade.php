@@ -141,7 +141,7 @@
     <div style="margin-top: 50px;">
         <div class="header">
             <div class="company-name">MADCIM</div>
-            <div class="doc-title">CIERRE DE DEVOLUCIÓN</div>
+            <div class="doc-title">CIERRE DE RENTA</div>
             <div style="margin-top: 5px;">Fecha: {{ now()->format('d/m/Y H:i') }}</div>
         </div>
 
@@ -198,6 +198,10 @@
             <div class="total-row">
                 <span class="label">Saldo por cobrar:</span>
                 <span>${{ number_format((float) $resumen['totales']['saldo_por_cobrar'], 2) }}</span>
+            </div>
+            <div class="total-row grand">
+                <span class="label">Depósito a devolver:</span>
+                <span>${{ number_format((float) $resumen['totales']['deposito_devolver'], 2) }}</span>
             </div>
         </div>
 
