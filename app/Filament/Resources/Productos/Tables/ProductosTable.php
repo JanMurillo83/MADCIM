@@ -52,16 +52,6 @@ class ProductosTable
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->prefix('$')->alignRight()
                     ->sortable(),
-                TextColumn::make('costo')
-                    ->label('C. prom.')
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->prefix('$')->alignRight()
-                    ->sortable(),
-                TextColumn::make('ultimo_costo')
-                    ->label('U. costo')
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->prefix('$')->alignRight()
-                    ->sortable(),
                 TextColumn::make('precio_venta')
                     ->label('P. venta')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
@@ -84,14 +74,24 @@ class ProductosTable
                     ->label('Lín.')
                     ->searchable(),
                 TextColumn::make('largo')
-                    ->label('L')
+                    ->label('Largo')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
                 TextColumn::make('ancho')
-                    ->label('A')
+                    ->label('Ancho')
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
+                    ->sortable(),
+                TextColumn::make('costo')
+                    ->label('C. prom.')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
+                    ->sortable(),
+                TextColumn::make('ultimo_costo')
+                    ->label('U. costo')
+                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
+                    ->prefix('$')->alignRight()
                     ->sortable()
             ])
             ->filters([
