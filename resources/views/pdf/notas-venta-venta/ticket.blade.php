@@ -159,6 +159,10 @@
                 </div>
                 @if($pago->forma_pago === '01')
                 <div class="info-row">
+                    <span class="label">Pagado:</span>
+                    <span>${{ number_format($pago->importe, 2) }}</span>
+                </div>
+                <div class="info-row">
                     <span class="label">Recibido:</span>
                     <span>${{ number_format($pago->importe_recibido ?? $pago->importe, 2) }}</span>
                 </div>
