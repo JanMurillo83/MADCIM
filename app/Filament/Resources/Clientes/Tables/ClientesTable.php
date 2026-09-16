@@ -375,7 +375,7 @@ class ClientesTable
                                         })
                                         ->map(function ($registro) {
                                             $pendiente = (float)$registro->cantidad - (float)($registro->cantidad_devuelta ?? 0);
-                                            $descripcion = $registro->producto?->descripcion ?? 'Item';
+                                            $descripcion = $registro->producto?->descripcion ?? 'Producto';
                                             return "{$descripcion} x{$pendiente}";
                                         })
                                         ->values();

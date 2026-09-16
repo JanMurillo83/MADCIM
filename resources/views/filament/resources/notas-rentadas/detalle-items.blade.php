@@ -1,7 +1,7 @@
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 <div class="space-y-4">
     @if($items->isEmpty())
-        <p class="text-sm !text-gray-900 dark:!text-gray-100">No hay items registrados en renta para esta nota.</p>
+        <p class="text-sm !text-gray-900 dark:!text-gray-100">No hay productos registrados en renta para esta nota.</p>
     @else
         <table class="w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
             <thead class="bg-neutral-secondary-soft border-b border-default">

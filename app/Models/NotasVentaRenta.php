@@ -60,7 +60,7 @@ class NotasVentaRenta extends Model
     protected static function booted(): void
     {
         static::creating(function (self $nota): void {
-            $nota->cliente?->validarCreacionNota($nota->condicion_pago ?? 'contado');
+            $nota->cliente?->validarCreacionNota($nota->condicion_pago ?? 'contado', requiereFolioIne: true);
         });
 
         static::saved(function (self $nota) {

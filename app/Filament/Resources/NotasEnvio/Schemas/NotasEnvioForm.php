@@ -270,7 +270,7 @@ class NotasEnvioForm
                             ->columnSpan(2),
                     ])
                     ->columns(4),
-                Section::make('Items a Enviar')
+                Section::make('Productos a Enviar')
                     ->description('Seleccione los productos y cantidades que se enviarán al cliente.')
                     ->schema([
                         Placeholder::make('m2_cubiertos')

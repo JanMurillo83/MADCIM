@@ -16,6 +16,8 @@ class ResetOperationalDataService
         'cfdi_partida_impuestos',
         'cfdi_relacionados',
         'cierres_devolucion_renta',
+        'movimientos_inventario',
+        'nota_venta_renta_m2_desglose',
         'nota_devolucion_renta_partidas',
         'notas_devolucion_renta',
         'nota_envio_partidas',
@@ -43,11 +45,6 @@ class ResetOperationalDataService
         'notas_venta_venta',
         'cotizacion_partidas',
         'cotizaciones',
-        'cajas',
-        'cliente_direcciones_entrega',
-        'documento_series',
-        'lineas',
-        'grupos',
     ];
 
     public function reset(): int
@@ -58,31 +55,39 @@ class ResetOperationalDataService
             throw new AuthorizationException('Solo un administrador puede reiniciar los datos.');
         }
 
-        $tables = array_values(array_filter(
-            self::TABLES_TO_RESET,
-            static fn (string $table): bool => Schema::hasTable($table),
-        ));
+        return $this->resetTables();
+    }
 
-        $driver = DB::connection()->getDriverName();
+    public function resetFromCommand(): int
+    {
+        return $this->resetTables();
+    }
 
-        if ($driver === 'mysql') {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        }
+    private function resetTables(): int
+    {
+        return DB::transaction(function (): int {
+            $tables = array_values(array_filter(
+                self::TABLES_TO_RESET,
+                static fn (string $table): bool => Schema::hasTable($table),
+            ));
 
-        try {
-            foreach ($tables as $table) {
-                if ($driver === 'mysql') {
-                    DB::statement('TRUNCATE TABLE ' . $table);
-                } else {
+            $driver = DB::connection()->getDriverName();
+
+            if ($driver === 'mysql') {
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            }
+
+            try {
+                foreach ($tables as $table) {
                     DB::table($table)->delete();
                 }
+            } finally {
+                if ($driver === 'mysql') {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                }
             }
-        } finally {
-            if ($driver === 'mysql') {
-                DB::statement('SET FOREIGN_KEY_CHECKS=1');
-            }
-        }
 
-        return count($tables);
+            return count($tables);
+        });
     }
 }

@@ -41,6 +41,10 @@ class ClientesForm
                             ->maxSize(5120)
                             ->openable()
                             ->downloadable(),
+                        TextInput::make('folio_ine')
+                            ->label('Folio de INE')
+                            ->maxLength(30)
+                            ->dehydrateStateUsing(fn (?string $state): ?string => blank($state) ? null : trim($state)),
                         Select::make('regimen')
                             ->label('Régimen fiscal')
                             ->options(fn () => SatRegimenFiscal::query()

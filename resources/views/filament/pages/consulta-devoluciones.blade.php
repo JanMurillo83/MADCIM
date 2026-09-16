@@ -29,7 +29,7 @@
         @if($this->items->isEmpty())
             <div class="py-10 text-center text-gray-500 dark:text-gray-400">
                 <x-heroicon-o-inbox class="mx-auto mb-2 h-12 w-12 opacity-50" />
-                <p>No se encontraron items rentados activos.</p>
+                <p>No se encontraron productos rentados activos.</p>
             </div>
         @else
             @foreach($this->itemsAgrupados as $itemsGrupo)
@@ -56,7 +56,7 @@
                                 {{ $direccionNombre }}
                             </h3>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {{ $subtotalCantidad }} items enviados |
+                                {{ $subtotalCantidad }} productos enviados |
                                 Devueltos: {{ $subtotalDevuelto }} |
                                 Pendientes: {{ $subtotalPendiente }} |
                                 Venta total: ${{ number_format($subtotalVenta, 2) }} |

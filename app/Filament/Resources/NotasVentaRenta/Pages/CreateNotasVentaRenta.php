@@ -170,7 +170,7 @@ class CreateNotasVentaRenta extends CreateRecord
         $condicionPago = $data['condicion_pago'] ?? 'contado';
 
         try {
-            $cliente?->validarCreacionNota($condicionPago);
+            $cliente?->validarCreacionNota($condicionPago, requiereFolioIne: true);
         } catch (DomainException $exception) {
             throw ValidationException::withMessages([
                 'cliente_id' => $exception->getMessage(),

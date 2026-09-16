@@ -519,7 +519,7 @@ class CierreDevolucionRentaService
 
                 $productoId = (int) ($partida->producto_id ?? 0);
                 $clave = trim((string) ($partida->producto?->clave ?? 'SIN-CLAVE'));
-                $producto = trim((string) ($partida->producto?->descripcion ?? $partida->descripcion ?? 'Item'));
+                        $producto = trim((string) ($partida->producto?->descripcion ?? $partida->descripcion ?? 'Producto'));
                 $precioUnitario = (float) ($partida->producto?->precio_venta ?? 0);
 
                 $key = $productoId > 0 ? 'prod-' . $productoId : mb_strtolower($clave . '|' . $producto);
@@ -614,7 +614,7 @@ class CierreDevolucionRentaService
             $rows[] = [
                 'producto_id' => (int) $productoId,
                 'clave' => (string) ($registro->producto?->clave ?? 'SIN-CLAVE'),
-                'producto' => (string) ($registro->producto?->descripcion ?? 'Item'),
+                'producto' => (string) ($registro->producto?->descripcion ?? 'Producto'),
                 'faltante' => $faltante,
                 'precio_unitario' => $precioUnitario,
                 'subtotal' => $subtotal,

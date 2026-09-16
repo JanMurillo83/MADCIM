@@ -372,7 +372,7 @@
 
     @if($notaVenta->registrosRenta && $notaVenta->registrosRenta->count() > 0)
     <div class="rental-items-section">
-        <div class="rental-items-title">Detalle de Items en Renta</div>
+        <div class="rental-items-title">Detalle de Productos en Renta</div>
         <table class="rental-items-table">
             <thead>
                 <tr>

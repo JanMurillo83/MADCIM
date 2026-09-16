@@ -142,9 +142,9 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-black">Notas rentadas (items activos)</h3>
+        <h3 class="text-base font-semibold !text-black">Notas rentadas (productos activos)</h3>
         @if($notasRentadas->isEmpty())
-            <p class="mt-2 text-sm !text-black">No hay notas con items activos en renta.</p>
+            <p class="mt-2 text-sm !text-black">No hay notas con productos activos en renta.</p>
         @else
             <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
@@ -183,9 +183,9 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-black">Items actualmente rentados</h3>
+        <h3 class="text-base font-semibold !text-black">Productos actualmente rentados</h3>
         @if($itemsEnRenta->isEmpty())
-            <p class="mt-2 text-sm !text-black">No hay items activos en renta.</p>
+            <p class="mt-2 text-sm !text-black">No hay productos activos en renta.</p>
         @else
             <table class="mt-3 w-full text-sm text-left rtl:text-right !text-black">
                 <thead class="bg-neutral-secondary-soft border-b border-default">
@@ -206,7 +206,7 @@
                         @endphp
                         <tr>
                             <td class="px-6 py-3">{{ $item->notaVentaRenta?->serie }}-{{ $item->notaVentaRenta?->folio }}</td>
-                            <td class="px-6 py-3">{{ $item->producto?->descripcion ?? 'Item' }}</td>
+                            <td class="px-6 py-3">{{ $item->producto?->descripcion ?? 'Producto' }}</td>
                             <td class="px-6 py-3 text-center">{{ $item->cantidad }}</td>
                             <td class="px-6 py-3 text-center">{{ (float)($item->cantidad_devuelta ?? 0) }}</td>
                             <td class="px-6 py-3 text-center">{{ $pendiente }}</td>

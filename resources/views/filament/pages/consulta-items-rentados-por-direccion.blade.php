@@ -43,7 +43,7 @@
                 {{-- Totales generales --}}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Total Items Rentados</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Total de Productos Rentados</p>
                         <p class="text-2xl font-bold text-primary-600">{{ $this->items->sum('cantidad') }}</p>
                     </div>
                     <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
@@ -71,7 +71,7 @@
                                 {{ $direccionNombre ?? 'Sin dirección asignada' }}
                             </h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {{ $itemsGrupo->sum('cantidad') }} items |
+                                {{ $itemsGrupo->sum('cantidad') }} productos |
                                 Renta: ${{ number_format($subtotalRenta, 2) }} |
                                 Venta equiv.: ${{ number_format($subtotalVenta, 2) }}
                             </p>
@@ -125,13 +125,13 @@
             @else
                 <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                     <x-heroicon-o-inbox class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No se encontraron items rentados activos para este cliente.</p>
+                    <p>No se encontraron productos rentados activos para este cliente.</p>
                 </div>
             @endif
         @else
             <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                 <x-heroicon-o-funnel class="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Seleccione un cliente para ver los items rentados por dirección de entrega.</p>
+                <p>Seleccione un cliente para ver los productos rentados por dirección de entrega.</p>
             </div>
         @endif
     </div>

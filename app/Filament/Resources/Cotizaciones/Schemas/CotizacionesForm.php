@@ -206,7 +206,7 @@ class CotizacionesForm
                             ->compact()
                             ->table([
                                 Repeater\TableColumn::make('Cantidad'),
-                                Repeater\TableColumn::make('Item'),
+                                Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Precio'),
                                 Repeater\TableColumn::make('Subtotal'),
                                 Repeater\TableColumn::make('Total'),

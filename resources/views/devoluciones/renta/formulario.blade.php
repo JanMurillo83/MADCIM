@@ -9,7 +9,7 @@
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
         <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <h1 class="text-2xl font-bold mb-6">Devolución de Items en Renta</h1>
+            <h1 class="text-2xl font-bold mb-6">Devolución de Productos en Renta</h1>
 
             <div class="mb-6 p-4 bg-blue-50 rounded">
                 <h2 class="font-semibold text-lg mb-2">Información de la Nota</h2>
@@ -39,7 +39,7 @@
                 @csrf
 
                 <div class="mb-6">
-                    <h3 class="font-semibold text-lg mb-4">Items Rentados</h3>
+                    <h3 class="font-semibold text-lg mb-4">Productos Rentados</h3>
                     <table class="w-full border-collapse border border-gray-300">
                         <thead class="bg-gray-100">
                             <tr>

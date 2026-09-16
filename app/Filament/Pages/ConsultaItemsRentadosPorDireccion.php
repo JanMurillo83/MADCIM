@@ -17,8 +17,8 @@ class ConsultaItemsRentadosPorDireccion extends Page
 {
     use HasRolePageAccess;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-map-pin';
-    protected static ?string $navigationLabel = 'Items Rentados por Dirección';
-    protected static ?string $title = 'Items Rentados por Dirección de Entrega';
+    protected static ?string $navigationLabel = 'Productos Rentados por Dirección';
+    protected static ?string $title = 'Productos Rentados por Dirección de Entrega';
     protected static string|null|\UnitEnum $navigationGroup = 'Consultas';
     protected static ?int $navigationSort = 3;
     protected string $view = 'filament.pages.consulta-items-rentados-por-direccion';

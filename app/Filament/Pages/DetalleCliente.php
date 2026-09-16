@@ -155,7 +155,7 @@ class DetalleCliente extends Page
                             $notaLabel,
                             $envioLabel,
                             $fechaEnvio,
-                            $item->descripcion ?? ($item->producto?->descripcion ?? 'Item'),
+                            $item->descripcion ?? ($item->producto?->descripcion ?? 'Producto'),
                             (float)$item->cantidad,
                             $devuelta,
                             $pendiente,

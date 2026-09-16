@@ -28,7 +28,7 @@
                         <th class="px-3 py-2 text-left">Folio</th>
                         <th class="px-3 py-2 text-left">Fecha</th>
                         <th class="px-3 py-2 text-left">Estatus</th>
-                        <th class="px-3 py-2 text-left">Items</th>
+                        <th class="px-3 py-2 text-left">Productos</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -52,7 +52,7 @@
                                         $devuelta = (float)($partida->cantidad_devuelta ?? 0);
                                         $pendienteDev = (float)$partida->cantidad - $devuelta;
                                     @endphp
-                                    <li>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Item') }} — Cant: {{ $partida->cantidad }} | Devuelto: {{ $devuelta }} | Pendiente: {{ $pendienteDev }}</li>
+                                    <li>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Producto') }} — Cant: {{ $partida->cantidad }} | Devuelto: {{ $devuelta }} | Pendiente: {{ $pendienteDev }}</li>
                                 @endforeach
                             </ul>
                         </td>
@@ -104,7 +104,7 @@
                         <th class="px-3 py-2 text-left">Folio</th>
                         <th class="px-3 py-2 text-left">Fecha</th>
                         <th class="px-3 py-2 text-left">Estatus</th>
-                        <th class="px-3 py-2 text-left">Items</th>
+                        <th class="px-3 py-2 text-left">Productos</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -120,7 +120,7 @@
                         <td class="px-3 py-2">
                             <ul class="list-disc list-inside">
                                 @foreach($envio->partidas as $partida)
-                                    <li>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Item') }} — Cant: {{ $partida->cantidad }} | Devuelto: {{ (float)($partida->cantidad_devuelta ?? 0) }}</li>
+                                    <li>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Producto') }} — Cant: {{ $partida->cantidad }} | Devuelto: {{ (float)($partida->cantidad_devuelta ?? 0) }}</li>
                                 @endforeach
                             </ul>
                         </td>

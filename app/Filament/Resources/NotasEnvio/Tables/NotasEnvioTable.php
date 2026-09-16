@@ -131,7 +131,7 @@ class NotasEnvioTable
                 Action::make('ver_detalle')
                     ->label('Ver Detalle')
                     ->icon('heroicon-o-eye')
-                    ->modalHeading(fn (NotaEnvio $record) => 'Detalle de Items en Renta - Envío Folio ' . $record->folio)
+                    ->modalHeading(fn (NotaEnvio $record) => 'Detalle de Productos en Renta - Envío Folio ' . $record->folio)
                     ->modalWidth('7xl')
                     ->modalContent(function (NotaEnvio $record) {
                         $items = $record->partidas()->with('producto')->get();
@@ -213,7 +213,7 @@ class NotasEnvioTable
                                     $pendiente = (float)$item->cantidad - (float)$item->cantidad_devuelta;
                                     return [
                                         Placeholder::make('desc_' . $item->id)
-                                            ->label($item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item'))
+                                            ->label($item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Producto'))
                                             ->content('Rentado: ' . $item->cantidad . ' | Ya devuelto: ' . (float)$item->cantidad_devuelta . ' | Pendiente: ' . $pendiente . ' | P.V. unit: $' . number_format($precioVenta, 2))
                                             ->columnSpan(2),
                                         Hidden::make('item_id_' . $item->id)
@@ -284,7 +284,7 @@ class NotasEnvioTable
                         if ($pendientes === 0) {
                             $mensaje .= ' Todos los items han sido devueltos. Puede proceder al cierre de devolución.';
                         } else {
-                            $mensaje .= ' Quedan ' . $pendientes . ' item(s) con material pendiente por devolver.';
+                            $mensaje .= ' Quedan ' . $pendientes . ' producto(s) con material pendiente por devolver.';
                         }
 
                         Notification::make()

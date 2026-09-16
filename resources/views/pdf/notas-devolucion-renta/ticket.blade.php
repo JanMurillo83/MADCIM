@@ -31,7 +31,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>Item</th>
+                    <th>Producto</th>
                     <th class="right">Enviada</th>
                     <th class="right">Devuelta</th>
                     <th class="right">A devolver</th>
@@ -40,7 +40,7 @@
             <tbody>
                 @foreach($nota->partidas as $partida)
                     <tr>
-                        <td>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Item') }}</td>
+                        <td>{{ $partida->descripcion ?? ($partida->producto->descripcion ?? 'Producto') }}</td>
                         <td class="right">{{ number_format((float) $partida->cantidad_enviada, 2) }}</td>
                         <td class="right">{{ number_format((float) $partida->cantidad_devuelta, 2) }}</td>
                         <td class="right">{{ number_format((float) $partida->cantidad_a_devolver, 2) }}</td>

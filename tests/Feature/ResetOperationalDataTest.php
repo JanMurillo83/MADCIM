@@ -88,6 +88,16 @@ class ResetOperationalDataTest extends TestCase
             'nombre' => 'Linea temporal',
         ]);
 
+        DB::table('grupos')->insert([
+            'nombre' => 'Grupo temporal',
+        ]);
+
+        DB::table('documento_series')->insert([
+            'documento_tipo' => 'prueba',
+            'serie' => 'T',
+            'ultimo_folio' => 0,
+        ]);
+
         $configurationCount = DB::table('configuracion')->count();
 
         $tablesReset = app(ResetOperationalDataService::class)->reset();
@@ -98,6 +108,42 @@ class ResetOperationalDataTest extends TestCase
         $this->assertDatabaseHas('productos', ['clave' => 'PROD-RESET']);
         $this->assertSame($configurationCount, DB::table('configuracion')->count());
         $this->assertDatabaseHas('users', ['id' => $admin->id]);
-        $this->assertDatabaseCount('lineas', 0);
+        $this->assertDatabaseHas('lineas', ['nombre' => 'Linea temporal']);
+        $this->assertDatabaseHas('grupos', ['nombre' => 'Grupo temporal']);
+        $this->assertDatabaseHas('documento_series', [
+            'documento_tipo' => 'prueba',
+            'serie' => 'T',
+        ]);
+    }
+
+    public function test_el_comando_reinicia_los_datos_con_force(): void
+    {
+        $user = User::factory()->create();
+
+        DB::table('lineas')->insert([
+            'nombre' => 'Linea temporal',
+        ]);
+
+        DB::table('grupos')->insert([
+            'nombre' => 'Grupo temporal',
+        ]);
+
+        DB::table('documento_series')->insert([
+            'documento_tipo' => 'prueba',
+            'serie' => 'T',
+            'ultimo_folio' => 0,
+        ]);
+
+        $this->artisan('sistema:reiniciar-datos', ['--force' => true])
+            ->expectsOutputToContain('Reinicio completado.')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('lineas', ['nombre' => 'Linea temporal']);
+        $this->assertDatabaseHas('grupos', ['nombre' => 'Grupo temporal']);
+        $this->assertDatabaseHas('documento_series', [
+            'documento_tipo' => 'prueba',
+            'serie' => 'T',
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
     }
 }

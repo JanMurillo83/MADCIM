@@ -44,7 +44,7 @@
                         <h4>Nota de Envío: {{ $envio->serie ?? '' }}{{ $envio->serie ? '-' : '' }}{{ $envio->folio }} | {{ $envio->fecha_emision?->format('d/m/Y') ?? '-' }}</h4>
 
                         @if($envio->partidas->isEmpty())
-                            <p class="muted">Sin items en esta nota de envío.</p>
+                            <p class="muted">Sin productos en esta nota de envío.</p>
                         @else
                             <table>
                                 <thead>
@@ -62,7 +62,7 @@
                                             $pendiente = (float)$item->cantidad - $devuelta;
                                         @endphp
                                         <tr>
-                                            <td>{{ $item->descripcion ?? ($item->producto?->descripcion ?? 'Item') }}</td>
+                                            <td>{{ $item->descripcion ?? ($item->producto?->descripcion ?? 'Producto') }}</td>
                                             <td class="text-center">{{ (float)$item->cantidad }}</td>
                                             <td class="text-center">{{ $devuelta }}</td>
                                             <td class="text-center">{{ $pendiente }}</td>

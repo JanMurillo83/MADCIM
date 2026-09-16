@@ -135,7 +135,7 @@ class NotasRentadasResource extends Resource
                 Action::make('ver_detalle')
                     ->label('Ver Detalle')
                     ->icon('heroicon-o-eye')
-                    ->modalHeading(fn (NotasVentaRenta $record) => 'Detalle de Items en Renta - Folio ' . $record->folio)
+                    ->modalHeading(fn (NotasVentaRenta $record) => 'Detalle de Productos en Renta - Folio ' . $record->folio)
                     ->modalWidth('7xl')
                     ->modalContent(function (NotasVentaRenta $record) {
                         $items = RegistroRenta::where('nota_venta_renta_id', $record->id)
@@ -173,7 +173,7 @@ class NotasRentadasResource extends Resource
                                     $pendiente = (float)$item->cantidad - (float)$item->cantidad_devuelta;
                                     return [
                                         Placeholder::make('desc_' . $item->id)
-                                            ->label($item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item'))
+                                            ->label($item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Producto'))
                                             ->content('Rentado: ' . $item->cantidad . ' | Ya devuelto: ' . (float)$item->cantidad_devuelta . ' | Pendiente: ' . $pendiente . ' | P.V. unit: $' . number_format($precioVenta, 2))
                                             ->columnSpan(2),
                                         Hidden::make('item_id_' . $item->id)
@@ -226,16 +226,16 @@ class NotasRentadasResource extends Resource
                             return;
                         }
 
-                        // Verificar si todos los items ya fueron devueltos completamente
+                        // Verificar si todos los productos ya fueron devueltos completamente
                         $pendientes = RegistroRenta::where('nota_venta_renta_id', $record->id)
                             ->where('estado', '!=', 'Devuelto')
                             ->count();
 
                         $mensaje = 'Devolución parcial registrada exitosamente.';
                         if ($pendientes === 0) {
-                            $mensaje .= ' Todos los items han sido devueltos. Puede proceder al cierre de devolución.';
+                            $mensaje .= ' Todos los productos han sido devueltos. Puede proceder al cierre de devolución.';
                         } else {
-                            $mensaje .= ' Quedan ' . $pendientes . ' item(s) con material pendiente por devolver.';
+                            $mensaje .= ' Quedan ' . $pendientes . ' producto(s) con material pendiente por devolver.';
                         }
 
                         Notification::make()
@@ -282,7 +282,7 @@ class NotasRentadasResource extends Resource
                             $descuento = $faltante * $precioVenta;
                             $totalDescuento += $descuento;
 
-                            $nombre = $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item');
+                            $nombre = $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Producto');
                             $resumenRows[] = $nombre . ': Rentado=' . $cantidadOriginal . ', Devuelto=' . $cantidadDevuelta . ', Faltante=' . $faltante . ($faltante > 0 ? ' (Cargo: $' . number_format($descuento, 2) . ')' : '');
                         }
 
@@ -321,7 +321,7 @@ class NotasRentadasResource extends Resource
                                 $descuento = $faltante * $precioVenta;
                                 $totalDescuento += $descuento;
                                 $detallesFaltantes[] = [
-                                    'producto' => $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Item'),
+                                    'producto' => $item->producto ? $item->producto->descripcion : ($item->observaciones ?? 'Producto'),
                                     'faltante' => $faltante,
                                     'precio_unitario' => $precioVenta,
                                     'descuento' => $descuento,

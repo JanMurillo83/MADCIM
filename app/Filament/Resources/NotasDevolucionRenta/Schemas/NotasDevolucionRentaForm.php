@@ -204,7 +204,7 @@ class NotasDevolucionRentaForm
                                 Hidden::make('cantidad_aplicada')
                                     ->default(0),
                                 TextInput::make('descripcion')
-                                    ->label('Item')
+                                    ->label('Producto')
                                     ->readOnly()
                                     ->columnSpan(2),
                                 TextInput::make('cantidad_enviada')

@@ -33,7 +33,16 @@ class ClienteEstatusTest extends TestCase
         $this->assertFalse($cliente->puedeCrearNota('credito'));
 
         $this->expectException(DomainException::class);
-        $cliente->validarCreacionNota('contado');
+        $cliente->validarCreacionNota('contado', requiereFolioIne: true);
+    }
+
+    public function test_no_se_puede_generar_nota_de_renta_sin_folio_de_ine(): void
+    {
+        $cliente = Clientes::create($this->datosCliente(['folio_ine' => null]));
+
+        $this->expectExceptionMessage('El cliente debe tener capturado el Folio de INE para generar una Nota de Venta Renta.');
+
+        $cliente->validarCreacionNota('contado', requiereFolioIne: true);
     }
 
     public function test_cliente_bloqueado_se_desbloquea_con_saldo_cero_o_excepcion_discrecional(): void
@@ -82,6 +91,7 @@ class ClienteEstatusTest extends TestCase
             'clave' => 'CLI-' . uniqid(),
             'nombre' => 'Cliente de prueba',
             'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-123456789',
             'regimen' => '601',
             'codigo' => '01000',
             'calle' => 'Calle de prueba',

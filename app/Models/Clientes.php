@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Clientes extends Model
 {
-    protected $fillable = ['clave','nombre','rfc','curp','ine','regimen','codigo','calle','exterior','interior','colonia',
+    protected $fillable = ['clave','nombre','rfc','curp','ine','folio_ine','regimen','codigo','calle','exterior','interior','colonia',
     'municipio','estado','pais','telefono','correo','descuento','lista','contacto','dias_credito','saldo',
     'estatus_cliente','desbloqueo_discrecional'];
 
@@ -136,8 +136,12 @@ class Clientes extends Model
             || $condicionPago === 'contado';
     }
 
-    public function validarCreacionNota(string $condicionPago): void
+    public function validarCreacionNota(string $condicionPago, bool $requiereFolioIne = false): void
     {
+        if ($requiereFolioIne && blank($this->folio_ine)) {
+            throw new DomainException('El cliente debe tener capturado el Folio de INE para generar una Nota de Venta Renta.');
+        }
+
         if ($this->estatus_cliente === self::ESTATUS_BLOQUEADO) {
             throw new DomainException('El cliente está bloqueado y no puede recibir Notas de Venta o Renta.');
         }

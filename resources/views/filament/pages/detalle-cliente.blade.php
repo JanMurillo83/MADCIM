@@ -45,7 +45,7 @@
                             <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                 Cliente: {{ $this->clientes->get($this->cliente_id) }}
                             </span>
-                            <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Vista en árbol por fecha, nota de renta, nota de envío e items.</span>
+                            <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Vista en árbol por fecha, nota de renta, nota de envío y productos.</span>
                         </div>
                         <x-heroicon-o-user class="w-4 h-4 text-gray-400" />
                     </summary>
@@ -64,7 +64,7 @@
                                     <div>
                                         <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ $fechaLabel }}</span>
                                         <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                            {{ $totalNotas }} notas | {{ $totalEnvios }} envíos | {{ $totalItems }} items
+                                            {{ $totalNotas }} notas | {{ $totalEnvios }} envíos | {{ $totalItems }} productos
                                         </span>
                                     </div>
                                     <x-heroicon-o-calendar class="w-4 h-4 text-gray-400" />
@@ -107,12 +107,12 @@
                                                                     </span>
                                                                 </div>
                                                                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                                                                    {{ $itemsCount }} items | Enviada: {{ $totalEnviada }} | Devuelta: {{ $totalDevuelta }} | Pendiente: {{ $totalPendiente }}
+                                                                    {{ $itemsCount }} productos | Enviada: {{ $totalEnviada }} | Devuelta: {{ $totalDevuelta }} | Pendiente: {{ $totalPendiente }}
                                                                 </div>
                                                             </summary>
                                                             <div class="px-4 py-3">
                                                                 @if($envio->partidas->isEmpty())
-                                                                    <p class="text-sm text-gray-500 dark:text-gray-400">Sin items en esta nota de envío.</p>
+                                                                    <p class="text-sm text-gray-500 dark:text-gray-400">Sin productos en esta nota de envío.</p>
                                                                 @else
                                                                     <div class="overflow-x-auto">
                                                                         <table class="w-full text-sm">
@@ -132,7 +132,7 @@
                                                                                     @endphp
                                                                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                                                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
-                                                                                            {{ $item->descripcion ?? ($item->producto?->descripcion ?? 'Item') }}
+                                                                                            {{ $item->descripcion ?? ($item->producto?->descripcion ?? 'Producto') }}
                                                                                         </td>
                                                                                         <td class="px-3 py-2 text-center text-gray-700 dark:text-gray-300">{{ (float)$item->cantidad }}</td>
                                                                                         <td class="px-3 py-2 text-center text-gray-700 dark:text-gray-300">{{ $devuelta }}</td>

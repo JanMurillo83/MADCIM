@@ -20,7 +20,7 @@ class DevolucionRentaController extends Controller
         $itemsRentados = $this->obtenerItemsPendientes($nota);
 
         if ($itemsRentados->isEmpty()) {
-            return redirect()->back()->with('error', 'No hay items activos para devolver en esta nota.');
+            return redirect()->back()->with('error', 'No hay productos activos para devolver en esta nota.');
         }
 
         return view('devoluciones.renta.formulario', compact('nota', 'itemsRentados'));

@@ -91,7 +91,7 @@
         <p><strong>Fecha de Renta:</strong> {{ $nota->fecha_emision->format('d/m/Y') }}</p>
     </div>
 
-    <h3>Items Devueltos</h3>
+    <h3>Productos Devueltos</h3>
     <table>
         <thead>
             <tr>
