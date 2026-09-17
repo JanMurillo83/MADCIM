@@ -819,6 +819,19 @@ class NotasVentaRentaForm
                             ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
+                            ])
+                            ->hidden(),
+                        Placeholder::make('total_renta_visible')
+                            ->label('Total de Renta')
+                            ->content(fn (Get $get): string => '$' . number_format(
+                                (float) $get('subtotal') + (float) $get('impuestos_total'),
+                                2,
+                                '.',
+                                ',',
+                            ))
+                            ->live()
+                            ->extraAttributes([
+                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right; width:17rem;',
                             ]),
                         TextInput::make('deposito')
                             ->label('Depósito (50% Madera)')
@@ -851,9 +864,10 @@ class NotasVentaRentaForm
                             ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #f3f4f6; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
-                            ]),
+                            ])
+                            ->hidden(),
                         TextInput::make('total')
-                            ->label('Total a Pagar')
+                            ->label('Total')
                             ->required()
                             ->numeric()
                             ->prefix('$')
