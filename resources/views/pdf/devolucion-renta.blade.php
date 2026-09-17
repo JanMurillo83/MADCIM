@@ -43,7 +43,6 @@
             margin: 15px 0;
         }
         th, td {
-            border: 1px solid #000;
             padding: 8px;
             text-align: left;
         }
@@ -119,12 +118,6 @@
             @endforeach
         </tbody>
     </table>
-
-    <div class="footer">
-        <p>──────────────────────────────────</p>
-        <p>Firma del Cliente</p>
-        <p style="margin-top: 20px;">Gracias por su preferencia</p>
-    </div>
 
     <script>
         window.onload = function() {
