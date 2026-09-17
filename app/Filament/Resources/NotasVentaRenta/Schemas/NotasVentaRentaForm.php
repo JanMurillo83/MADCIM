@@ -882,11 +882,12 @@ class NotasVentaRentaForm
                         ->icon('fas-save')
                         ->color('primary')
                         ->requiresConfirmation()
-                        ->modalHeading('Confirmar periodo de renta')
+                        ->modalHeading('Confirmar periodo y pago')
                         ->modalDescription(fn ($livewire) => $livewire->buildRentaPeriodoDescription())
                         ->modalSubmitActionLabel('Guardar')
                         ->modalCancelActionLabel('Revisar')
-                        ->action(fn ($livewire) => $livewire->guardarCaptura()),
+                        ->form(fn ($livewire): array => $livewire->formularioPagosContado())
+                        ->action(fn ($livewire, array $data) => $livewire->guardarCaptura($data)),
                 ])
                     ->columnSpanFull(),
             ])
