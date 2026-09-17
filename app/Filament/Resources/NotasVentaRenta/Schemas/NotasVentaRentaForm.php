@@ -158,30 +158,6 @@ class NotasVentaRentaForm
 
     }
 
-    private static function aplicarDesgloseAM2(Get $get, Set $set): void
-    {
-        if (!self::esMaderaM2($get)) {
-            return;
-        }
-
-        $metros = (float) ($get('metros_m2') ?? 0);
-        $tipoNotaRenta = self::tipoNotaRentaActual($get);
-        if (!$tipoNotaRenta) {
-            return;
-        }
-
-        $desglose = $get('desglose_m2') ?? [];
-        $m2TotalDesglose = 0;
-        foreach ($desglose as $fila) {
-            $m2TotalDesglose += (float) ($fila['m2_total'] ?? 0);
-        }
-
-        // Si el desglose actual no cubre aproximadamente los M2, regenerar
-        if (abs($m2TotalDesglose - $metros) > 0.01 || empty($desglose)) {
-            self::recalcularM2($get, $set);
-        }
-    }
-
     private static function setDocumentoTotales(Set $set, bool $fromRepeater, float $subtotal, float $impuestos, float $deposito, float $total): void
     {
         $prefix = $fromRepeater ? '../../' : '';
@@ -234,13 +210,6 @@ class NotasVentaRentaForm
         self::recalculateDocumentoTotalesFromPartidas($get('../../partidas'), $set, true);
     }
 
-    private static function recalcularFilaDesgloseM2(Get $get, Set $set): void
-    {
-        $cantidad = (float) ($get('cantidad') ?? 0);
-        $m2Cubre = (float) ($get('m2_cubre') ?? 0);
-        $set('m2_total', round($cantidad * $m2Cubre, 2));
-    }
-
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -266,7 +235,6 @@ class NotasVentaRentaForm
                                     self::recalcularM2($get, $set);
                                 } else {
                                     $set('metros_m2', 0);
-                                    $set('desglose_m2', []);
                                     self::recalculatePartidasByRentaConfig($get, $set);
                                 }
                             }),
@@ -690,93 +658,6 @@ class NotasVentaRentaForm
                                 return "M2: {$metros} | Renta: $" . number_format($renta, 2) . " | Depósito: $" . number_format($deposito, 2) . " | Total: $" . number_format($total, 2);
                             })
                             ->columnSpanFull(),
-                        Repeater::make('desglose_m2')
-                            ->label('Desglose sugerido de productos')
-                            ->addable(true)
-                            ->deletable(true)
-                            ->reorderable(false)
-                            ->compact()
-                            ->table([
-                                Repeater\TableColumn::make('Producto'),
-                                Repeater\TableColumn::make('Cantidad'),
-                                Repeater\TableColumn::make('M2 c/u'),
-                                Repeater\TableColumn::make('M2 Total'),
-                            ])
-                            ->schema([
-                                Select::make('producto_id')
-                                    ->label('Producto')
-                                    ->required()
-                                    ->searchable()
-                                    ->options(function () {
-                                        return Productos::query()
-                                            ->where('linea', 'MADERA')
-                                            ->whereNotNull('m2_cubre')
-                                            ->where('m2_cubre', '>', 0)
-                                            ->orderBy('clave')
-                                            ->get()
-                                            ->mapWithKeys(function (Productos $producto) {
-                                                return [
-                                                    $producto->id => $producto->clave . ' - ' . $producto->descripcion
-                                                        . ' | M2: ' . $producto->m2_cubre
-                                                        . ' | Existencia: ' . Numero::formato($producto->existencia, 2),
-                                                ];
-                                            })
-                                            ->all();
-                                    })
-                                    ->live()
-                                    ->afterStateUpdated(function (Get $get, Set $set) {
-                                        $producto = Productos::find($get('producto_id'));
-                                        if ($producto) {
-                                            $set('clave', $producto->clave);
-                                            $set('descripcion', $producto->descripcion);
-                                            $set('m2_cubre', (float) $producto->m2_cubre);
-                                            self::recalcularFilaDesgloseM2($get, $set);
-                                        }
-                                    })
-                                    ->columnSpan(3),
-                                Hidden::make('clave'),
-                                Hidden::make('descripcion'),
-                                TextInput::make('cantidad')
-                                    ->label('Cantidad')
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0)
-                                    ->minValue(0.01)
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Get $get, Set $set) {
-                                        self::recalcularFilaDesgloseM2($get, $set);
-                                    })
-                                    ->columnSpan(1),
-                                TextInput::make('m2_cubre')
-                                    ->label('M2 c/u')
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0)
-                                    ->readOnly()
-                                    ->columnSpan(1),
-                                TextInput::make('m2_total')
-                                    ->label('M2 Total')
-                                    ->numeric()
-                                    ->required()
-                                    ->default(0)
-                                    ->readOnly()
-                                    ->columnSpan(1),
-                                TextInput::make('observaciones')
-                                    ->label('Observaciones')
-                                    ->maxLength(255)
-                                    ->columnSpan(2),
-                            ])
-                            ->columns(8)
-                            ->columnSpanFull(),
-                        Actions::make([
-                            Action::make('regenerar_desglose')
-                                ->label('Regenerar desglose')
-                                ->icon('heroicon-o-arrow-path')
-                                ->color('info')
-                                ->action(function (Get $get, Set $set) {
-                                    self::recalcularM2($get, $set);
-                                }),
-                        ]),
                     ])
                     ->columns(4)
                     ->columnSpanFull(),

@@ -8,7 +8,6 @@ use App\Models\Caja;
 use App\Models\Clientes;
 use App\Models\Pagos;
 use App\Models\Productos;
-use App\Services\DesgloseM2Service;
 use App\Services\RentaMaderaM2Service;
 use Carbon\Carbon;
 use DomainException;
@@ -225,9 +224,6 @@ class CreateNotasVentaRenta extends CreateRecord
 
         if ($esMaderaM2) {
             $metros = number_format((float) ($data['metros_m2'] ?? 0), 2);
-            $cantidadDesglose = collect($data['desglose_m2'] ?? [])
-                ->sum(fn ($fila) => (float) ($fila['cantidad'] ?? 0));
-
             return new HtmlString(
                 '<p class="mb-2">Por favor revise los datos de la renta M2 antes de guardar:</p>'
                 . '<ul class="list-disc pl-5 space-y-1">'
@@ -235,7 +231,6 @@ class CreateNotasVentaRenta extends CreateRecord
                 . "<li><strong>Metros cuadrados:</strong> {$metros} M2</li>"
                 . "<li><strong>Días de renta:</strong> {$diasRenta}</li>"
                 . "<li><strong>Fecha de vencimiento:</strong> {$fechaVencimiento}</li>"
-                . "<li><strong>Total de piezas en desglose:</strong> {$cantidadDesglose}</li>"
                 . "<li><strong>Total a pagar:</strong> \${$total}</li>"
                 . '</ul>'
             );
@@ -323,13 +318,6 @@ class CreateNotasVentaRenta extends CreateRecord
             $data['fecha_vencimiento'] = $fechaEmision->copy()->addDays($diasRenta)->toDateString();
 
             if ($tipoNotaRenta->esMaderaM2()) {
-                $erroresExistencia = DesgloseM2Service::validarExistencias($data['desglose_m2'] ?? []);
-                if ($erroresExistencia !== []) {
-                    throw ValidationException::withMessages([
-                        'desglose_m2' => implode(' ', $erroresExistencia),
-                    ]);
-                }
-
                 $data = $this->prepareM2Partidas($data, $tipoNotaRenta);
             }
 
@@ -392,23 +380,6 @@ class CreateNotasVentaRenta extends CreateRecord
     protected function afterCreate(): void
     {
         $record = $this->record;
-        $tipoNotaRenta = TipoNotaRenta::tryFrom($record->tipo_nota_renta ?? '');
-
-        if ($tipoNotaRenta?->esMaderaM2() === true) {
-            $desglose = $this->data['desglose_m2'] ?? [];
-            foreach ($desglose as $fila) {
-                $record->desgloseM2()->create([
-                    'producto_id' => $fila['producto_id'] ?? null,
-                    'clave' => $fila['clave'] ?? null,
-                    'descripcion' => $fila['descripcion'] ?? null,
-                    'cantidad' => $fila['cantidad'] ?? 0,
-                    'm2_cubre' => $fila['m2_cubre'] ?? 0,
-                    'm2_total' => $fila['m2_total'] ?? 0,
-                    'tipo_madera' => $tipoNotaRenta->tipoMaderaParaDesglose(),
-                    'observaciones' => $fila['observaciones'] ?? null,
-                ]);
-            }
-        }
 
         if ($record->condicion_pago === 'contado' && $this->pagoCapturado) {
             $userId = Auth::id();
