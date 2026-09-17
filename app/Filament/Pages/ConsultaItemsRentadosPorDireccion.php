@@ -122,7 +122,9 @@ class ConsultaItemsRentadosPorDireccion extends Page
     public function totalPrecioVenta(): float
     {
         return $this->items->sum(function ($item) {
-            return ($item->producto?->precio_venta ?? 0) * $item->cantidad;
+            $pendientes = max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0));
+
+            return (float) ($item->producto?->precio_venta ?? 0) * $pendientes;
         });
     }
 
@@ -165,7 +167,11 @@ class ConsultaItemsRentadosPorDireccion extends Page
             $direccion = $itemsGrupo->first()->notaVentaRenta?->direccionEntrega;
             $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $itemsGrupo->first()->cliente_direccion;
             $subtotalRenta = $itemsGrupo->sum('importe_renta');
-            $subtotalVenta = $itemsGrupo->sum(fn ($item) => ($item->producto?->precio_venta ?? 0) * $item->cantidad);
+            $subtotalVenta = $itemsGrupo->sum(function ($item): float {
+                $pendientes = max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0));
+
+                return (float) ($item->producto?->precio_venta ?? 0) * $pendientes;
+            });
             $cantidad = $itemsGrupo->sum('cantidad');
             $devueltos = $itemsGrupo->sum('cantidad_devuelta');
 
@@ -183,7 +189,7 @@ class ConsultaItemsRentadosPorDireccion extends Page
                     max(0, $cantidadItem - $devueltosItem),
                     number_format($item->importe_renta, 2),
                     number_format($precioVenta, 2),
-                    number_format($precioVenta * $cantidadItem, 2),
+                    number_format($precioVenta * max(0, $cantidadItem - $devueltosItem), 2),
                 ];
             }
 

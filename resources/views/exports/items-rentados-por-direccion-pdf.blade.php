@@ -40,7 +40,11 @@
             $direccion = $itemsGrupo->first()->notaVentaRenta?->direccionEntrega;
             $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $itemsGrupo->first()->cliente_direccion;
             $subtotalRenta = $itemsGrupo->sum('importe_renta');
-            $subtotalVenta = $itemsGrupo->sum(fn($i) => ($i->producto?->precio_venta ?? 0) * $i->cantidad);
+            $subtotalVenta = $itemsGrupo->sum(function ($item) {
+                $pendientes = max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0));
+
+                return (float) ($item->producto?->precio_venta ?? 0) * $pendientes;
+            });
         @endphp
         @php
             $subtotalCantidad = $itemsGrupo->sum('cantidad');
@@ -76,7 +80,7 @@
                         <td class="text-center">{{ max(0, $cantidad - $devueltos) }}</td>
                         <td class="text-right">${{ number_format($item->importe_renta, 2) }}</td>
                         <td class="text-right">${{ number_format($precioVenta, 2) }}</td>
-                        <td class="text-right">${{ number_format($precioVenta * $cantidad, 2) }}</td>
+                        <td class="text-right">${{ number_format($precioVenta * max(0, $cantidad - $devueltos), 2) }}</td>
                     </tr>
                 @endforeach
                 <tr class="subtotal-row">

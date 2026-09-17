@@ -62,7 +62,11 @@
                         $direccion = $itemsGrupo->first()->notaVentaRenta?->direccionEntrega;
                         $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $itemsGrupo->first()->cliente_direccion;
                         $subtotalRenta = $itemsGrupo->sum('importe_renta');
-                        $subtotalVenta = $itemsGrupo->sum(fn($i) => ($i->producto?->precio_venta ?? 0) * $i->cantidad);
+                        $subtotalVenta = $itemsGrupo->sum(function ($item) {
+                            $pendientes = max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0));
+
+                            return (float) ($item->producto?->precio_venta ?? 0) * $pendientes;
+                        });
                     @endphp
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
@@ -105,7 +109,7 @@
                                             <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ max(0, $cantidad - $devueltos) }}</td>
                                             <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($item->importe_renta, 2) }}</td>
                                             <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta, 2) }}</td>
-                                            <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta * $cantidad, 2) }}</td>
+                                            <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta * max(0, $cantidad - $devueltos), 2) }}</td>
                                         </tr>
                                     @endforeach
                                     <tr class="bg-gray-100 font-semibold dark:bg-gray-600">
