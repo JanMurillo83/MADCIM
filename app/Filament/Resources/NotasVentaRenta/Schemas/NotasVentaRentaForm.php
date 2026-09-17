@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
 use App\Enums\TipoNotaRenta;
-use App\Services\DesgloseM2Service;
 use App\Services\RentaMaderaM2Service;
 use App\Support\Impuestos;
 use App\Support\Numero;
@@ -157,8 +156,6 @@ class NotasVentaRentaForm
         $set('total', $calculo['total']);
         $set('saldo_pendiente', $calculo['total']);
 
-        $desglose = DesgloseM2Service::generar($tipoNotaRenta, $metros, $get('desglose_m2') ?? []);
-        $set('desglose_m2', $desglose);
     }
 
     private static function aplicarDesgloseAM2(Get $get, Set $set): void
