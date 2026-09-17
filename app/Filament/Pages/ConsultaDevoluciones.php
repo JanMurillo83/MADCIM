@@ -6,18 +6,25 @@ use App\Filament\Concerns\HasRolePageAccess;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
 use App\Models\CierreDevolucionRenta;
+use App\Models\NotasVentaRenta;
 use App\Models\RegistroRenta;
 use App\Services\CierreDevolucionRentaService;
 use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 
-class ConsultaDevoluciones extends Page
+class ConsultaDevoluciones extends Page implements HasActions
 {
     use HasRolePageAccess;
+    use InteractsWithActions;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrow-uturn-left';
     protected static ?string $navigationLabel = 'Consulta de Devoluciones';
@@ -28,6 +35,8 @@ class ConsultaDevoluciones extends Page
 
     public ?int $cliente_id = null;
     public ?int $direccion_entrega_id = null;
+    public ?int $clienteCierreId = null;
+    public ?int $direccionCierreId = null;
 
     #[Computed]
     public function clientes(): Collection
@@ -70,30 +79,79 @@ class ConsultaDevoluciones extends Page
 
     public function cerrarObra(int $clienteId, int $direccionEntregaId): void
     {
-        try {
-            $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
-                $clienteId,
-                $direccionEntregaId,
-                userId: Auth::id(),
-            );
+        $this->clienteCierreId = $clienteId;
+        $this->direccionCierreId = $direccionEntregaId;
+        $this->mountAction('confirmarCierreObra');
+    }
 
-            session(['cierre_devolucion_observaciones_nvr_' . $resultado['nota_id'] => null]);
-            session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
+    public function confirmarCierreObraAction(): Action
+    {
+        return Action::make('confirmarCierreObra')
+            ->modalHeading('Vista previa del cierre de obra')
+            ->modalWidth('7xl')
+            ->modalSubmitActionLabel('Confirmar y procesar cierre')
+            ->form(function (): array {
+                $nota = NotasVentaRenta::query()
+                    ->where('cliente_id', $this->clienteCierreId)
+                    ->where('direccion_entrega_id', $this->direccionCierreId)
+                    ->where('estatus', '!=', 'Cancelada')
+                    ->orderBy('id')
+                    ->first();
 
-            $this->redirect(
-                route('notas-venta-renta.cierre-devolucion-ticket', $resultado['nota_id']),
-                navigate: false,
-            );
-        } catch (\Throwable $exception) {
-            report($exception);
+                $resumenData = $nota
+                    ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota)
+                    : ['rows' => [], 'totales' => []];
+                $totales = $resumenData['totales'];
+                $filas = collect($resumenData['rows'])->map(fn (array $row): string =>
+                    $row['producto'] . ': Faltante=' . number_format((float) $row['faltante'], 2)
+                    . ' x $' . number_format((float) $row['precio_unitario'], 2)
+                    . ' = $' . number_format((float) $row['total'], 2)
+                )->implode("\n");
 
-            Notification::make()
-                ->danger()
-                ->title('No se pudo cerrar la obra')
-                ->body('La obra no se cerró. Revise que tenga rentas pendientes y vuelva a intentarlo.')
-                ->persistent()
-                ->send();
-        }
+                $resumen = ($filas ?: 'No hay faltantes por cobrar en esta obra.')
+                    . "\n\n--- Resumen consolidado ---"
+                    . "\nDepósito recibido: $" . number_format((float) ($totales['deposito'] ?? 0), 2)
+                    . "\nTotal faltantes: $" . number_format((float) ($totales['total_faltantes'] ?? 0), 2)
+                    . "\nDepósito aplicado: $" . number_format((float) ($totales['deposito_aplicado'] ?? 0), 2)
+                    . "\nSaldo por cobrar: $" . number_format((float) ($totales['saldo_por_cobrar'] ?? 0), 2)
+                    . "\nDepósito a devolver: $" . number_format((float) ($totales['deposito_devolver'] ?? 0), 2);
+
+                return [
+                    Placeholder::make('resumen_cierre')
+                        ->label('Revise antes de confirmar')
+                        ->content($resumen),
+                    TextInput::make('folio_interno')
+                        ->label('Folio interno')
+                        ->maxLength(100)
+                        ->required(),
+                ];
+            })
+            ->action(function (array $data): void {
+                try {
+                    $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+                        $this->clienteCierreId,
+                        $this->direccionCierreId,
+                        userId: Auth::id(),
+                        folioInterno: $data['folio_interno'],
+                    );
+
+                    session(['cierre_devolucion_observaciones_nvr_' . $resultado['nota_id'] => null]);
+                    session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
+
+                    $this->redirect(
+                        route('notas-venta-renta.cierre-devolucion-ticket', $resultado['nota_id']),
+                        navigate: false,
+                    );
+                } catch (\Throwable $exception) {
+                    report($exception);
+                    Notification::make()
+                        ->danger()
+                        ->title('No se pudo cerrar la obra')
+                        ->body('La obra no se cerró. Revise los datos y vuelva a intentarlo.')
+                        ->persistent()
+                        ->send();
+                }
+            });
     }
 
     #[Computed]
