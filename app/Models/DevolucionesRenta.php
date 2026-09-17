@@ -16,6 +16,7 @@ class DevolucionesRenta extends Model
     protected $fillable = [
         'serie',
         'folio',
+        'folio_interno',
         'condiciones_pago',
         'fecha_emision',
         'moneda',

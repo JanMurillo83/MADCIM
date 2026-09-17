@@ -10,6 +10,10 @@
             padding: 0;
             box-sizing: border-box;
         }
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
         body {
             font-family: 'Courier New', monospace;
             font-size: 12px;
@@ -149,6 +153,10 @@
             <div class="info-row">
                 <span class="label">Nota de Renta Origen:</span>
                 <span>{{ $notasOrigen->map(fn ($nota) => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')))->implode(', ') }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Folio interno:</span>
+                <span>{{ $devolucion?->folio_interno ?: '-' }}</span>
             </div>
             @if($notaVentaVenta)
                 <div class="info-row">

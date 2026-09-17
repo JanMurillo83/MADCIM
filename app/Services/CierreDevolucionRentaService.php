@@ -47,6 +47,7 @@ class CierreDevolucionRentaService
         ?string $observaciones = null,
         ?int $userId = null,
         string $modo = 'devolucion',
+        ?string $folioInterno = null,
     ): array
     {
         $cierreExistente = CierreDevolucionRenta::query()
@@ -96,7 +97,7 @@ class CierreDevolucionRentaService
             ];
         }
 
-        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true);
+        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno);
 
         NotasVentaRenta::query()
             ->where('cliente_id', $clienteId)
@@ -143,9 +144,10 @@ class CierreDevolucionRentaService
         ?int $userId = null,
         string $modo = 'devolucion',
         bool $forzarCierre = false,
+        ?string $folioInterno = null,
     ): array
     {
-        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre) {
+        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre, $folioInterno) {
             $nota = NotasVentaRenta::query()
                 ->whereKey($nota->id)
                 ->lockForUpdate()
@@ -239,6 +241,7 @@ class CierreDevolucionRentaService
             $devolucion = DevolucionesRenta::create([
                 'serie' => $this->resolverSerieDevolucion(),
                 'fecha_emision' => now(),
+                'folio_interno' => $folioInterno,
                 'moneda' => $nota->moneda ?? 'MXN',
                 'tipo_cambio' => $nota->tipo_cambio ?? 1,
                 'subtotal' => $resumen['totales']['subtotal_faltantes'],
