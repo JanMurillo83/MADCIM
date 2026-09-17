@@ -31,6 +31,7 @@ class DevolucionRentaController extends Controller
         $nota = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'registrosRenta.producto'])->findOrFail($id);
 
         $request->validate([
+            'folio_interno' => 'required|string|max:100',
             'items' => 'required|array',
             'items.*.cantidad_devuelta' => 'required|numeric|min:0',
         ]);
@@ -95,7 +96,7 @@ class DevolucionRentaController extends Controller
 
             $notaDevolucion = NotaDevolucionRenta::create([
                 'serie' => 'NDR',
-                'folio_interno' => 'DEV-' . now()->format('YmdHis'),
+                'folio_interno' => $request->string('folio_interno')->trim()->toString(),
                 'nota_venta_renta_id' => $nota->id,
                 'cliente_id' => $nota->cliente_id,
                 'direccion_entrega_id' => $nota->direccion_entrega_id,
@@ -154,6 +155,8 @@ class DevolucionRentaController extends Controller
         if (!$data) {
             return redirect()->back()->with('error', 'No hay datos de devolución disponibles.');
         }
+
+        $data['notaDevolucion'] = NotaDevolucionRenta::find($data['nota_devolucion_id'] ?? null);
 
         return view('pdf.devolucion-renta', $data);
     }

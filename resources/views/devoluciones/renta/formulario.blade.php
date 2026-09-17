@@ -39,6 +39,23 @@
                 @csrf
 
                 <div class="mb-6">
+                    <label for="folio_interno" class="block font-semibold mb-2">Folio interno</label>
+                    <input
+                        id="folio_interno"
+                        type="text"
+                        name="folio_interno"
+                        value="{{ old('folio_interno') }}"
+                        maxlength="100"
+                        class="w-full px-3 py-2 border rounded"
+                        placeholder="Capture el folio interno"
+                        required
+                    >
+                    @error('folio_interno')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="mb-6">
                     <h3 class="font-semibold text-lg mb-4">Productos Rentados</h3>
                     <table class="w-full border-collapse border border-gray-300">
                         <thead class="bg-gray-100">

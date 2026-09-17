@@ -10,10 +10,16 @@
             padding: 0;
             box-sizing: border-box;
         }
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
         body {
             font-family: Arial, sans-serif;
             font-size: 12px;
-            padding: 20px;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 5mm 2mm;
         }
         .header {
             text-align: center;
@@ -83,6 +89,7 @@
     <div class="header">
         <h1>TICKET DE DEVOLUCIÓN</h1>
         <p>Nota de Venta: {{ $nota->folio }}</p>
+        <p>Folio interno: {{ $notaDevolucion?->folio_interno ?? '-' }}</p>
         <p>Fecha: {{ now()->format('d/m/Y H:i') }}</p>
     </div>
 
