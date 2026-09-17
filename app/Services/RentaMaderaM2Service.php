@@ -9,7 +9,7 @@ class RentaMaderaM2Service
 {
     /**
      * Precios de renta y depósito por M2 según tipo de madera.
-     * Los precios provienen de Configuracion y ya son sin IVA.
+    * Los precios provienen de Configuracion y ya incluyen IVA.
      *
      * @return array<string, array{renta: float, deposito: float}>
      */
@@ -65,9 +65,9 @@ class RentaMaderaM2Service
         $precioRentaM2 = $precios['renta'];
         $precioDepositoM2 = $precios['deposito'];
 
-        $subtotalRenta = round($metros * $precioRentaM2, 2);
-        $ivaRenta = round($subtotalRenta * 0.16, 2);
-        $totalRenta = round($subtotalRenta + $ivaRenta, 2);
+        $totalRenta = round($metros * $precioRentaM2, 2);
+        $subtotalRenta = $totalRenta;
+        $ivaRenta = 0.0;
         $deposito = round($metros * $precioDepositoM2, 2);
         $total = round($totalRenta + $deposito, 2);
 

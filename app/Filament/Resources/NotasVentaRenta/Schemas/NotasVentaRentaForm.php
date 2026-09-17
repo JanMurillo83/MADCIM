@@ -665,7 +665,7 @@ class NotasVentaRentaForm
                         Hidden::make('precio_deposito_m2')->default(0),
                         Hidden::make('total_renta_m2')->default(0),
                         TextInput::make('subtotal_renta_m2')
-                            ->label('Subtotal Renta')
+                            ->label('Total de Renta')
                             ->numeric()
                             ->prefix('$')
                             ->default(0)
@@ -675,7 +675,8 @@ class NotasVentaRentaForm
                             ->numeric()
                             ->prefix('$')
                             ->default(0)
-                            ->readOnly(),
+                            ->readOnly()
+                            ->hidden(),
                         TextInput::make('deposito_m2')
                             ->label('Depósito por M2')
                             ->numeric()
@@ -689,7 +690,7 @@ class NotasVentaRentaForm
                                 $renta = (float) ($get('total_renta_m2') ?? 0);
                                 $deposito = (float) ($get('deposito_m2') ?? 0);
                                 $total = (float) ($get('total') ?? 0);
-                                return "M2: {$metros} | Renta c/IVA: $" . number_format($renta, 2) . " | Depósito: $" . number_format($deposito, 2) . " | Total: $" . number_format($total, 2);
+                                return "M2: {$metros} | Renta: $" . number_format($renta, 2) . " | Depósito: $" . number_format($deposito, 2) . " | Total: $" . number_format($total, 2);
                             })
                             ->columnSpanFull(),
                         Repeater::make('desglose_m2')
