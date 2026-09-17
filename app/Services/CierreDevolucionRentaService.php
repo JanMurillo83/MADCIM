@@ -97,7 +97,7 @@ class CierreDevolucionRentaService
             ];
         }
 
-        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno);
+        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno, (float) $nota->deposito);
 
         NotasVentaRenta::query()
             ->where('cliente_id', $clienteId)
@@ -138,6 +138,23 @@ class CierreDevolucionRentaService
         return $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
     }
 
+    public function obtenerResumenPorObra(NotasVentaRenta $nota): array
+    {
+        $resumen = $this->obtenerResumen($nota);
+        $deposito = (float) NotasVentaRenta::query()
+            ->where('cliente_id', $nota->cliente_id)
+            ->where('direccion_entrega_id', $nota->direccion_entrega_id)
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('deposito');
+
+        $resumen['totales']['deposito'] = $deposito;
+        $resumen['totales']['deposito_aplicado'] = min($deposito, $resumen['totales']['total_faltantes']);
+        $resumen['totales']['saldo_por_cobrar'] = max(0, $resumen['totales']['total_faltantes'] - $resumen['totales']['deposito_aplicado']);
+        $resumen['totales']['deposito_devolver'] = max(0, $deposito - $resumen['totales']['deposito_aplicado']);
+
+        return $resumen;
+    }
+
     public function cerrar(
         NotasVentaRenta $nota,
         ?string $observaciones = null,
@@ -145,9 +162,10 @@ class CierreDevolucionRentaService
         string $modo = 'devolucion',
         bool $forzarCierre = false,
         ?string $folioInterno = null,
+        ?float $depositoOverride = null,
     ): array
     {
-        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre, $folioInterno) {
+        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre, $folioInterno, $depositoOverride) {
             $nota = NotasVentaRenta::query()
                 ->whereKey($nota->id)
                 ->lockForUpdate()
@@ -170,7 +188,12 @@ class CierreDevolucionRentaService
 
             $nota->load(['notasEnvio.partidas.producto', 'cliente']);
 
-            $resumen = $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
+            $resumen = $depositoOverride === null
+                ? $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']))
+                : $this->aplicarDepositoAlResumen(
+                    $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente'])),
+                    $depositoOverride,
+                );
             $modo = $nota->esMadera() && $modo === 'venta_madera' ? 'venta_madera' : 'devolucion';
             $referencia = 'Cierre NVR ' . ($nota->serie ?? '') . '-' . ($nota->folio ?? '');
 
@@ -494,6 +517,16 @@ class CierreDevolucionRentaService
                 'deposito_devolver' => (float) $cierre->deposito_a_devolver,
             ],
         ];
+    }
+
+    private function aplicarDepositoAlResumen(array $resumen, float $deposito): array
+    {
+        $resumen['totales']['deposito'] = $deposito;
+        $resumen['totales']['deposito_aplicado'] = min($deposito, $resumen['totales']['total_faltantes']);
+        $resumen['totales']['saldo_por_cobrar'] = max(0, $resumen['totales']['total_faltantes'] - $resumen['totales']['deposito_aplicado']);
+        $resumen['totales']['deposito_devolver'] = max(0, $deposito - $resumen['totales']['deposito_aplicado']);
+
+        return $resumen;
     }
 
     private function calcularResumen(NotasVentaRenta $nota): array

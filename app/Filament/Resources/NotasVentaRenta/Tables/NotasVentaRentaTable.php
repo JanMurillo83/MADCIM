@@ -312,18 +312,20 @@ class NotasVentaRentaTable
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar'),
                     Action::make('cerrar_devolucion_renta')
-                        ->label('Cerrar Devolución')
+                        ->label('Vista previa de cierre')
                         ->icon('heroicon-o-check-circle')
                         ->color('danger')
                         ->visible(function (NotasVentaRenta $record) {
                             return !in_array($record->estatus, ['Devuelta', 'Vendida'], true)
                                 && $record->notasEnvio()->exists();
                         })
-                        ->modalHeading(fn (NotasVentaRenta $record) => 'Cierre de Devolución - Nota ' . $record->serie . '-' . $record->folio)
+                        ->modalHeading(fn (NotasVentaRenta $record) => 'Vista previa del cierre - Nota ' . $record->serie . '-' . $record->folio)
                         ->modalWidth('7xl')
-                        ->modalSubmitActionLabel('Confirmar Cierre de Devolución')
+                        ->modalSubmitActionLabel('Confirmar y procesar cierre')
                         ->form(function (NotasVentaRenta $record): array {
-                            $resumenData = app(CierreDevolucionRentaService::class)->obtenerResumen($record);
+                            $resumenData = $record->direccion_entrega_id
+                                ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($record)
+                                : app(CierreDevolucionRentaService::class)->obtenerResumen($record);
                             $totales = $resumenData['totales'];
                             $resumenRows = [];
 
