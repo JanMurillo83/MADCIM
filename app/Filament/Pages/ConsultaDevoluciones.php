@@ -19,6 +19,7 @@ use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 use Livewire\Attributes\Computed;
 
 class ConsultaDevoluciones extends Page implements HasActions
@@ -102,19 +103,29 @@ class ConsultaDevoluciones extends Page implements HasActions
                     ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota)
                     : ['rows' => [], 'totales' => []];
                 $totales = $resumenData['totales'];
-                $filas = collect($resumenData['rows'])->map(fn (array $row): string =>
-                    $row['producto'] . ': Faltante=' . number_format((float) $row['faltante'], 2)
-                    . ' x $' . number_format((float) $row['precio_unitario'], 2)
-                    . ' = $' . number_format((float) $row['total'], 2)
-                )->implode("\n");
+                $money = static fn (float $value): string => '$' . number_format($value, 2);
+                $detalle = collect($resumenData['rows'])->map(fn (array $row): string =>
+                    '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
+                    . '<strong>' . e($row['producto']) . '</strong>'
+                    . '<div>Faltante: ' . number_format((float) $row['faltante'], 2)
+                    . ' | Importe: ' . $money((float) $row['total']) . '</div>'
+                    . '</div>'
+                )->implode('');
 
-                $resumen = ($filas ?: 'No hay faltantes por cobrar en esta obra.')
-                    . "\n\n--- Resumen consolidado ---"
-                    . "\nDepósito recibido: $" . number_format((float) ($totales['deposito'] ?? 0), 2)
-                    . "\nTotal faltantes: $" . number_format((float) ($totales['total_faltantes'] ?? 0), 2)
-                    . "\nDepósito aplicado: $" . number_format((float) ($totales['deposito_aplicado'] ?? 0), 2)
-                    . "\nSaldo por cobrar: $" . number_format((float) ($totales['saldo_por_cobrar'] ?? 0), 2)
-                    . "\nDepósito a devolver: $" . number_format((float) ($totales['deposito_devolver'] ?? 0), 2);
+                $resumen = new HtmlString(
+                    '<div style="line-height: 1.6; white-space: normal;">'
+                    . '<div style="font-weight: 700; margin-bottom: 8px;">Detalle de faltantes</div>'
+                    . ($detalle ?: '<div style="padding: 8px 0;">No hay faltantes por cobrar en esta obra.</div>')
+                    . '<div style="font-weight: 700; margin: 14px 0 8px;">Resumen consolidado</div>'
+                    . '<div style="display: grid; gap: 4px;">'
+                    . '<div><strong>Total de renta:</strong> ' . $money((float) ($totales['total_renta'] ?? 0)) . '</div>'
+                    . '<div><strong>Depósito recibido:</strong> ' . $money((float) ($totales['deposito'] ?? 0)) . '</div>'
+                    . '<div><strong>Total faltantes:</strong> ' . $money((float) ($totales['total_faltantes'] ?? 0)) . '</div>'
+                    . '<div><strong>Depósito aplicado:</strong> ' . $money((float) ($totales['deposito_aplicado'] ?? 0)) . '</div>'
+                    . '<div><strong>Saldo por cobrar:</strong> ' . $money((float) ($totales['saldo_por_cobrar'] ?? 0)) . '</div>'
+                    . '<div><strong>Depósito a devolver:</strong> ' . $money((float) ($totales['deposito_devolver'] ?? 0)) . '</div>'
+                    . '</div></div>'
+                );
 
                 return [
                     Placeholder::make('resumen_cierre')

@@ -141,11 +141,16 @@ class CierreDevolucionRentaService
     public function obtenerResumenPorObra(NotasVentaRenta $nota): array
     {
         $resumen = $this->obtenerResumen($nota);
-        $deposito = (float) NotasVentaRenta::query()
+        $depositoNotas = (float) NotasVentaRenta::query()
             ->where('cliente_id', $nota->cliente_id)
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
             ->where('estatus', '!=', 'Cancelada')
             ->sum('deposito');
+        $depositoRegistros = (float) RegistroRenta::query()
+            ->where('cliente_id', $nota->cliente_id)
+            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+            ->sum('importe_deposito');
+        $deposito = $depositoRegistros > 0 ? $depositoRegistros : $depositoNotas;
         $totalObra = (float) NotasVentaRenta::query()
             ->where('cliente_id', $nota->cliente_id)
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
