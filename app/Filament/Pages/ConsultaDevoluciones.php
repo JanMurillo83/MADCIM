@@ -103,6 +103,21 @@ class ConsultaDevoluciones extends Page implements HasActions
                     ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota)
                     : ['rows' => [], 'totales' => []];
                 $totales = $resumenData['totales'];
+                $registrosObra = RegistroRenta::query()
+                    ->where('cliente_id', $this->clienteCierreId)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccionCierreId))
+                    ->get(['importe_deposito']);
+                $deposito = (float) $registrosObra->sum('importe_deposito');
+                $totalNotas = (float) NotasVentaRenta::query()
+                    ->where('cliente_id', $this->clienteCierreId)
+                    ->where('direccion_entrega_id', $this->direccionCierreId)
+                    ->where('estatus', '!=', 'Cancelada')
+                    ->sum('total');
+                $totales['deposito'] = $deposito > 0 ? $deposito : (float) ($totales['deposito'] ?? 0);
+                $totales['total_renta'] = max(0, round($totalNotas - $totales['deposito'], 2));
+                $totales['deposito_aplicado'] = min($totales['deposito'], (float) ($totales['total_faltantes'] ?? 0));
+                $totales['saldo_por_cobrar'] = max(0, (float) ($totales['total_faltantes'] ?? 0) - $totales['deposito_aplicado']);
+                $totales['deposito_devolver'] = max(0, $totales['deposito'] - $totales['deposito_aplicado']);
                 $money = static fn (float $value): string => '$' . number_format($value, 2);
                 $detalle = collect($resumenData['rows'])->map(fn (array $row): string =>
                     '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
