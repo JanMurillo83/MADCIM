@@ -146,8 +146,14 @@ class CierreDevolucionRentaService
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
             ->where('estatus', '!=', 'Cancelada')
             ->sum('deposito');
+        $totalObra = (float) NotasVentaRenta::query()
+            ->where('cliente_id', $nota->cliente_id)
+            ->where('direccion_entrega_id', $nota->direccion_entrega_id)
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('total');
 
         $resumen['totales']['deposito'] = $deposito;
+        $resumen['totales']['total_renta'] = max(0, round($totalObra - $deposito, 2));
         $resumen['totales']['deposito_aplicado'] = min($deposito, $resumen['totales']['total_faltantes']);
         $resumen['totales']['saldo_por_cobrar'] = max(0, $resumen['totales']['total_faltantes'] - $resumen['totales']['deposito_aplicado']);
         $resumen['totales']['deposito_devolver'] = max(0, $deposito - $resumen['totales']['deposito_aplicado']);
@@ -505,10 +511,17 @@ class CierreDevolucionRentaService
 
     private function resumenDesdeCierre(CierreDevolucionRenta $cierre): array
     {
+        $totalObra = (float) NotasVentaRenta::query()
+            ->where('cliente_id', $cierre->cliente_id)
+            ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('total');
+
         return [
             'rows' => [],
             'totales' => [
                 'deposito' => (float) $cierre->deposito_acumulado,
+                'total_renta' => max(0, round($totalObra - (float) $cierre->deposito_acumulado, 2)),
                 'subtotal_faltantes' => round((float) $cierre->total_faltantes / 1.16, 2),
                 'iva_faltantes' => round((float) $cierre->total_faltantes - ((float) $cierre->total_faltantes / 1.16), 2),
                 'total_faltantes' => (float) $cierre->total_faltantes,
@@ -592,6 +605,7 @@ class CierreDevolucionRentaService
         $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
 
         $deposito = (float) ($nota->deposito ?? 0);
+        $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
         $depositoAplicado = min($deposito, $totalFaltantes);
         $saldoPorCobrar = max(0, $totalFaltantes - $depositoAplicado);
         $depositoDevolver = max(0, $deposito - $depositoAplicado);
@@ -600,6 +614,7 @@ class CierreDevolucionRentaService
             'rows' => $rows,
             'totales' => [
                 'deposito' => $deposito,
+                'total_renta' => $totalRenta,
                 'subtotal_faltantes' => $subtotalFaltantes,
                 'iva_faltantes' => $ivaFaltantes,
                 'total_faltantes' => $totalFaltantes,
@@ -663,12 +678,14 @@ class CierreDevolucionRentaService
         $ivaFaltantes = round(array_sum(array_column($rows, 'iva')), 2);
         $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
         $deposito = (float) ($nota->deposito ?? 0);
+        $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
         $depositoAplicado = min($deposito, $totalFaltantes);
 
         return [
             'rows' => $rows,
             'totales' => [
                 'deposito' => $deposito,
+                'total_renta' => $totalRenta,
                 'subtotal_faltantes' => $subtotalFaltantes,
                 'iva_faltantes' => $ivaFaltantes,
                 'total_faltantes' => $totalFaltantes,

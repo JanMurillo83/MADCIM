@@ -21,6 +21,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 class NotasVentaRentaTable
 {
@@ -327,29 +328,35 @@ class NotasVentaRentaTable
                                 ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($record)
                                 : app(CierreDevolucionRentaService::class)->obtenerResumen($record);
                             $totales = $resumenData['totales'];
-                            $resumenRows = [];
+                            $money = static fn (float $value): string => '$' . number_format($value, 2);
+                            $detalle = '';
 
                             foreach ($resumenData['rows'] as $row) {
-                                $resumenRows[] = $row['producto']
-                                    . ': Faltante=' . number_format((float) $row['faltante'], 2)
-                                    . ' x $' . number_format((float) $row['precio_unitario'], 2)
-                                    . ' = $' . number_format((float) $row['subtotal'], 2)
-                                    . ' + IVA $' . number_format((float) $row['iva'], 2)
-                                    . ' = $' . number_format((float) $row['total'], 2);
+                                $detalle .= '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
+                                    . '<strong>' . e($row['producto']) . '</strong>'
+                                    . '<div>Faltante: ' . number_format((float) $row['faltante'], 2)
+                                    . ' | Importe: ' . $money((float) $row['total']) . '</div>'
+                                    . '</div>';
                             }
 
-                            $resumen = empty($resumenRows)
-                                ? 'No hay faltantes por cobrar en esta renta.'
-                                : implode("\n", $resumenRows);
+                            if ($detalle === '') {
+                                $detalle = '<div style="padding: 8px 0;">No hay faltantes por cobrar en esta renta.</div>';
+                            }
 
-                            $resumen .= "\n\n--- Resumen Consolidado de la Renta ---";
-                            $resumen .= "\nDepósito: $" . number_format((float) $totales['deposito'], 2);
-                            $resumen .= "\nSubtotal faltantes: $" . number_format((float) $totales['subtotal_faltantes'], 2);
-                            $resumen .= "\nIVA faltantes: $" . number_format((float) $totales['iva_faltantes'], 2);
-                            $resumen .= "\nTotal faltantes: $" . number_format((float) $totales['total_faltantes'], 2);
-                            $resumen .= "\nDepósito aplicado a faltantes: $" . number_format((float) $totales['deposito_aplicado'], 2);
-                            $resumen .= "\nSaldo por cobrar al cliente: $" . number_format((float) $totales['saldo_por_cobrar'], 2);
-                            $resumen .= "\nDepósito a devolver: $" . number_format((float) $totales['deposito_devolver'], 2);
+                            $resumen = new HtmlString(
+                                '<div style="line-height: 1.6; white-space: normal;">'
+                                . '<div style="font-weight: 700; margin-bottom: 8px;">Detalle de faltantes</div>'
+                                . $detalle
+                                . '<div style="font-weight: 700; margin: 14px 0 8px;">Resumen de la renta</div>'
+                                . '<div style="display: grid; gap: 4px;">'
+                                . '<div><strong>Total de renta:</strong> ' . $money((float) ($totales['total_renta'] ?? 0)) . '</div>'
+                                . '<div><strong>Depósito recibido:</strong> ' . $money((float) ($totales['deposito'] ?? 0)) . '</div>'
+                                . '<div><strong>Total faltantes:</strong> ' . $money((float) ($totales['total_faltantes'] ?? 0)) . '</div>'
+                                . '<div><strong>Depósito aplicado:</strong> ' . $money((float) ($totales['deposito_aplicado'] ?? 0)) . '</div>'
+                                . '<div><strong>Saldo por cobrar:</strong> ' . $money((float) ($totales['saldo_por_cobrar'] ?? 0)) . '</div>'
+                                . '<div><strong>Depósito a devolver:</strong> ' . $money((float) ($totales['deposito_devolver'] ?? 0)) . '</div>'
+                                . '</div></div>'
+                            );
 
                             return [
                                 Placeholder::make('resumen')
