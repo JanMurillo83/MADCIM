@@ -15,9 +15,16 @@ class NotaEnvioPartida extends Model
         'producto_id',
         'descripcion',
         'cantidad',
+        'dias_renta',
+        'fecha_vencimiento',
         'cantidad_devuelta',
         'estado',
         'observaciones',
+    ];
+
+    protected $casts = [
+        'dias_renta' => 'integer',
+        'fecha_vencimiento' => 'date',
     ];
 
     public function notaEnvio(): BelongsTo

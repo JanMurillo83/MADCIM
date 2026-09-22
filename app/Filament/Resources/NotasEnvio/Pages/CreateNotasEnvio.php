@@ -27,6 +27,7 @@ class CreateNotasEnvio extends CreateRecord
         $data['partidas'] = collect($data['partidas'] ?? [])
             ->map(function (array $partida): array {
                 unset($partida['m2_cubre']);
+                unset($partida['observaciones']);
 
                 return $partida;
             })
@@ -34,16 +35,18 @@ class CreateNotasEnvio extends CreateRecord
 
         $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
         if (($data['tipo_origen'] ?? 'renta') === 'renta') {
-            if ((int) ($data['dias_renta'] ?? 0) < 1) {
-                throw ValidationException::withMessages([
-                    'dias_renta' => 'Capture los días de renta del envío.',
-                ]);
-            }
+            foreach ($data['partidas'] as $indice => $partida) {
+                if ((int) ($partida['dias_renta'] ?? 0) < 1) {
+                    throw ValidationException::withMessages([
+                        "partidas.{$indice}.dias_renta" => 'Capture los días de renta de la partida.',
+                    ]);
+                }
 
-            if (empty($data['fecha_vencimiento'])) {
-                throw ValidationException::withMessages([
-                    'fecha_vencimiento' => 'Capture la fecha de vencimiento del envío.',
-                ]);
+                if (empty($partida['fecha_vencimiento'])) {
+                    throw ValidationException::withMessages([
+                        "partidas.{$indice}.fecha_vencimiento" => 'Capture la fecha de vencimiento de la partida.',
+                    ]);
+                }
             }
         }
         if ($nota) {
@@ -129,8 +132,8 @@ class CreateNotasEnvio extends CreateRecord
                         throw new \RuntimeException("No se encontró el producto {$partida->producto_id}.");
                     }
 
-                    $diasRenta = max(1, (int) $record->dias_renta);
-                    $fechaVencimiento = $record->fecha_vencimiento?->toDateString();
+                    $diasRenta = max(1, (int) $partida->dias_renta);
+                    $fechaVencimiento = $partida->fecha_vencimiento?->toDateString();
                     if (!$fechaVencimiento) {
                         throw new \RuntimeException('La Nota de Envío requiere fecha de vencimiento.');
                     }
@@ -207,7 +210,8 @@ class CreateNotasEnvio extends CreateRecord
                     'producto_id' => $partida['producto_id'] ?? null,
                     'descripcion' => $partida['descripcion'] ?? null,
                     'cantidad' => $partida['cantidad'] ?? 0,
-                    'observaciones' => $partida['observaciones'] ?? null,
+                    'dias_renta' => $partida['dias_renta'] ?? null,
+                    'fecha_vencimiento' => $partida['fecha_vencimiento'] ?? null,
                 ]);
             }
 

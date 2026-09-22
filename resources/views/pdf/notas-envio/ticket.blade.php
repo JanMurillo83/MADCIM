@@ -215,6 +215,12 @@
             <div class="item-desc">{{ $partida->producto->descripcion ?? $partida->descripcion }}</div>
             <div class="item-details">
                 <span>{{ number_format($partida->cantidad, 2) }} pzas</span>
+                @if($partida->dias_renta)
+                <span>{{ $partida->dias_renta }} dias</span>
+                @endif
+                @if($partida->fecha_vencimiento)
+                <span>Vence: {{ $partida->fecha_vencimiento->format('d/m/Y') }}</span>
+                @endif
             </div>
             @if($partida->observaciones && $partida->observaciones !== $partida->descripcion)
             <div style="font-size: 11px;">{{ $partida->observaciones }}</div>

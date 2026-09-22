@@ -62,18 +62,31 @@ class NotasEnvioTable
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable(),
-                TextColumn::make('fecha_vencimiento')
-                    ->label('Fecha Vencimiento')
-                    ->date('d/m/Y')
-                    ->sortable(),
+                TextColumn::make('vencimientos_renta')
+                    ->label('Vencimientos')
+                    ->state(function (NotaEnvio $record): string {
+                        $vencimientos = $record->partidas
+                            ->filter(fn (NotaEnvioPartida $partida): bool => (bool) $partida->fecha_vencimiento)
+                            ->map(fn (NotaEnvioPartida $partida): string => $partida->fecha_vencimiento->format('d/m/Y'))
+                            ->unique()
+                            ->values();
+
+                        return $vencimientos->isEmpty() ? '-' : $vencimientos->implode(', ');
+                    })
+                    ->wrap()
+                    ->sortable(false),
                 TextColumn::make('dias_vencimiento')
                     ->label('Dias Vencimiento')
                     ->state(function (NotaEnvio $record): string {
-                        if (!$record->fecha_vencimiento) {
+                        $vencimientos = $record->partidas
+                            ->filter(fn (NotaEnvioPartida $partida): bool => (bool) $partida->fecha_vencimiento)
+                            ->map(fn (NotaEnvioPartida $partida): int => Carbon::today()->diffInDays($partida->fecha_vencimiento, false));
+
+                        if ($vencimientos->isEmpty()) {
                             return '-';
                         }
 
-                        $dias = Carbon::today()->diffInDays(Carbon::parse($record->fecha_vencimiento), false);
+                        $dias = $vencimientos->min();
 
                         if ($dias > 0) {
                             return 'Faltan ' . $dias . ' dias';
@@ -551,8 +564,6 @@ class NotasEnvioTable
                             'cliente_id' => $record->cliente_id,
                             'direccion_entrega_id' => $record->direccion_entrega_id,
                             'fecha_emision' => now(),
-                            'dias_renta' => $record->dias_renta,
-                            'fecha_vencimiento' => now()->addDays($record->dias_renta ?? 30),
                             'observaciones' => $record->observaciones,
                             'estatus' => 'Pendiente',
                             'user_id' => Auth::id(),
@@ -566,6 +577,8 @@ class NotasEnvioTable
                                 'producto_id' => $partida->producto_id,
                                 'descripcion' => $partida->descripcion,
                                 'cantidad' => $partida->cantidad,
+                                'dias_renta' => $partida->dias_renta,
+                                'fecha_vencimiento' => $partida->fecha_vencimiento,
                                 'observaciones' => $partida->observaciones,
                             ]);
                         }

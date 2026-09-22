@@ -132,6 +132,8 @@ class NotasEnvioForm
                 'producto_id' => $objetivo['producto_id'],
                 'descripcion' => $objetivo['descripcion'],
                 'cantidad' => $pendiente,
+                'dias_renta' => $nota->partidas->firstWhere('id', $objetivo['partida_id'])?->dias_renta,
+                'fecha_vencimiento' => $nota->partidas->firstWhere('id', $objetivo['partida_id'])?->fecha_vencimiento?->toDateString(),
                 'observaciones' => $objetivo['descripcion'],
             ];
         }
@@ -159,6 +161,8 @@ class NotasEnvioForm
                     'producto_id' => null,
                     'descripcion' => 'Captura manual de productos M2 (pendiente: ' . number_format($objetivoM2 - $enviadoM2, 2) . ' M2)',
                     'cantidad' => 1,
+                    'dias_renta' => $partida->dias_renta,
+                    'fecha_vencimiento' => $partida->fecha_vencimiento?->toDateString(),
                     'observaciones' => 'Seleccione el producto físico para cubrir los M2 pendientes.',
                 ];
             }
@@ -229,8 +233,6 @@ class NotasEnvioForm
                                 if (!$nota) return;
                                 $set('cliente_id', $nota->cliente_id);
                                 $set('direccion_entrega_id', $nota->direccion_entrega_id);
-                                $set('dias_renta', 0);
-                                $set('fecha_vencimiento', null);
                                 // Las NR M2 se surten con productos físicos del desglose,
                                 // no con la partida conceptual de renta.
                                 $partidasData = self::partidasPendientesDeNota($nota);
@@ -302,33 +304,6 @@ class NotasEnvioForm
                         DatePicker::make('fecha_emision')
                             ->default(Carbon::now()->format('Y-m-d'))
                             ->format('Y-m-d'),
-                        TextInput::make('dias_renta')
-                            ->label('Días de Renta')
-                            ->numeric()
-                            ->default(0)
-                            ->minValue(1)
-                            ->live()
-                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                if (! filled($state) || ! filled($get('fecha_emision'))) {
-                                    $set('fecha_vencimiento', null);
-
-                                    return;
-                                }
-
-                                $set(
-                                    'fecha_vencimiento',
-                                    Carbon::parse($get('fecha_emision'))
-                                        ->addDays(max(1, (int) $state))
-                                        ->toDateString(),
-                                );
-                            })
-                            ->required(fn (Get $get): bool => ($get('tipo_origen') ?? 'renta') === 'renta')
-                            ->visible(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta'),
-                        DatePicker::make('fecha_vencimiento')
-                            ->label('Fecha de Vencimiento')
-                            ->format('Y-m-d')
-                            ->required(fn (Get $get): bool => ($get('tipo_origen') ?? 'renta') === 'renta')
-                            ->visible(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta'),
                         Select::make('cliente_id')
                             ->label('Cliente')
                             ->relationship('cliente', 'nombre')
@@ -387,7 +362,8 @@ class NotasEnvioForm
                             ->table([
                                 Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Cantidad'),
-                                Repeater\TableColumn::make('Observaciones'),
+                                Repeater\TableColumn::make('Días de Renta'),
+                                Repeater\TableColumn::make('Vencimiento'),
                             ])->compact()
                             ->schema([
                                 Hidden::make('nota_venta_renta_partida_id'),
@@ -413,9 +389,15 @@ class NotasEnvioForm
                                     ->default(1)
                                     ->minValue(0.01)
                                     ->columnSpan(1),
-                                TextInput::make('observaciones')
-                                    ->label('Observaciones')
-                                    ->columnSpan(2),
+                                TextInput::make('dias_renta')
+                                    ->label('Días de Renta')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
+                                DatePicker::make('fecha_vencimiento')
+                                    ->label('Vencimiento')
+                                    ->format('Y-m-d')
+                                    ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
                             ])
                             ->columns(6)
                             ->defaultItems(1)
