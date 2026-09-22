@@ -6,8 +6,8 @@ use App\Models\Cotizaciones;
 use App\Models\DocumentoSerie;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DocumentoConversionService
 {
@@ -25,7 +25,7 @@ class DocumentoConversionService
                 'serie' => $serieDefault,
                 'folio' => null, // Se asignará automáticamente por el trait
                 'sucursal_id' => $cotizacion->sucursal_id ?? null,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'fecha_emision' => now(),
                 'moneda' => $cotizacion->moneda,
                 'tipo_cambio' => $cotizacion->tipo_cambio,
@@ -48,6 +48,12 @@ class DocumentoConversionService
                 $notaVenta->partidas()->create([
                     'cantidad' => $partida->cantidad,
                     'item' => $partida->item,
+                    'tipo_nota_renta' => 'equipo',
+                    'tipo_renta' => 'dia',
+                    'duracion_renta' => 1,
+                    'dias_renta' => 1,
+                    'fecha_vencimiento' => now()->addDays(max(1, (int) ($cotizacion->dias_renta ?? 1))),
+                    'deposito' => 0,
                     'descripcion' => $partida->descripcion,
                     'valor_unitario' => $partida->valor_unitario,
                     'subtotal' => $partida->subtotal,
@@ -74,7 +80,7 @@ class DocumentoConversionService
                 'serie' => $serieDefault,
                 'folio' => null, // Se asignará automáticamente por el trait
                 'sucursal_id' => $cotizacion->sucursal_id ?? null,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::id(),
                 'fecha_emision' => now(),
                 'moneda' => $cotizacion->moneda,
                 'tipo_cambio' => $cotizacion->tipo_cambio,

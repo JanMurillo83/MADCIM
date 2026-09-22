@@ -95,7 +95,7 @@ class ResetOperationalDataTest extends TestCase
         DB::table('documento_series')->insert([
             'documento_tipo' => 'prueba',
             'serie' => 'T',
-            'ultimo_folio' => 0,
+            'ultimo_folio' => 12,
         ]);
 
         $configurationCount = DB::table('configuracion')->count();
@@ -113,6 +113,7 @@ class ResetOperationalDataTest extends TestCase
         $this->assertDatabaseHas('documento_series', [
             'documento_tipo' => 'prueba',
             'serie' => 'T',
+            'ultimo_folio' => 0,
         ]);
     }
 

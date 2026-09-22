@@ -44,8 +44,11 @@
                     $subtotalDevuelto = $itemsGrupo->sum('cantidad_devuelta');
                     $subtotalPendiente = max(0, $subtotalCantidad - $subtotalDevuelto);
                     $subtotalRenta = $itemsGrupo->sum('importe_renta');
-                    $subtotalVenta = $itemsGrupo->sum(fn ($item) => ($item->producto?->precio_venta ?? 0) * $item->cantidad);
-                    $subtotalDeposito = $itemsGrupo->sum('importe_deposito');
+                    $subtotalVenta = $itemsGrupo->sum(fn ($item) => (float) ($item->total_precio_venta_pendiente ?? 0));
+                    $subtotalDeposito = $itemsGrupo
+                        ->filter(fn ($registro) => $registro->notaVentaRenta)
+                        ->unique(fn ($registro) => $registro->notaVentaRenta->id)
+                        ->sum(fn ($registro) => (float) ($registro->notaVentaRenta->deposito ?? 0));
                 @endphp
 
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow dark:border-gray-700 dark:bg-gray-800">
@@ -59,8 +62,8 @@
                                 {{ $subtotalCantidad }} productos enviados |
                                 Devueltos: {{ $subtotalDevuelto }} |
                                 Pendientes: {{ $subtotalPendiente }} |
-                                Venta total: ${{ number_format($subtotalVenta, 2) }} |
-                                Depósitos recibidos: ${{ number_format($subtotalDeposito, 2) }}
+                                Venta pendiente: ${{ number_format($subtotalVenta, 2) }} |
+                                Depósito recibido: ${{ number_format($subtotalDeposito, 2) }}
                             </p>
                         </div>
                         @if($notaRenta)
@@ -114,7 +117,7 @@
                                         <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">{{ max(0, $cantidad - $devueltos) }}</td>
                                         <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($item->importe_renta, 2) }}</td>
                                         <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta, 2) }}</td>
-                                        <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format($precioVenta * $cantidad, 2) }}</td>
+                                        <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">${{ number_format((float) ($item->total_precio_venta_pendiente ?? 0), 2) }}</td>
                                     </tr>
                                 @endforeach
                                 <tr class="bg-gray-100 font-semibold dark:bg-gray-600">

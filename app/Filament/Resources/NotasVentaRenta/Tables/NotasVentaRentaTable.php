@@ -11,7 +11,6 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
@@ -365,10 +364,6 @@ class NotasVentaRentaTable
                                 Textarea::make('observaciones')
                                     ->label('Observaciones')
                                     ->rows(3),
-                                TextInput::make('folio_interno')
-                                    ->label('Folio interno')
-                                    ->maxLength(100)
-                                    ->placeholder('Capture el folio interno'),
                                 Select::make('modo_cierre')
                                     ->label('Resolución de la renta')
                                     ->options([
@@ -377,7 +372,7 @@ class NotasVentaRentaTable
                                     ])
                                     ->default('devolucion')
                                     ->required()
-                                    ->visible(fn () => $record->esMadera()),
+                                    ->visible(fn () => $record->tieneMadera()),
                             ];
                         })
                         ->action(function (NotasVentaRenta $record, array $data): void {
@@ -389,7 +384,6 @@ class NotasVentaRentaTable
                                     $data['observaciones'] ?? null,
                                     Auth::id(),
                                     $data['modo_cierre'] ?? 'devolucion',
-                                    $data['folio_interno'] ?? null,
                                 )
                                 : $servicioCierre->cerrar(
                                     $record,
@@ -397,11 +391,13 @@ class NotasVentaRentaTable
                                     Auth::id(),
                                     $data['modo_cierre'] ?? 'devolucion',
                                     false,
-                                    $data['folio_interno'] ?? null,
                                 );
 
                             $totales = $resultado['resumen']['totales'];
                             session(['cierre_devolucion_resumen_nvr_' . $record->id => $resultado['resumen']]);
+                            if (!empty($resultado['nota_id']) && (int) $resultado['nota_id'] !== (int) $record->id) {
+                                session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
+                            }
 
                             if (!empty($resultado['already_closed'])) {
                                 Notification::make()

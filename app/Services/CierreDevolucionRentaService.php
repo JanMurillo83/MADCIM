@@ -22,6 +22,163 @@ use Illuminate\Support\Facades\DB;
 
 class CierreDevolucionRentaService
 {
+    public function cancelar(CierreDevolucionRenta $cierre, ?int $userId = null): void
+    {
+        DB::transaction(function () use ($cierre, $userId): void {
+            $cierre = CierreDevolucionRenta::query()->lockForUpdate()->findOrFail($cierre->id);
+            if ($cierre->estatus === 'Cancelado') {
+                return;
+            }
+
+            $notaIds = NotasVentaRenta::query()
+                ->where('cliente_id', $cierre->cliente_id)
+                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                ->where('estatus', '!=', 'Cancelada')
+                ->pluck('id');
+
+            $devolucionPosterior = NotaDevolucionRentaPartida::query()
+                ->where('cantidad_aplicada', '>', 0)
+                ->whereHas('notaDevolucionRenta', fn ($query) => $query
+                    ->whereIn('nota_venta_renta_id', $notaIds)
+                    ->where('aplicada_en', '>', $cierre->cerrada_en));
+
+            if ($devolucionPosterior->exists()) {
+                throw new \DomainException('No se puede cancelar el cierre porque existen devoluciones aplicadas posteriormente.');
+            }
+
+            $notaVenta = $cierre->notaVentaVenta()->with('partidas')->first();
+            $referencia = 'Cancelación cierre #' . $cierre->id;
+
+            if ($notaVenta) {
+                foreach ($notaVenta->partidas as $partida) {
+                    $productoId = (int) $partida->item;
+                    if ($productoId > 0 && (float) $partida->cantidad > 0) {
+                        InventarioMovimientoService::entrada($productoId, (float) $partida->cantidad, $referencia, (string) $notaVenta->id);
+                    }
+                }
+                $notaVenta->update(['estatus' => 'Cancelada', 'saldo_pendiente' => 0]);
+            }
+
+            $registros = RegistroRenta::query()
+                ->where('cliente_id', $cierre->cliente_id)
+                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $cierre->direccion_entrega_id))
+                ->with('producto')
+                ->get();
+
+            foreach ($registros as $registro) {
+                $devuelta = (float) ($registro->cantidad_devuelta ?? 0);
+                if ($devuelta > 0) {
+                    InventarioMovimientoService::salida((int) $registro->producto_id, $devuelta, $referencia, (string) $cierre->id);
+                }
+                $registro->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
+            }
+
+            NotaEnvioPartida::query()
+                ->whereHas('notaEnvio', fn ($query) => $query
+                    ->where('cliente_id', $cierre->cliente_id)
+                    ->where('direccion_entrega_id', $cierre->direccion_entrega_id))
+                ->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
+
+            NotaEnvio::query()
+                ->where('cliente_id', $cierre->cliente_id)
+                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                ->update(['estado_renta' => 'Activa']);
+
+            if ($cierre->caja_movimiento_id) {
+                $movimiento = CajaMovimiento::find($cierre->caja_movimiento_id);
+                if ($movimiento) {
+                    CajaMovimiento::create([
+                        'caja_id' => $movimiento->caja_id,
+                        'tipo' => 'Ingreso',
+                        'fuente' => 'Reversión de cierre de renta',
+                        'metodo_pago' => $movimiento->metodo_pago,
+                        'importe' => $movimiento->importe,
+                        'referencia' => $referencia,
+                        'observaciones' => 'Reversión del egreso del cierre.',
+                        'user_id' => $userId,
+                        'fecha' => now(),
+                        'movimentable_type' => self::class,
+                        'movimentable_id' => $cierre->id,
+                    ]);
+                }
+            }
+
+            NotasVentaRenta::query()
+                ->whereIn('id', $notaIds)
+                ->update(['estatus' => 'Activa']);
+
+            $cierre->update([
+                'estatus' => 'Cancelado',
+                'observaciones' => trim(($cierre->observaciones ?? '') . "\nCierre cancelado por usuario {$userId} el " . now()->format('Y-m-d H:i:s')),
+            ]);
+        });
+    }
+
+    public function integrarDevolucionExtemporanea(
+        CierreDevolucionRenta $cierre,
+        array $cantidades,
+        ?string $observaciones = null,
+        ?int $userId = null,
+    ): array {
+        return DB::transaction(function () use ($cierre, $cantidades, $observaciones, $userId): array {
+            $cierre = CierreDevolucionRenta::query()->lockForUpdate()->findOrFail($cierre->id);
+            if ($cierre->estatus !== 'Procesado') {
+                throw new \DomainException('Sólo se pueden integrar devoluciones en cierres procesados.');
+            }
+
+            $notaVenta = $cierre->notaVentaVenta()->with('partidas')->first();
+            if (!$notaVenta) {
+                throw new \DomainException('El cierre no tiene una venta por faltantes para integrar la devolución.');
+            }
+
+            $totalDevuelto = 0.0;
+            $totalAjuste = 0.0;
+            foreach ($cantidades as $productoId => $cantidad) {
+                $cantidad = (float) $cantidad;
+                if ($cantidad <= 0) {
+                    continue;
+                }
+
+                $partidaVenta = $notaVenta->partidas->first(fn ($partida) => (int) $partida->item === (int) $productoId);
+                if (!$partidaVenta) {
+                    throw new \DomainException("El producto {$productoId} no pertenece a la venta por faltantes del cierre.");
+                }
+
+                $maximo = (float) $partidaVenta->cantidad;
+                if ($cantidad > $maximo) {
+                    throw new \DomainException("La cantidad extemporánea del producto {$productoId} supera el faltante registrado.");
+                }
+
+                InventarioMovimientoService::entrada((int) $productoId, $cantidad, 'Devolución extemporánea de cierre #' . $cierre->id, (string) $cierre->id);
+                $partidaVenta->cantidad = $maximo - $cantidad;
+                $partidaVenta->subtotal = round((float) $partidaVenta->cantidad * (float) $partidaVenta->valor_unitario, 2);
+                $partidaVenta->impuestos = round($partidaVenta->subtotal * 0.16, 2);
+                $partidaVenta->total = round($partidaVenta->subtotal + $partidaVenta->impuestos, 2);
+                $partidaVenta->save();
+                $totalDevuelto += $cantidad;
+                $totalAjuste += $cantidad * (float) $partidaVenta->valor_unitario * 1.16;
+            }
+
+            if ($totalDevuelto <= 0) {
+                throw new \DomainException('Capture al menos una cantidad extemporánea mayor que cero.');
+            }
+
+            $notaVenta->update([
+                'subtotal' => round($notaVenta->partidas->sum('subtotal'), 2),
+                'impuestos_total' => round($notaVenta->partidas->sum('impuestos'), 2),
+                'total' => round($notaVenta->partidas->sum('total'), 2),
+                'saldo_pendiente' => max(0, (float) $notaVenta->saldo_pendiente - $totalAjuste),
+            ]);
+
+            $cierre->update([
+                'total_faltantes' => max(0, (float) $cierre->total_faltantes - $totalAjuste),
+                'saldo_por_cobrar' => max(0, (float) $cierre->saldo_por_cobrar - $totalAjuste),
+                'observaciones' => trim(($cierre->observaciones ?? '') . "\nDevolución extemporánea: {$totalDevuelto} unidades. " . ($observaciones ?? '')),
+            ]);
+
+            return ['cantidad' => $totalDevuelto, 'importe' => $totalAjuste, 'user_id' => $userId];
+        });
+    }
     public function procesarDepositoPendiente(int $cierreId, ?int $userId = null): bool
     {
         return DB::transaction(function () use ($cierreId, $userId): bool {
@@ -146,11 +303,7 @@ class CierreDevolucionRentaService
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
             ->where('estatus', '!=', 'Cancelada')
             ->sum('deposito');
-        $depositoRegistros = (float) RegistroRenta::query()
-            ->where('cliente_id', $nota->cliente_id)
-            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
-            ->sum('importe_deposito');
-        $deposito = $depositoRegistros > 0 ? $depositoRegistros : $depositoNotas;
+        $deposito = $depositoNotas;
         $totalObra = (float) NotasVentaRenta::query()
             ->where('cliente_id', $nota->cliente_id)
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
@@ -275,7 +428,6 @@ class CierreDevolucionRentaService
             $devolucion = DevolucionesRenta::create([
                 'serie' => $this->resolverSerieDevolucion(),
                 'fecha_emision' => now(),
-                'folio_interno' => $folioInterno,
                 'moneda' => $nota->moneda ?? 'MXN',
                 'tipo_cambio' => $nota->tipo_cambio ?? 1,
                 'subtotal' => $resumen['totales']['subtotal_faltantes'],
@@ -514,8 +666,29 @@ class CierreDevolucionRentaService
         return true;
     }
 
-    private function resumenDesdeCierre(CierreDevolucionRenta $cierre): array
+    public function resumenDesdeCierre(CierreDevolucionRenta $cierre): array
     {
+        $notaVenta = $cierre->notaVentaVenta()->with('partidas')->first();
+        $rows = $notaVenta?->partidas
+            ->filter(fn ($partida): bool => (float) $partida->cantidad > 0)
+            ->map(function ($partida): array {
+                $cantidad = (float) $partida->cantidad;
+                $total = (float) $partida->total;
+
+                return [
+                    'producto_id' => (int) $partida->item,
+                    'clave' => (string) $partida->item,
+                    'producto' => (string) ($partida->descripcion ?? 'Producto'),
+                    'faltante' => $cantidad,
+                    'precio_unitario' => $cantidad > 0 ? $total / $cantidad : 0,
+                    'subtotal' => (float) $partida->subtotal,
+                    'iva' => (float) $partida->impuestos,
+                    'total' => $total,
+                ];
+            })
+            ->values()
+            ->all() ?? [];
+
         $totalObra = (float) NotasVentaRenta::query()
             ->where('cliente_id', $cierre->cliente_id)
             ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
@@ -523,7 +696,7 @@ class CierreDevolucionRentaService
             ->sum('total');
 
         return [
-            'rows' => [],
+            'rows' => $rows,
             'totales' => [
                 'deposito' => (float) $cierre->deposito_acumulado,
                 'total_renta' => max(0, round($totalObra - (float) $cierre->deposito_acumulado, 2)),

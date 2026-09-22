@@ -41,9 +41,7 @@
             $direccionNombre = $direccion ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa : $itemsGrupo->first()->cliente_direccion;
             $subtotalRenta = $itemsGrupo->sum('importe_renta');
             $subtotalVenta = $itemsGrupo->sum(function ($item) {
-                $pendientes = max(0, (float) $item->cantidad - (float) ($item->cantidad_devuelta ?? 0));
-
-                return (float) ($item->producto?->precio_venta ?? 0) * $pendientes;
+                return (float) ($item->total_precio_venta_pendiente ?? 0);
             });
         @endphp
         @php
@@ -80,7 +78,7 @@
                         <td class="text-center">{{ max(0, $cantidad - $devueltos) }}</td>
                         <td class="text-right">${{ number_format($item->importe_renta, 2) }}</td>
                         <td class="text-right">${{ number_format($precioVenta, 2) }}</td>
-                        <td class="text-right">${{ number_format($precioVenta * max(0, $cantidad - $devueltos), 2) }}</td>
+                        <td class="text-right">${{ number_format((float) ($item->total_precio_venta_pendiente ?? 0), 2) }}</td>
                     </tr>
                 @endforeach
                 <tr class="subtotal-row">
@@ -112,10 +110,7 @@
             </tr>
             <tr>
                 <td>Importe a Cobrar por Faltante de Madera</td>
-                <td class="text-right">${{ number_format($itemsAgrupados->flatten(1)->sum(function ($item) {
-                    $pendientes = max(0, (float) $item->cantidad - (float) $item->cantidad_devuelta);
-                    return $pendientes * (float) ($item->producto?->precio_venta ?? 0);
-                }), 2) }}</td>
+                <td class="text-right">${{ number_format($itemsAgrupados->flatten(1)->sum(fn ($item) => (float) ($item->total_precio_venta_pendiente ?? 0)), 2) }}</td>
             </tr>
         </table>
     </div>

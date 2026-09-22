@@ -6,11 +6,11 @@ use App\Enums\TipoNotaRenta;
 use App\Models\Caja;
 use App\Models\Configuracion;
 use App\Models\DevolucionesRenta;
+use App\Models\CierreDevolucionRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Services\CierreDevolucionRentaService;
-use App\Services\RentaMaderaM2Service;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -66,8 +66,19 @@ class NotaVentaRentaPdfController extends Controller
             ->where('estatus', '!=', 'Cancelada')
             ->orderBy('id')
             ->get(['id', 'serie', 'folio', 'fecha_emision']);
-        $resumen = session('cierre_devolucion_resumen_nvr_' . $notaVenta->id)
-            ?? app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
+        $resumen = null;
+        if (!$resumen && $notaVenta->direccion_entrega_id) {
+            $cierre = CierreDevolucionRenta::query()
+                ->where('cliente_id', $notaVenta->cliente_id)
+                ->where('direccion_entrega_id', $notaVenta->direccion_entrega_id)
+                ->latest('id')
+                ->first();
+            if ($cierre) {
+                $resumen = app(CierreDevolucionRentaService::class)->resumenDesdeCierre($cierre);
+            }
+        }
+        $resumen ??= session('cierre_devolucion_resumen_nvr_' . $notaVenta->id);
+        $resumen ??= app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
 
         $notaVentaVenta = NotasVentaVenta::query()
             ->whereIn('documento_origen_id', $notasOrigen->pluck('id'))
@@ -223,31 +234,22 @@ class NotaVentaRentaPdfController extends Controller
 
     private function conceptoM2(NotasVentaRenta $notaVenta): ?array
     {
-        $tipo = TipoNotaRenta::tryFrom($notaVenta->tipo_nota_renta ?? '');
+        $partidasM2 = $notaVenta->partidas->filter(function ($partida) use ($notaVenta): bool {
+            $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? '');
+            return $tipo?->esMaderaM2() ?? false;
+        });
 
-        if (!$tipo?->esMaderaM2()) {
+        if ($partidasM2->isEmpty()) {
             return null;
         }
 
-        $partida = $notaVenta->partidas->first();
-        $metros = 0.0;
-
-        if ($partida && preg_match('/-\s*([\d.,]+)\s*M2\b/i', (string) $partida->descripcion, $matches)) {
-            $metros = (float) str_replace(',', '', $matches[1]);
-        }
-
-        $precios = RentaMaderaM2Service::preciosParaTipo($tipo);
-        if ($metros <= 0 && $precios['renta'] > 0) {
-            $metros = (float) ($notaVenta->subtotal ?? 0) / $precios['renta'];
-        }
-        if ($metros <= 0 && $precios['deposito'] > 0) {
-            $metros = (float) ($notaVenta->deposito ?? 0) / $precios['deposito'];
-        }
-
-        $total = (float) ($partida?->total ?? (($notaVenta->subtotal ?? 0) + ($notaVenta->impuestos_total ?? 0)));
+        $metros = (float) $partidasM2->sum(fn ($partida): float => (float) ($partida->metros_m2 ?? 0));
+        $total = (float) $partidasM2->sum(fn ($partida): float => (float) $partida->total);
 
         return [
-            'descripcion' => 'Renta de Madera por M2',
+            'descripcion' => $partidasM2->count() > 1
+                ? 'Renta de Madera por M2 (varias partidas)'
+                : 'Renta de Madera por M2',
             'cantidad' => round($metros, 2),
             'valor_unitario' => $metros > 0 ? $total / $metros : 0,
             'total' => $total,

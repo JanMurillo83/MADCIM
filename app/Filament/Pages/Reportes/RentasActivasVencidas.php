@@ -82,7 +82,7 @@ class RentasActivasVencidas extends Page
         $hoy = now()->toDateString();
 
         $query = NotasVentaRenta::query()
-            ->with('cliente')
+            ->with(['cliente', 'registrosRenta'])
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->sucursal_id, fn ($q) => $q->where('sucursal_id', $this->sucursal_id))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
@@ -90,33 +90,31 @@ class RentasActivasVencidas extends Page
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin));
 
-        if ($this->estado === 'Activa') {
-            $query->whereIn('estatus', ['Activa', 'Pagada'])
-                ->where(function ($q) use ($hoy) {
-                    $q->whereNull('fecha_vencimiento')
-                        ->orWhere('fecha_vencimiento', '>=', $hoy);
-                });
-        }
-
-        if ($this->estado === 'Vencida') {
-            $query->whereIn('estatus', ['Activa', 'Pagada'])
-                ->whereNotNull('fecha_vencimiento')
-                ->where('fecha_vencimiento', '<', $hoy);
-        }
-
         return $query->get()->map(function ($row) use ($hoy) {
-            $vencida = $row->fecha_vencimiento && $row->fecha_vencimiento->toDateString() < $hoy;
+            $registrosActivos = $row->registrosRenta
+                ->filter(fn ($registro): bool => (float) ($registro->cantidad_devuelta ?? 0) < (float) $registro->cantidad);
+            $fechasPartidas = $registrosActivos
+                ->pluck('fecha_vencimiento')
+                ->filter()
+                ->map(fn ($fecha) => $fecha->toDateString())
+                ->sort()
+                ->values();
+            $fechaVencimiento = $fechasPartidas->first() ?? optional($row->fecha_vencimiento)->toDateString();
+            $vencida = $fechaVencimiento !== null && $fechaVencimiento < $hoy;
+
             return [
                 'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
                 'fecha_emision' => optional($row->fecha_emision)->format('Y-m-d'),
-                'fecha_vencimiento' => optional($row->fecha_vencimiento)->format('Y-m-d'),
+                'fecha_vencimiento' => $fechaVencimiento,
                 'cliente' => $row->cliente?->nombre ?? 'N/A',
                 'total' => (float) $row->total,
                 'saldo_pendiente' => (float) $row->saldo_pendiente,
                 'estatus' => $row->estatus,
                 'estado' => $vencida ? 'Vencida' : 'Activa',
             ];
-        });
+        })->filter(function (array $row): bool {
+            return !$this->estado || $row['estado'] === $this->estado;
+        })->values();
     }
 
     #[Computed]

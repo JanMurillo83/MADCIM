@@ -148,12 +148,34 @@ class NotasVentaRenta extends Model
 
     public function esMaderaM2(): bool
     {
-        return \App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMaderaM2() ?? false;
+        return $this->partidas->isEmpty()
+            ? (\App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMaderaM2() ?? false)
+            : $this->partidas->every(fn (NotaVentaRentaPartidas $partida): bool =>
+                \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $this->tipo_nota_renta)?->esMaderaM2() ?? false
+            );
     }
 
     public function esMadera(): bool
     {
-        return \App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMadera() ?? false;
+        return $this->partidas->isEmpty()
+            ? (\App\Enums\TipoNotaRenta::tryFrom($this->tipo_nota_renta)?->esMadera() ?? false)
+            : $this->partidas->every(fn (NotaVentaRentaPartidas $partida): bool =>
+                \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $this->tipo_nota_renta)?->esMadera() ?? false
+            );
+    }
+
+    public function tieneMadera(): bool
+    {
+        return $this->partidas->contains(fn (NotaVentaRentaPartidas $partida): bool =>
+            \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $this->tipo_nota_renta)?->esMadera() ?? false
+        );
+    }
+
+    public function tieneMaderaM2(): bool
+    {
+        return $this->partidas->contains(fn (NotaVentaRentaPartidas $partida): bool =>
+            \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $this->tipo_nota_renta)?->esMaderaM2() ?? false
+        );
     }
 
     public function metrosM2(): ?float

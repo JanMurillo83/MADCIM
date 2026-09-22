@@ -11,6 +11,7 @@ class NotaVentaRentaM2Desglose extends Model
 
     protected $fillable = [
         'nota_venta_renta_id',
+        'nota_venta_renta_partida_id',
         'producto_id',
         'clave',
         'descripcion',
@@ -24,6 +25,11 @@ class NotaVentaRentaM2Desglose extends Model
     public function notaVentaRenta(): BelongsTo
     {
         return $this->belongsTo(NotasVentaRenta::class, 'nota_venta_renta_id');
+    }
+
+    public function partida(): BelongsTo
+    {
+        return $this->belongsTo(NotaVentaRentaPartidas::class, 'nota_venta_renta_partida_id');
     }
 
     public function producto(): BelongsTo

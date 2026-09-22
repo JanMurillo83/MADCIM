@@ -11,6 +11,7 @@ use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use Carbon\Carbon;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
@@ -32,21 +33,73 @@ class CreateNotasEnvio extends CreateRecord
             ->all();
 
         $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
-        if ($nota?->esMaderaM2()) {
-            $objetivoM2 = $nota->metrosM2();
-            $cubiertoM2 = collect($data['partidas'] ?? [])->sum(function (array $partida): float {
-                $producto = Productos::find($partida['producto_id'] ?? null);
-                return (float) ($partida['cantidad'] ?? 0) * (float) ($producto?->m2_cubre ?? 0);
-            });
-
-            if ($objetivoM2 !== null && $cubiertoM2 + 0.0001 < $objetivoM2) {
+        if (($data['tipo_origen'] ?? 'renta') === 'renta') {
+            if ((int) ($data['dias_renta'] ?? 0) < 1) {
                 throw ValidationException::withMessages([
-                    'partidas' => sprintf(
-                        'El envío cubre %.2f M2, pero la Nota de Venta Renta requiere %.2f M2.',
-                        $cubiertoM2,
-                        $objetivoM2,
-                    ),
+                    'dias_renta' => 'Capture los días de renta del envío.',
                 ]);
+            }
+
+            if (empty($data['fecha_vencimiento'])) {
+                throw ValidationException::withMessages([
+                    'fecha_vencimiento' => 'Capture la fecha de vencimiento del envío.',
+                ]);
+            }
+        }
+        if ($nota) {
+            $partidasM2 = $nota->partidas->filter(
+                fn ($partida) => \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? '')?->esMaderaM2()
+            );
+            if ($partidasM2->count() === 1 && $nota->partidas->count() === 1) {
+                $partidaM2Id = $partidasM2->first()->id;
+                $data['partidas'] = collect($data['partidas'] ?? [])
+                    ->map(function (array $partida) use ($partidaM2Id): array {
+                        if (empty($partida['nota_venta_renta_partida_id'])) {
+                            $partida['nota_venta_renta_partida_id'] = $partidaM2Id;
+                        }
+
+                        return $partida;
+                    })
+                    ->all();
+            }
+            foreach ($partidasM2 as $partidaOrigen) {
+                $objetivoM2 = (float) $partidaOrigen->metros_m2;
+                if ($objetivoM2 <= 0) {
+                    continue;
+                }
+                $cubiertoM2 = collect($data['partidas'] ?? [])
+                    ->filter(fn (array $partida) => (int) ($partida['nota_venta_renta_partida_id'] ?? 0) === (int) $partidaOrigen->id)
+                    ->sum(function (array $partida): float {
+                        $producto = Productos::find($partida['producto_id'] ?? null);
+                        return (float) ($partida['cantidad'] ?? 0) * (float) ($producto?->m2_cubre ?? 0);
+                    });
+                $yaEnviadoM2 = NotaEnvioPartida::query()
+                    ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+                    ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
+                    ->filter(function ($envioPartida) use ($partidaOrigen): bool {
+                        $producto = Productos::find($envioPartida->producto_id);
+                        return (int) $envioPartida->nota_venta_renta_partida_id === (int) $partidaOrigen->id
+                            || (float) ($producto?->m2_cubre ?? 0) > 0;
+                    })
+                    ->sum(fn ($partida): float => (float) $partida->cantidad * (float) (Productos::find($partida->producto_id)?->m2_cubre ?? 0));
+
+                $limiteM2 = $objetivoM2 + 1.0;
+                if ($yaEnviadoM2 + $cubiertoM2 > $limiteM2 + 0.0001) {
+                    $mensaje = sprintf(
+                        'La captura excede el límite permitido de %.2f M2. El objetivo es %.2f M2 y el margen autorizado es de 1.00 M2.',
+                        $limiteM2,
+                        $objetivoM2,
+                    );
+                    Notification::make()
+                        ->danger()
+                        ->title('No se pudo crear la Nota de Envío')
+                        ->body($mensaje)
+                        ->persistent()
+                        ->send();
+                    throw ValidationException::withMessages([
+                        'partidas' => $mensaje,
+                    ]);
+                }
             }
         }
 
@@ -67,10 +120,6 @@ class CreateNotasEnvio extends CreateRecord
             DB::transaction(function () use ($record, $nota): void {
                 $cliente = $nota->cliente;
                 $fechaEmision = Carbon::parse($nota->fecha_emision);
-                $diasRenta = $record->dias_renta ?? $nota->dias_renta ?? 30;
-                $fechaVencimiento = $record->fecha_vencimiento?->toDateString()
-                    ?? $nota->fecha_vencimiento?->toDateString()
-                    ?? $fechaEmision->copy()->addDays($diasRenta)->toDateString();
 
                 $referencia = $record->serie . $record->folio;
 
@@ -78,6 +127,12 @@ class CreateNotasEnvio extends CreateRecord
                     $producto = Productos::find($partida->producto_id);
                     if (!$producto) {
                         throw new \RuntimeException("No se encontró el producto {$partida->producto_id}.");
+                    }
+
+                    $diasRenta = max(1, (int) $record->dias_renta);
+                    $fechaVencimiento = $record->fecha_vencimiento?->toDateString();
+                    if (!$fechaVencimiento) {
+                        throw new \RuntimeException('La Nota de Envío requiere fecha de vencimiento.');
                     }
 
                     InventarioMovimientoService::salida(
@@ -122,6 +177,12 @@ class CreateNotasEnvio extends CreateRecord
             });
         } catch (\Throwable $exception) {
             report($exception);
+            Notification::make()
+                ->danger()
+                ->title('No se pudo procesar el envío')
+                ->body($exception->getMessage())
+                ->persistent()
+                ->send();
             throw $exception;
         }
 
@@ -132,23 +193,35 @@ class CreateNotasEnvio extends CreateRecord
 
     protected function handleRecordCreation(array $data): Model
     {
-        $partidas = $data['partidas'] ?? [];
-        unset($data['partidas']);
+        try {
+            $partidas = $data['partidas'] ?? [];
+            unset($data['partidas']);
 
-        $record = new NotaEnvio($data);
-        $record->save();
+            $record = new NotaEnvio($data);
+            $record->save();
 
-        foreach ($partidas as $partida) {
-            NotaEnvioPartida::create([
-                'nota_envio_id' => $record->id,
-                'producto_id' => $partida['producto_id'] ?? null,
-                'descripcion' => $partida['descripcion'] ?? null,
-                'cantidad' => $partida['cantidad'] ?? 0,
-                'observaciones' => $partida['observaciones'] ?? null,
-            ]);
+            foreach ($partidas as $partida) {
+                NotaEnvioPartida::create([
+                    'nota_envio_id' => $record->id,
+                    'nota_venta_renta_partida_id' => $partida['nota_venta_renta_partida_id'] ?? null,
+                    'producto_id' => $partida['producto_id'] ?? null,
+                    'descripcion' => $partida['descripcion'] ?? null,
+                    'cantidad' => $partida['cantidad'] ?? 0,
+                    'observaciones' => $partida['observaciones'] ?? null,
+                ]);
+            }
+
+            return $record;
+        } catch (\Throwable $exception) {
+            report($exception);
+            Notification::make()
+                ->danger()
+                ->title('No se pudo crear la Nota de Envío')
+                ->body($exception->getMessage())
+                ->persistent()
+                ->send();
+            throw $exception;
         }
-
-        return $record;
     }
 
     protected function getRedirectUrl(): string

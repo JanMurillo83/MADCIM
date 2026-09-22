@@ -1,30 +1,30 @@
 @vite(['resources/css/app.css', 'resources/js/app.js'])
-<div class="space-y-4">
+<div class="space-y-4 rounded-lg bg-gray-800 p-4 text-white">
     @if($items->isEmpty())
-        <p class="text-sm !text-gray-900 dark:!text-gray-100">No hay productos registrados en renta para esta nota.</p>
+        <p class="text-sm text-white">No hay productos registrados en renta para esta nota.</p>
     @else
-        <table class="w-full text-sm text-left rtl:text-right !text-gray-900 dark:!text-gray-100">
-            <thead class="bg-neutral-secondary-soft border-b border-default">
+        <table class="w-full text-sm text-left text-white rtl:text-right">
+            <thead class="border-b border-gray-500 bg-gray-700 text-white">
                 <tr>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100">Producto</th>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100 text-center">Cantidad</th>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100 text-center">Devuelto</th>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100 text-center">Pendiente</th>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100">Observaciones</th>
-                    <th class="px-8 py-2 font-medium !text-gray-900 dark:!text-gray-100 text-center">Estado</th>
+                    <th class="px-4 py-2 font-medium text-white">Producto</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Cantidad</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Devuelto</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Pendiente</th>
+                    <th class="px-4 py-2 font-medium text-white">Observaciones</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Estado</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+            <tbody class="divide-y divide-gray-600 text-white">
                 @foreach($items as $item)
                     @php
                         $pendiente = $item->cantidad - ($item->cantidad_devuelta ?? 0);
                     @endphp
                     <tr>
-                        <td class="px-8 py-4 !text-gray-900 dark:!text-gray-100">{{ $item->producto?->descripcion ?? $item->descripcion ?? '-' }}</td>
-                        <td class="px-8 py-4 text-center !text-gray-900 dark:!text-gray-100">{{ $item->cantidad }}</td>
-                        <td class="px-8 py-4 text-center !text-gray-900 dark:!text-gray-100">{{ (float)($item->cantidad_devuelta ?? 0) }}</td>
-                        <td class="px-8 py-4 text-center !text-gray-900 dark:!text-gray-100">{{ $pendiente }}</td>
-                        <td class="px-8 py-4 !text-gray-900 dark:!text-gray-100">{{ $item->observaciones ?? '-' }}</td>
+                        <td class="px-4 py-3 text-white">{{ $item->producto?->descripcion ?? $item->descripcion ?? '-' }}</td>
+                        <td class="px-4 py-3 text-center text-white">{{ $item->cantidad }}</td>
+                        <td class="px-4 py-3 text-center text-white">{{ (float)($item->cantidad_devuelta ?? 0) }}</td>
+                        <td class="px-4 py-3 text-center text-white">{{ $pendiente }}</td>
+                        <td class="px-4 py-3 text-white">{{ $item->observaciones ?? '-' }}</td>
                         <td class="px-8 py-4 text-center">
                             @if(($item->estado ?? 'Activo') === 'Devuelto')
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Devuelto</span>

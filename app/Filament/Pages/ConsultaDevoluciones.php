@@ -14,7 +14,6 @@ use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\TextInput;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
@@ -103,17 +102,12 @@ class ConsultaDevoluciones extends Page implements HasActions
                     ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota)
                     : ['rows' => [], 'totales' => []];
                 $totales = $resumenData['totales'];
-                $registrosObra = RegistroRenta::query()
-                    ->where('cliente_id', $this->clienteCierreId)
-                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccionCierreId))
-                    ->get(['importe_deposito']);
-                $deposito = (float) $registrosObra->sum('importe_deposito');
                 $totalNotas = (float) NotasVentaRenta::query()
                     ->where('cliente_id', $this->clienteCierreId)
                     ->where('direccion_entrega_id', $this->direccionCierreId)
                     ->where('estatus', '!=', 'Cancelada')
                     ->sum('total');
-                $totales['deposito'] = $deposito > 0 ? $deposito : (float) ($totales['deposito'] ?? 0);
+                $totales['deposito'] = (float) ($totales['deposito'] ?? 0);
                 $totales['total_renta'] = max(0, round($totalNotas - $totales['deposito'], 2));
                 $totales['deposito_aplicado'] = min($totales['deposito'], (float) ($totales['total_faltantes'] ?? 0));
                 $totales['saldo_por_cobrar'] = max(0, (float) ($totales['total_faltantes'] ?? 0) - $totales['deposito_aplicado']);
@@ -146,10 +140,6 @@ class ConsultaDevoluciones extends Page implements HasActions
                     Placeholder::make('resumen_cierre')
                         ->label('Revise antes de confirmar')
                         ->content($resumen),
-                    TextInput::make('folio_interno')
-                        ->label('Folio interno')
-                        ->maxLength(100)
-                        ->required(),
                 ];
             })
             ->action(function (array $data): void {
@@ -158,8 +148,17 @@ class ConsultaDevoluciones extends Page implements HasActions
                         $this->clienteCierreId,
                         $this->direccionCierreId,
                         userId: Auth::id(),
-                        folioInterno: $data['folio_interno'],
                     );
+
+                    if (!empty($resultado['already_closed'])) {
+                        Notification::make()
+                            ->warning()
+                            ->title('La obra ya tiene un cierre procesado')
+                            ->body('No se creó un cierre nuevo. Revise el registro existente en Cierres de Obra o cancélelo antes de procesar nuevamente.')
+                            ->persistent()
+                            ->send();
+                        return;
+                    }
 
                     session(['cierre_devolucion_observaciones_nvr_' . $resultado['nota_id'] => null]);
                     session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
@@ -230,7 +229,12 @@ class ConsultaDevoluciones extends Page implements HasActions
                         $item->cantidad = $itemsProducto->sum('cantidad');
                         $item->cantidad_devuelta = $itemsProducto->sum('cantidad_devuelta');
                         $item->importe_renta = $itemsProducto->sum('importe_renta');
-                        $item->importe_deposito = $itemsProducto->sum('importe_deposito');
+                        $item->importe_deposito = $itemsProducto
+                            ->filter(fn ($registro) => $registro->notaVentaRenta)
+                            ->unique(fn ($registro) => $registro->notaVentaRenta->id)
+                            ->sum(fn ($registro) => (float) ($registro->notaVentaRenta->deposito ?? 0));
+                        $cantidadPendiente = max(0, (float) $item->cantidad - (float) $item->cantidad_devuelta);
+                        $item->total_precio_venta_pendiente = (float) ($item->producto?->precio_venta ?? 0) * $cantidadPendiente;
 
                         return $item;
                     })->values();

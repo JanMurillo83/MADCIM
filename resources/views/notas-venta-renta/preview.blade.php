@@ -372,10 +372,20 @@
                     <span>TOTAL</span>
                 </div>
                 @foreach($notaVenta->partidas as $partida)
+                @php
+                    $tipoPartida = \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? 'equipo');
+                    $esM2 = $tipoPartida?->esMaderaM2() ?? false;
+                @endphp
                 <div class="item-row">
                     <div class="item-desc">{{ $partida->descripcion }}</div>
                     <div class="item-details">
-                        <span>{{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                        <span>
+                            @if($esM2)
+                                {{ number_format($partida->metros_m2, 2) }} M2 x ${{ number_format($partida->metros_m2 > 0 ? $partida->total / $partida->metros_m2 : 0, 2) }}
+                            @else
+                                {{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}
+                            @endif
+                        </span>
                         <span>${{ number_format($partida->total, 2) }}</span>
                     </div>
                 </div>
@@ -385,11 +395,14 @@
             <div class="totals">
                 @php
                     $impuestosTotal = $notaVenta->impuestos_total ?? 0;
-                    $subtotalConImpuestos = ($notaVenta->subtotal ?? 0) + $impuestosTotal;
                 @endphp
                 <div class="total-row">
                     <span class="total-label">Subtotal Partidas:</span>
-                    <span>${{ number_format($subtotalConImpuestos, 2) }}</span>
+                    <span>${{ number_format($notaVenta->subtotal ?? 0, 2) }}</span>
+                </div>
+                <div class="total-row">
+                    <span class="total-label">IVA:</span>
+                    <span>${{ number_format($impuestosTotal, 2) }}</span>
                 </div>
                 <div class="total-row deposito-row">
                     <span class="total-label">Depósito:</span>

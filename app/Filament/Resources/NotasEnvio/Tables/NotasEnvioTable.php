@@ -33,6 +33,8 @@ class NotasEnvioTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->recordAction('ver_detalle')
+            ->recordUrl(null)
             ->columns([
                 TextColumn::make('id')
                     ->label('Folio')
@@ -497,6 +499,14 @@ class NotasEnvioTable
                                 'nota_venta_renta_id' => $nuevaNota->id,
                                 'cantidad' => $partida->cantidad,
                                 'item' => $partida->item,
+                                'tipo_nota_renta' => $partida->tipo_nota_renta,
+                                'tipo_renta' => $partida->tipo_renta,
+                                'duracion_renta' => $partida->duracion_renta,
+                                'dias_renta' => $partida->dias_renta,
+                                'fecha_vencimiento' => $partida->fecha_vencimiento
+                                    ? now()->addDays($partida->fecha_vencimiento->diffInDays($nota->fecha_emision))
+                                    : null,
+                                'metros_m2' => $partida->metros_m2,
                                 'descripcion' => $partida->descripcion,
                                 'valor_unitario' => $partida->valor_unitario,
                                 'subtotal' => $partida->subtotal,
@@ -522,7 +532,9 @@ class NotasEnvioTable
                                 'cantidad' => $reg->cantidad,
                                 'dias_renta' => $reg->dias_renta,
                                 'fecha_renta' => now(),
-                                'fecha_vencimiento' => now()->addDays($reg->dias_renta ?? 30),
+                                'fecha_vencimiento' => $reg->fecha_vencimiento
+                                    ? now()->addDays($reg->fecha_vencimiento->diffInDays($nota->fecha_emision))
+                                    : now()->addDays($reg->dias_renta ?? 30),
                                 'importe_renta' => $reg->importe_renta,
                                 'importe_deposito' => $reg->importe_deposito,
                                 'estado' => 'Activo',
@@ -550,6 +562,7 @@ class NotasEnvioTable
                         foreach ($record->partidas as $partida) {
                             NotaEnvioPartida::create([
                                 'nota_envio_id' => $nuevaNotaEnvio->id,
+                                'nota_venta_renta_partida_id' => $partida->nota_venta_renta_partida_id,
                                 'producto_id' => $partida->producto_id,
                                 'descripcion' => $partida->descripcion,
                                 'cantidad' => $partida->cantidad,

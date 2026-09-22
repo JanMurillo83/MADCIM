@@ -11,6 +11,7 @@ class NotaEnvioPartida extends Model
 
     protected $fillable = [
         'nota_envio_id',
+        'nota_venta_renta_partida_id',
         'producto_id',
         'descripcion',
         'cantidad',
@@ -22,6 +23,11 @@ class NotaEnvioPartida extends Model
     public function notaEnvio(): BelongsTo
     {
         return $this->belongsTo(NotaEnvio::class, 'nota_envio_id');
+    }
+
+    public function partidaRenta(): BelongsTo
+    {
+        return $this->belongsTo(NotaVentaRentaPartidas::class, 'nota_venta_renta_partida_id');
     }
 
     public function producto(): BelongsTo

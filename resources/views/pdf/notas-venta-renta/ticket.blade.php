@@ -236,35 +236,40 @@
             <span>CONCEPTO</span>
             <span>TOTAL</span>
         </div>
-        @if($conceptoM2)
-        <div class="item-row">
-            <div class="item-desc">{{ $conceptoM2['descripcion'] }}</div>
-            <div class="item-details">
-                <span>{{ number_format($conceptoM2['cantidad'], 2) }} M2 x ${{ number_format($conceptoM2['valor_unitario'], 2) }}</span>
-                <span>${{ number_format($conceptoM2['total'], 2) }}</span>
-            </div>
-        </div>
-        @else
-            @foreach($notaVenta->partidas as $partida)
+        @foreach($notaVenta->partidas as $partida)
+            @php
+                $tipoPartida = \App\Enums\TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? 'equipo');
+                $esM2 = $tipoPartida?->esMaderaM2() ?? false;
+            @endphp
             <div class="item-row">
-                <div class="item-desc">{{ $partida->descripcion }}</div>
+                <div class="item-desc">
+                    {{ $partida->descripcion }}
+                    @if($tipoPartida)
+                        <span style="font-size: 11px; font-weight: normal;">({{ $tipoPartida->label() }})</span>
+                    @endif
+                </div>
                 <div class="item-details">
-                    <span>{{ number_format($partida->cantidad, 0) }} x ${{ number_format($partida->valor_unitario, 2) }}</span>
+                    <span>
+                        @if($esM2)
+                            {{ number_format($partida->metros_m2, 2) }} M2 x ${{ number_format($partida->metros_m2 > 0 ? $partida->total / $partida->metros_m2 : 0, 2) }}
+                        @else
+                            {{ number_format($partida->cantidad, 2) }} x ${{ number_format($partida->valor_unitario, 2) }}
+                        @endif
+                    </span>
                     <span>${{ number_format($partida->total, 2) }}</span>
                 </div>
             </div>
-            @endforeach
-        @endif
+        @endforeach
     </div>
 
     <div class="totals">
         @php
-            $impuestosTotal = $notaVenta->impuestos_total ?? 0;
-            $subtotalConImpuestos = ($notaVenta->subtotal ?? 0) + $impuestosTotal;
+            $impuestosTotal = (float) ($notaVenta->impuestos_total ?? 0);
+            $subtotalPartidas = (float) ($notaVenta->subtotal ?? 0) + $impuestosTotal;
         @endphp
         <div class="total-row">
             <span class="total-label">Subtotal Partidas:</span>
-            <span>${{ number_format($subtotalConImpuestos, 2) }}</span>
+            <span>${{ number_format($subtotalPartidas, 2) }}</span>
         </div>
         <div class="total-row" style="background: #f0f0f0;">
             <span class="total-label">Depósito:</span>

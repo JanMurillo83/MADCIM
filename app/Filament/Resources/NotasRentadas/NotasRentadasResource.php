@@ -462,6 +462,14 @@ class NotasRentadasResource extends Resource
                                 'nota_venta_renta_id' => $nuevaNota->id,
                                 'cantidad' => $partida->cantidad,
                                 'item' => $partida->item,
+                                'tipo_nota_renta' => $partida->tipo_nota_renta,
+                                'tipo_renta' => $partida->tipo_renta,
+                                'duracion_renta' => $partida->duracion_renta,
+                                'dias_renta' => $partida->dias_renta,
+                                'fecha_vencimiento' => $partida->fecha_vencimiento
+                                    ? now()->addDays($partida->fecha_vencimiento->diffInDays($record->fecha_emision))
+                                    : null,
+                                'metros_m2' => $partida->metros_m2,
                                 'descripcion' => $partida->descripcion,
                                 'valor_unitario' => $partida->valor_unitario,
                                 'subtotal' => $partida->subtotal,
@@ -484,7 +492,9 @@ class NotasRentadasResource extends Resource
                                 'cantidad' => $registro->cantidad,
                                 'dias_renta' => $registro->dias_renta,
                                 'fecha_renta' => now(),
-                                'fecha_vencimiento' => now()->addDays($registro->dias_renta ?? 30),
+                                'fecha_vencimiento' => $registro->fecha_vencimiento
+                                    ? now()->addDays($registro->fecha_vencimiento->diffInDays($record->fecha_emision))
+                                    : now()->addDays($registro->dias_renta ?? 30),
                                 'importe_renta' => $registro->importe_renta,
                                 'importe_deposito' => $registro->importe_deposito,
                                 'observaciones' => $registro->observaciones,

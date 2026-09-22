@@ -79,7 +79,6 @@ class NotasVentaRentaForm
             return;
         }
 
-        $tipoNotaRenta = self::tipoNotaRentaActual($get);
         $tipoRenta = $get('tipo_renta') ?? 'dia';
         $duracion = self::resolverDuracionRenta($get);
         $cambiadas = false;
@@ -95,10 +94,13 @@ class NotasVentaRentaForm
                 continue;
             }
 
-            $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
-            $valorUnitario = $tipoNotaRenta?->esMadera() === true
+            $tipoNotaRenta = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? 'equipo') ?? TipoNotaRenta::Equipo;
+            $tipoRentaPartida = $partida['tipo_renta'] ?? $tipoRenta;
+            $duracionPartida = max(1, (float) ($partida['duracion_renta'] ?? $duracion));
+            $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRentaPartida, $tipoNotaRenta);
+            $valorUnitario = $tipoNotaRenta->esMadera()
                 ? $precioBase
-                : round($precioBase * $duracion, 2);
+                : round($precioBase * $duracionPartida, 2);
             $cantidad = (float) ($partida['cantidad'] ?? 1);
             $totalConIva = round($cantidad * $valorUnitario, 2);
             $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
@@ -107,6 +109,9 @@ class NotasVentaRentaForm
             $partidas[$key]['subtotal'] = $desglose['subtotal'];
             $partidas[$key]['impuestos'] = $desglose['iva'];
             $partidas[$key]['total'] = $totalConIva;
+            $partidas[$key]['deposito'] = $tipoNotaRenta->esMadera()
+                ? round($totalConIva * 0.50, 2)
+                : 0;
             $cambiadas = true;
         }
 
@@ -127,6 +132,57 @@ class NotasVentaRentaForm
         $set('subtotal', $desglose['subtotal']);
         $set('impuestos', $desglose['iva']);
         $set('total', $totalConIva);
+        $set('deposito', self::esMadera($get) ? round($totalConIva * 0.50, 2) : 0);
+    }
+
+    private static function recalculatePartidaByRentaConfig(Get $get, Set $set): void
+    {
+        $itemId = $get('item');
+        if (!$itemId) {
+            return;
+        }
+
+        $producto = Productos::find($itemId);
+        $tipo = self::tipoNotaRentaActual($get);
+        if (!$producto || !$tipo) {
+            return;
+        }
+
+        if ($tipo->esMaderaM2()) {
+            self::recalcularM2Partida($get, $set);
+            return;
+        }
+
+        $tipoRenta = $get('tipo_renta') ?? 'dia';
+        $duracion = self::resolverDuracionRenta($get);
+        $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipo);
+        $set('valor_unitario', $tipo->esMadera() ? $precioBase : round($precioBase * $duracion, 2));
+        self::recalculatePartidaTotales($get, $set);
+    }
+
+    private static function recalcularM2Partida(Get $get, Set $set): void
+    {
+        $tipo = self::tipoNotaRentaActual($get);
+        $metros = (float) ($get('metros_m2') ?? 0);
+        if (!$tipo?->esMaderaM2() || $metros <= 0) {
+            return;
+        }
+
+        $calculo = RentaMaderaM2Service::calcular($tipo, $metros);
+        $productoId = RentaMaderaM2Service::productoRentaM2Id($tipo);
+        $producto = Productos::find($productoId);
+        if (!$producto) {
+            return;
+        }
+
+        $set('item', $productoId);
+        $set('descripcion', $producto->descripcion . ' - ' . $metros . ' M2');
+        $set('cantidad', 1);
+        $set('valor_unitario', $calculo['total_renta']);
+        $set('subtotal', $calculo['subtotal_renta']);
+        $set('impuestos', $calculo['iva_renta']);
+        $set('total', $calculo['total_renta']);
+        $set('deposito', $calculo['deposito']);
     }
 
     private static function recalcularM2(Get $get, Set $set): void
@@ -173,8 +229,7 @@ class NotasVentaRentaForm
     {
         $subtotal = 0.0;
         $impuestos = 0.0;
-        $subtotalMadera = 0.0;
-        $impuestosMadera = 0.0;
+        $deposito = 0.0;
 
         if (!is_array($partidas)) {
             self::setDocumentoTotales($set, $fromRepeater, 0.0, 0.0, 0.0, 0.0);
@@ -184,20 +239,8 @@ class NotasVentaRentaForm
         foreach ($partidas as $partida) {
             $subtotal += (float) ($partida['subtotal'] ?? 0);
             $impuestos += (float) ($partida['impuestos'] ?? 0);
-
-            // Sumar subtotal de items de línea MADERA
-            $itemId = $partida['item'] ?? null;
-            if ($itemId) {
-                $producto = Productos::find($itemId);
-                if ($producto && trim($producto->linea) === 'MADERA') {
-                    $subtotalMadera += (float) ($partida['subtotal'] ?? 0);
-                    $impuestosMadera += (float) ($partida['impuestos'] ?? 0);
-                }
-            }
+            $deposito += (float) ($partida['deposito'] ?? 0);
         }
-
-        // Depósito = 50% del total con IVA de items de línea MADERA
-        $deposito = round(($subtotalMadera + $impuestosMadera) * 0.50, 2);
 
         // Total = Subtotal Partidas + IVA Partidas + Depósito (sin IVA)
         $total = Numero::redondear($subtotal + $impuestos + $deposito);
@@ -218,26 +261,10 @@ class NotasVentaRentaForm
                     ->schema([
                         Select::make('tipo_nota_renta')
                             ->label('Tipo de Nota de Renta')
-                            ->required()
+                            ->required(false)
                             ->default('equipo')
                             ->options(TipoNotaRenta::options())
-                            ->live()
-                            ->afterStateUpdated(function (Get $get, Set $set) {
-                                $tipo = self::tipoNotaRentaActual($get);
-
-                                if ($tipo?->esMadera()) {
-                                    $set('tipo_renta', 'dia');
-                                    $set('duracion_renta', 1);
-                                }
-
-                                if ($tipo?->esMaderaM2()) {
-                                    $set('partidas', []);
-                                    self::recalcularM2($get, $set);
-                                } else {
-                                    $set('metros_m2', 0);
-                                    self::recalculatePartidasByRentaConfig($get, $set);
-                                }
-                            }),
+                            ->hidden(),
                         Select::make('serie')
                             ->required()
                             ->options(function () {
@@ -272,7 +299,7 @@ class NotasVentaRentaForm
                                 'mes' => 'Por Mes',
                             ])
                             ->live()
-                            ->visible(fn (Get $get) => self::esEquipo($get))
+                            ->visible(false)
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 self::recalculatePartidasByRentaConfig($get, $set);
                             }),
@@ -284,7 +311,7 @@ class NotasVentaRentaForm
                             ->minValue(1)
                             ->helperText('Número de días, semanas o meses según el tipo de renta.')
                             ->live(onBlur: true)
-                            ->visible(fn (Get $get) => self::esEquipo($get))
+                            ->visible(false)
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 self::recalculatePartidasByRentaConfig($get, $set);
                             }),
@@ -474,14 +501,78 @@ class NotasVentaRentaForm
                             })
                             ->compact()
                             ->table([
+                                Repeater\TableColumn::make('Tipo de renta'),
+                                Repeater\TableColumn::make('Unidad'),
+                                Repeater\TableColumn::make('Duración'),
+                                Repeater\TableColumn::make('Días'),
+                                Repeater\TableColumn::make('M²'),
                                 Repeater\TableColumn::make('Cantidad'),
                                 Repeater\TableColumn::make('Producto'),
                                 Repeater\TableColumn::make('Precio'),
-                                //Repeater\TableColumn::make('Subtotal'),
-                                //Repeater\TableColumn::make('Impuestos'),
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
+                                Select::make('tipo_nota_renta')
+                                    ->label('Tipo de renta')
+                                    ->options(TipoNotaRenta::options())
+                                    ->default('equipo')
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(function (Get $get, Set $set): void {
+                                        $tipo = self::tipoNotaRentaActual($get);
+                                        if ($tipo?->esMadera()) {
+                                            $set('tipo_renta', 'dia');
+                                            $set('duracion_renta', 1);
+                                        }
+                                        self::recalculatePartidaByRentaConfig($get, $set);
+                                        self::recalculateDocumentoTotales($get, $set);
+                                    })
+                                    ->columnSpan(2),
+                                Select::make('tipo_renta')
+                                    ->label('Unidad')
+                                    ->options([
+                                        'dia' => 'Día',
+                                        'semana' => 'Semana',
+                                        'mes' => 'Mes',
+                                    ])
+                                    ->default('dia')
+                                    ->required()
+                                    ->live(onBlur: true)
+                                    ->visible(fn (Get $get): bool => self::esEquipo($get))
+                                    ->afterStateUpdated(function (Get $get, Set $set): void {
+                                        self::recalculatePartidaByRentaConfig($get, $set);
+                                        self::recalculateDocumentoTotales($get, $set);
+                                    }),
+                                TextInput::make('duracion_renta')
+                                    ->label('Duración')
+                                    ->numeric()
+                                    ->required()
+                                    ->default(1)
+                                    ->minValue(1)
+                                    ->live(onBlur: true)
+                                    ->visible(fn (Get $get): bool => self::esEquipo($get))
+                                    ->afterStateUpdated(function (Get $get, Set $set): void {
+                                        self::recalculatePartidaByRentaConfig($get, $set);
+                                        self::recalculateDocumentoTotales($get, $set);
+                                    }),
+                                TextInput::make('dias_renta')
+                                    ->label('Días')
+                                    ->numeric()
+                                    ->default(1)
+                                    ->minValue(1)
+                                    ->required(fn (Get $get): bool => self::esMadera($get))
+                                    ->visible(fn (Get $get): bool => self::esMadera($get)),
+                                TextInput::make('metros_m2')
+                                    ->label('M²')
+                                    ->numeric()
+                                    ->minValue(0.01)
+                                    ->required(fn (Get $get): bool => self::esMaderaM2($get))
+                                    ->visible(fn (Get $get): bool => self::esMaderaM2($get))
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set): void {
+                                        self::recalcularM2Partida($get, $set);
+                                        self::recalculateDocumentoTotales($get, $set);
+                                    }),
                                 TextInput::make('cantidad')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -557,8 +648,8 @@ class NotasVentaRentaForm
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
-                                        $tipoRenta = $get('../../tipo_renta') ?? 'dia';
-                                        $duracion = max(1, (float) ($get('../../duracion_renta') ?? 1));
+                                        $tipoRenta = $get('tipo_renta') ?? 'dia';
+                                        $duracion = max(1, (float) ($get('duracion_renta') ?? 1));
                                         $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
                                         $precio = $tipoNotaRenta?->esMadera() === true
                                             ? $precioBase
@@ -585,6 +676,7 @@ class NotasVentaRentaForm
                                     }),
                                 Hidden::make('subtotal')->default(0.0),
                                 Hidden::make('impuestos')->default(0.0),
+                                Hidden::make('deposito')->default(0.0),
                                 TextInput::make('total')
                                     ->columnSpan(1)
                                     ->numeric()

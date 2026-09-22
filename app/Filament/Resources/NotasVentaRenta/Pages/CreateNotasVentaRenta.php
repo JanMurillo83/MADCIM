@@ -9,6 +9,7 @@ use App\Models\Clientes;
 use App\Models\Pagos;
 use App\Models\Productos;
 use App\Services\RentaMaderaM2Service;
+use App\Support\Impuestos;
 use Carbon\Carbon;
 use DomainException;
 use Filament\Actions\Action;
@@ -209,69 +210,30 @@ class CreateNotasVentaRenta extends CreateRecord
     public function buildRentaPeriodoDescription(): HtmlString
     {
         $data = $this->data ?? [];
-        $tipoNotaRenta = TipoNotaRenta::tryFrom($data['tipo_nota_renta'] ?? '');
-        $esMaderaM2 = $tipoNotaRenta?->esMaderaM2() ?? false;
-        $esMadera = $tipoNotaRenta?->esMadera() ?? false;
-
         $fechaEmision = $data['fecha_emision'] ?? Carbon::now()->toDateString();
-        $diasRenta = $esMaderaM2
-            ? min(30, max(1, (int) ($data['dias_solicitados'] ?? 1)))
-            : ($esMadera
-                ? max(1, (int) ($data['dias_solicitados'] ?? 1))
-                : $this->calcularDiasRentaEquipo($data));
-        $fechaVencimiento = Carbon::parse($fechaEmision)->addDays($diasRenta)->toDateString();
         $total = number_format((float) ($data['total'] ?? 0), 2);
-
-        if ($esMaderaM2) {
-            $metros = number_format((float) ($data['metros_m2'] ?? 0), 2);
-            return new HtmlString(
-                '<p class="mb-2">Por favor revise los datos de la renta M2 antes de guardar:</p>'
-                . '<ul class="list-disc pl-5 space-y-1">'
-                . "<li><strong>Tipo de Nota de Renta:</strong> {$tipoNotaRenta->label()}</li>"
-                . "<li><strong>Metros cuadrados:</strong> {$metros} M2</li>"
-                . "<li><strong>Días de renta:</strong> {$diasRenta}</li>"
-                . "<li><strong>Fecha de vencimiento:</strong> {$fechaVencimiento}</li>"
-                . "<li><strong>Total a pagar:</strong> \${$total}</li>"
-                . '</ul>'
-            );
-        }
-
-        if ($esMadera) {
-            $diasSolicitados = (int) ($data['dias_solicitados'] ?? 1);
-            $cantidadTotal = collect($data['partidas'] ?? [])
-                ->sum(fn ($partida) => (float) ($partida['cantidad'] ?? 0));
-
-            return new HtmlString(
-                '<p class="mb-2">Por favor revise los datos de la renta de madera antes de guardar:</p>'
-                . '<ul class="list-disc pl-5 space-y-1">'
-                . "<li><strong>Tipo de Nota de Renta:</strong> {$tipoNotaRenta->label()}</li>"
-                . "<li><strong>Días solicitados:</strong> {$diasSolicitados}</li>"
-                . "<li><strong>Fecha de vencimiento:</strong> {$fechaVencimiento}</li>"
-                . "<li><strong>Cantidad total de artículos:</strong> {$cantidadTotal}</li>"
-                . "<li><strong>Total a pagar:</strong> \${$total}</li>"
-                . '</ul>'
-            );
-        }
-
-        $tipoRenta = $data['tipo_renta'] ?? 'dia';
-        $duracion = (int) ($data['duracion_renta'] ?? 1);
-
-        [$tipoLabel, $unidad] = match ($tipoRenta) {
-            'semana' => ['Por Semana', 'semana(s)'],
-            'mes' => ['Por Mes', 'mes(es)'],
-            default => ['Por Día', 'día(s)'],
-        };
-
-        $cantidadTotal = collect($data['partidas'] ?? [])
-            ->sum(fn ($partida) => (float) ($partida['cantidad'] ?? 0));
+        $tipos = collect($data['partidas'] ?? [])
+            ->map(fn ($partida) => TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? 'equipo'))
+            ->filter()
+            ->unique()
+            ->map(fn (TipoNotaRenta $tipo) => $tipo->label())
+            ->implode(', ');
+        $fechaVencimiento = collect($data['partidas'] ?? [])
+            ->map(function (array $partida) use ($fechaEmision): Carbon {
+                $tipo = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? 'equipo') ?? TipoNotaRenta::Equipo;
+                $dias = $tipo->esMadera()
+                    ? min(30, max(1, (int) ($partida['dias_renta'] ?? 1)))
+                    : $this->calcularDiasRentaEquipo($partida);
+                return Carbon::parse($fechaEmision)->addDays($dias);
+            })
+            ->sort()
+            ->last()?->toDateString() ?? Carbon::parse($fechaEmision)->toDateString();
 
         return new HtmlString(
-            '<p class="mb-2">Por favor revise el periodo de renta antes de guardar:</p>'
+            '<p class="mb-2">Por favor revise las partidas de renta antes de guardar:</p>'
             . '<ul class="list-disc pl-5 space-y-1">'
-            . "<li><strong>Tipo de renta:</strong> {$tipoLabel}</li>"
-            . "<li><strong>Duración:</strong> {$duracion} {$unidad}</li>"
+            . "<li><strong>Tipos de renta:</strong> {$tipos}</li>"
             . "<li><strong>Fecha de vencimiento:</strong> {$fechaVencimiento}</li>"
-            . "<li><strong>Cantidad total de artículos:</strong> {$cantidadTotal}</li>"
             . "<li><strong>Total a pagar:</strong> \${$total}</li>"
             . '</ul>'
         );
@@ -290,6 +252,11 @@ class CreateNotasVentaRenta extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $partidasCapturadas = $this->form->getRawState()['partidas'] ?? [];
+        if (is_array($partidasCapturadas) && $partidasCapturadas !== []) {
+            $data['partidas'] = $partidasCapturadas;
+        }
+
         $cliente = Clientes::find($data['cliente_id'] ?? null);
         $condicionPago = $data['condicion_pago'] ?? 'contado';
 
@@ -301,41 +268,94 @@ class CreateNotasVentaRenta extends CreateRecord
             ]);
         }
 
-        $tipoNotaRenta = TipoNotaRenta::tryFrom($data['tipo_nota_renta'] ?? '');
         $fechaEmision = Carbon::parse($data['fecha_emision'] ?? now());
         $data['fecha_vencimiento_pago'] = $condicionPago === 'credito'
             ? $fechaEmision->copy()->addDays(max(1, (int) ($cliente?->dias_credito ?? 0)))->toDateString()
             : null;
 
-        if ($tipoNotaRenta?->esMadera() === true) {
-            // Para madera (pieza o M2) el precio es fijo, pero los días determinan el vencimiento.
-            $data['duracion_renta'] = 1;
-            $data['tipo_renta'] = 'dia';
+        $partidas = [];
+        $subtotal = 0.0;
+        $impuestos = 0.0;
+        $deposito = 0.0;
+        $vencimientoMaximo = $fechaEmision->copy();
 
-            $diasRenta = min(30, max(1, (int) ($data['dias_solicitados'] ?? 1)));
+        foreach ($data['partidas'] ?? [] as $partida) {
+            $tipo = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? $data['tipo_nota_renta'] ?? 'equipo')
+                ?? TipoNotaRenta::Equipo;
+            $cantidad = max(0.0, (float) ($partida['cantidad'] ?? 0));
+            $tipoRenta = $partida['tipo_renta'] ?? 'dia';
+            $duracion = max(1, (int) ($partida['duracion_renta'] ?? 1));
+            $dias = $tipo->esMadera()
+                ? min(30, max(1, (int) ($partida['dias_renta'] ?? 1)))
+                : match ($tipoRenta) {
+                    'semana' => $duracion * 7,
+                    'mes' => $duracion * 30,
+                    default => $duracion,
+                };
 
-            $data['dias_renta'] = $diasRenta;
-            $data['fecha_vencimiento'] = $fechaEmision->copy()->addDays($diasRenta)->toDateString();
-
-            if ($tipoNotaRenta->esMaderaM2()) {
-                $data = $this->prepareM2Partidas($data, $tipoNotaRenta);
+            $productoId = $partida['item'] ?? null;
+            if ($tipo->esMaderaM2()) {
+                $productoId = RentaMaderaM2Service::productoRentaM2Id($tipo);
+            }
+            $producto = Productos::find($productoId);
+            if (!$producto) {
+                continue;
             }
 
-            return $data;
+            if ($tipo->esMaderaM2()) {
+                $metros = max(0.0, (float) ($partida['metros_m2'] ?? 0));
+                $calculo = RentaMaderaM2Service::calcular($tipo, $metros);
+                $partida['item'] = $producto->id;
+                $partida['descripcion'] = $producto->descripcion . ' - ' . $metros . ' M2';
+                $partida['cantidad'] = 1;
+                $partida['valor_unitario'] = $calculo['total_renta'];
+                $partida['subtotal'] = $calculo['subtotal_renta'];
+                $partida['impuestos'] = $calculo['iva_renta'];
+                $partida['total'] = $calculo['total_renta'];
+                $partida['deposito'] = $calculo['deposito'];
+            } else {
+                $precioBase = $tipo->esMadera()
+                    ? (float) $producto->precio_renta_dia
+                    : match ($tipoRenta) {
+                        'semana' => (float) $producto->precio_renta_semana,
+                        'mes' => (float) $producto->precio_renta_mes,
+                        default => (float) $producto->precio_renta_dia,
+                    };
+                $valorUnitario = $tipo->esMadera() ? $precioBase : round($precioBase * $duracion, 2);
+                $totalConIva = round($cantidad * $valorUnitario, 2);
+                $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
+                $partida['valor_unitario'] = $valorUnitario;
+                $partida['subtotal'] = $desglose['subtotal'];
+                $partida['impuestos'] = $desglose['iva'];
+                $partida['total'] = $totalConIva;
+                $partida['deposito'] = $tipo->esMadera() ? round($totalConIva * 0.50, 2) : 0;
+            }
+
+            $partida['tipo_nota_renta'] = $tipo->value;
+            $partida['tipo_renta'] = $tipo->esMadera() ? 'dia' : $tipoRenta;
+            $partida['duracion_renta'] = $duracion;
+            $partida['dias_renta'] = $dias;
+            $partida['fecha_vencimiento'] = $fechaEmision->copy()->addDays($dias)->toDateString();
+            $partida['metros_m2'] = $partida['metros_m2'] ?? null;
+            $partida['deposito'] = (float) ($partida['deposito'] ?? 0);
+            $partidas[] = $partida;
+            $subtotal += (float) $partida['subtotal'];
+            $impuestos += (float) $partida['impuestos'];
+            $deposito += (float) $partida['deposito'];
+            $vencimientoPartida = $fechaEmision->copy()->addDays($dias);
+            if ($vencimientoPartida->greaterThan($vencimientoMaximo)) {
+                $vencimientoMaximo = $vencimientoPartida;
+            }
         }
 
-        // Calcular duración equivalente en días para vencimiento/registros.
-        $duracionRenta = !empty($data['duracion_renta']) ? (int) $data['duracion_renta'] : 1;
-        $tipoRenta = $data['tipo_renta'] ?? 'dia';
-        $diasRenta = match ($tipoRenta) {
-            'semana' => $duracionRenta * 7,
-            'mes' => $duracionRenta * 30,
-            default => $duracionRenta,
-        };
-
-        $data['duracion_renta'] = $duracionRenta;
-        $data['dias_renta'] = $diasRenta;
-        $data['fecha_vencimiento'] = $fechaEmision->addDays($diasRenta)->toDateString();
+        $data['partidas'] = $partidas;
+        $data['subtotal'] = round($subtotal, 2);
+        $data['impuestos_total'] = round($impuestos, 2);
+        $data['deposito'] = round($deposito, 2);
+        $data['total'] = round($subtotal + $impuestos + $deposito, 2);
+        $data['saldo_pendiente'] = $data['total'];
+        $data['fecha_vencimiento'] = $vencimientoMaximo->toDateString();
+        $data['dias_renta'] = max(1, $fechaEmision->diffInDays($vencimientoMaximo, true));
 
         return $data;
     }
@@ -380,6 +400,20 @@ class CreateNotasVentaRenta extends CreateRecord
     protected function afterCreate(): void
     {
         $record = $this->record;
+
+        $record->load('partidas');
+        $subtotal = (float) $record->partidas->sum('subtotal');
+        $impuestos = (float) $record->partidas->sum('impuestos');
+        $deposito = (float) $record->partidas->sum('deposito');
+        $total = round($subtotal + $impuestos + $deposito, 2);
+
+        $record->forceFill([
+            'subtotal' => round($subtotal, 2),
+            'impuestos_total' => round($impuestos, 2),
+            'deposito' => round($deposito, 2),
+            'total' => $total,
+            'saldo_pendiente' => $total,
+        ])->saveQuietly();
 
         if ($record->condicion_pago === 'contado' && $this->pagoCapturado) {
             $userId = Auth::id();

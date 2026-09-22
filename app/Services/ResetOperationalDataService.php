@@ -81,6 +81,12 @@ class ResetOperationalDataService
                 foreach ($tables as $table) {
                     DB::table($table)->delete();
                 }
+
+                if (Schema::hasTable('documento_series')) {
+                    DB::table('documento_series')->update([
+                        'ultimo_folio' => 0,
+                    ]);
+                }
             } finally {
                 if ($driver === 'mysql') {
                     DB::statement('SET FOREIGN_KEY_CHECKS=1');
