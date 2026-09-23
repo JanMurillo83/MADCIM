@@ -34,6 +34,8 @@ class ControlDepositos extends Page
     public ?string $estatus = null;
     public ?int $sucursal_id = null;
     public ?int $usuario_id = null;
+    public ?int $cierreVerificacionId = null;
+    public string $folioIne = '';
 
     public function mount(): void
     {
@@ -69,10 +71,39 @@ class ControlDepositos extends Page
             ->get();
     }
 
-    public function procesarDeposito(int $cierreId): void
+    public function abrirVerificacionDeposito(int $cierreId): void
+    {
+        $this->cierreVerificacionId = $cierreId;
+        $this->folioIne = '';
+    }
+
+    public function cancelarVerificacionDeposito(): void
+    {
+        $this->cierreVerificacionId = null;
+        $this->folioIne = '';
+        $this->resetValidation('folioIne');
+    }
+
+    public function procesarDeposito(): void
     {
         try {
-            $procesado = app(CierreDevolucionRentaService::class)->procesarDepositoPendiente($cierreId, Auth::id());
+            $this->validate([
+                'folioIne' => ['required', 'string', 'max:100'],
+            ], [
+                'folioIne.required' => 'Capture el folio de INE para continuar.',
+            ]);
+
+            if (!$this->cierreVerificacionId) {
+                return;
+            }
+
+            $procesado = app(CierreDevolucionRentaService::class)->procesarDepositoPendiente(
+                $this->cierreVerificacionId,
+                Auth::id(),
+                $this->folioIne,
+            );
+
+            $this->cancelarVerificacionDeposito();
 
             $notificacion = Notification::make()
                 ->title($procesado ? 'Depósito procesado' : 'Caja no disponible')
@@ -85,6 +116,12 @@ class ControlDepositos extends Page
             }
 
             $notificacion->send();
+        } catch (\DomainException $exception) {
+            Notification::make()
+                ->danger()
+                ->title('Folio de INE incorrecto')
+                ->body($exception->getMessage())
+                ->send();
         } catch (\Throwable $exception) {
             report($exception);
             Notification::make()

@@ -20,6 +20,67 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 class NotasEnvioForm
 {
+    private static function diasRentaDePartida($partida): int
+    {
+        $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? 'equipo') ?? TipoNotaRenta::Equipo;
+
+        if ($tipo->esMadera()) {
+            return max(1, (int) ($partida->dias_renta ?? 1));
+        }
+
+        $duracion = max(1, (int) ($partida->duracion_renta ?? 1));
+
+        return match ($partida->tipo_renta ?? 'dia') {
+            'semana' => $duracion * 7,
+            'mes' => $duracion * 30,
+            default => $duracion,
+        };
+    }
+
+    private static function fechaVencimientoDePartida($partida, $fechaEmision): string
+    {
+        return Carbon::parse($fechaEmision)
+            ->addDays(self::diasRentaDePartida($partida))
+            ->toDateString();
+    }
+
+    private static function fechaBaseNotaRenta(?int $notaId, $fallback): Carbon
+    {
+        $fechaEmision = $notaId
+            ? NotasVentaRenta::query()->whereKey($notaId)->value('fecha_emision')
+            : null;
+
+        return Carbon::parse($fechaEmision ?: $fallback);
+    }
+
+    private static function copiarValoresPartidaAnterior(Get $get, Set $set): void
+    {
+        $partidas = $get('partidas');
+        if (!is_array($partidas)) {
+            return;
+        }
+
+        $indices = array_keys($partidas);
+
+        foreach ($indices as $posicion => $indice) {
+            $partida = $partidas[$indice];
+            if ($posicion === 0 || (filled($partida['dias_renta'] ?? null) && filled($partida['fecha_vencimiento'] ?? null))) {
+                continue;
+            }
+
+            $indiceAnterior = $indices[$posicion - 1];
+            $anterior = $partidas[$indiceAnterior] ?? [];
+            if (!filled($partida['dias_renta'] ?? null) && filled($anterior['dias_renta'] ?? null)) {
+                $partidas[$indice]['dias_renta'] = $anterior['dias_renta'];
+            }
+            if (!filled($partida['fecha_vencimiento'] ?? null) && filled($anterior['fecha_vencimiento'] ?? null)) {
+                $partidas[$indice]['fecha_vencimiento'] = $anterior['fecha_vencimiento'];
+            }
+        }
+
+        $set('partidas', $partidas);
+    }
+
     private static function objetivoM2DePartidas(NotasVentaRenta $nota): ?float
     {
         $objetivo = $nota->partidas
@@ -132,8 +193,11 @@ class NotasEnvioForm
                 'producto_id' => $objetivo['producto_id'],
                 'descripcion' => $objetivo['descripcion'],
                 'cantidad' => $pendiente,
-                'dias_renta' => $nota->partidas->firstWhere('id', $objetivo['partida_id'])?->dias_renta,
-                'fecha_vencimiento' => $nota->partidas->firstWhere('id', $objetivo['partida_id'])?->fecha_vencimiento?->toDateString(),
+                'dias_renta' => self::diasRentaDePartida($nota->partidas->firstWhere('id', $objetivo['partida_id'])),
+                'fecha_vencimiento' => self::fechaVencimientoDePartida(
+                    $nota->partidas->firstWhere('id', $objetivo['partida_id']),
+                    $nota->fecha_emision ?? now(),
+                ),
                 'observaciones' => $objetivo['descripcion'],
             ];
         }
@@ -161,8 +225,8 @@ class NotasEnvioForm
                     'producto_id' => null,
                     'descripcion' => 'Captura manual de productos M2 (pendiente: ' . number_format($objetivoM2 - $enviadoM2, 2) . ' M2)',
                     'cantidad' => 1,
-                    'dias_renta' => $partida->dias_renta,
-                    'fecha_vencimiento' => $partida->fecha_vencimiento?->toDateString(),
+                    'dias_renta' => self::diasRentaDePartida($partida),
+                    'fecha_vencimiento' => self::fechaVencimientoDePartida($partida, $nota->fecha_emision ?? now()),
                     'observaciones' => 'Seleccione el producto físico para cubrir los M2 pendientes.',
                 ];
             }
@@ -303,7 +367,15 @@ class NotasEnvioForm
                             ->columnSpan(2),
                         DatePicker::make('fecha_emision')
                             ->default(Carbon::now()->format('Y-m-d'))
-                            ->format('Y-m-d'),
+                            ->format('Y-m-d')
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
+                                $fechaBase = self::fechaBaseNotaRenta($get('nota_venta_renta_id'), $state);
+                                foreach ($get('partidas') ?? [] as $indice => $partida) {
+                                    $dias = max(1, (int) ($partida['dias_renta'] ?? 1));
+                                    $set("partidas.{$indice}.fecha_vencimiento", $fechaBase->copy()->addDays($dias)->toDateString());
+                                }
+                            }),
                         Select::make('cliente_id')
                             ->label('Cliente')
                             ->relationship('cliente', 'nombre')
@@ -365,6 +437,9 @@ class NotasEnvioForm
                                 Repeater\TableColumn::make('Días de Renta'),
                                 Repeater\TableColumn::make('Vencimiento'),
                             ])->compact()
+                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                self::copiarValoresPartidaAnterior($get, $set);
+                            })
                             ->schema([
                                 Hidden::make('nota_venta_renta_partida_id'),
                                 Select::make('producto_id')
@@ -393,10 +468,30 @@ class NotasEnvioForm
                                     ->label('Días de Renta')
                                     ->numeric()
                                     ->minValue(1)
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set, $state): void {
+                                        if (!filled($state) || !filled($get('../../fecha_emision'))) {
+                                            $set('fecha_vencimiento', null);
+
+                                            return;
+                                        }
+
+                                        $fechaBase = self::fechaBaseNotaRenta(
+                                            $get('../../nota_venta_renta_id'),
+                                            $get('../../fecha_emision'),
+                                        );
+                                        $set(
+                                            'fecha_vencimiento',
+                                            $fechaBase
+                                                ->addDays(max(1, (int) $state))
+                                                ->toDateString(),
+                                        );
+                                    })
                                     ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
                                 DatePicker::make('fecha_vencimiento')
                                     ->label('Vencimiento')
                                     ->format('Y-m-d')
+                                    ->readOnly()
                                     ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
                             ])
                             ->columns(6)

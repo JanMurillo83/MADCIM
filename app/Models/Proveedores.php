@@ -43,4 +43,9 @@ class Proveedores extends Model
     {
         return $this->hasMany(RecepcionCompra::class, 'proveedor_id');
     }
+
+    public function cuentasPorPagar(): HasMany
+    {
+        return $this->hasMany(CuentaPorPagar::class, 'proveedor_id');
+    }
 }

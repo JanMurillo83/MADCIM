@@ -7,6 +7,7 @@ use App\Models\Concerns\HasDocumentoSerieFolio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RecepcionCompra extends Model
 {
@@ -59,5 +60,10 @@ class RecepcionCompra extends Model
     public function partidas(): HasMany
     {
         return $this->hasMany(RecepcionCompraPartida::class, 'recepcion_compra_id');
+    }
+
+    public function cuentaPorPagar(): HasOne
+    {
+        return $this->hasOne(CuentaPorPagar::class, 'recepcion_compra_id');
     }
 }

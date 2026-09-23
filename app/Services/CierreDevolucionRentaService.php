@@ -179,12 +179,20 @@ class CierreDevolucionRentaService
             return ['cantidad' => $totalDevuelto, 'importe' => $totalAjuste, 'user_id' => $userId];
         });
     }
-    public function procesarDepositoPendiente(int $cierreId, ?int $userId = null): bool
+    public function procesarDepositoPendiente(int $cierreId, ?int $userId = null, ?string $folioIne = null): bool
     {
-        return DB::transaction(function () use ($cierreId, $userId): bool {
+        return DB::transaction(function () use ($cierreId, $userId, $folioIne): bool {
             $cierre = CierreDevolucionRenta::query()->lockForUpdate()->findOrFail($cierreId);
             if ($cierre->estatus !== 'PendienteCaja') {
                 return $cierre->estatus === 'Procesado';
+            }
+
+            $cliente = $cierre->cliente()->first();
+            if (!$cliente || !hash_equals(
+                mb_strtoupper(trim((string) $cliente->folio_ine)),
+                mb_strtoupper(trim((string) $folioIne)),
+            )) {
+                throw new \DomainException('El folio de INE no coincide con el capturado en el cliente.');
             }
 
             $nota = NotasVentaRenta::query()
@@ -770,17 +778,17 @@ class CierreDevolucionRentaService
         }
 
         foreach ($rowsByKey as &$row) {
-            $row['subtotal'] = round($row['faltante'] * $row['precio_unitario'], 2);
-            $row['iva'] = round($row['subtotal'] * 0.16, 2);
-            $row['total'] = round($row['subtotal'] + $row['iva'], 2);
+            $row['total'] = round($row['faltante'] * $row['precio_unitario'], 2);
+            $row['subtotal'] = round($row['total'] / 1.16, 2);
+            $row['iva'] = round($row['total'] - $row['subtotal'], 2);
         }
         unset($row);
 
         $rows = array_values($rowsByKey);
 
-        $subtotalFaltantes = round(array_sum(array_column($rows, 'subtotal')), 2);
-        $ivaFaltantes = round(array_sum(array_column($rows, 'iva')), 2);
         $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
+        $subtotalFaltantes = round($totalFaltantes / 1.16, 2);
+        $ivaFaltantes = round($totalFaltantes - ($totalFaltantes / 1.16), 2);
 
         $deposito = (float) ($nota->deposito ?? 0);
         $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
@@ -837,8 +845,9 @@ class CierreDevolucionRentaService
             }
 
             $precioUnitario = (float) ($registro->producto?->precio_venta ?? 0);
-            $subtotal = round($faltante * $precioUnitario, 2);
-            $iva = round($subtotal * 0.16, 2);
+            $total = round($faltante * $precioUnitario, 2);
+            $subtotal = round($total / 1.16, 2);
+            $iva = round($total - $subtotal, 2);
 
             $rows[] = [
                 'producto_id' => (int) $productoId,
@@ -848,13 +857,13 @@ class CierreDevolucionRentaService
                 'precio_unitario' => $precioUnitario,
                 'subtotal' => $subtotal,
                 'iva' => $iva,
-                'total' => round($subtotal + $iva, 2),
+                'total' => $total,
             ];
         }
 
-        $subtotalFaltantes = round(array_sum(array_column($rows, 'subtotal')), 2);
-        $ivaFaltantes = round(array_sum(array_column($rows, 'iva')), 2);
         $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
+        $subtotalFaltantes = round($totalFaltantes / 1.16, 2);
+        $ivaFaltantes = round($totalFaltantes - ($totalFaltantes / 1.16), 2);
         $deposito = (float) ($nota->deposito ?? 0);
         $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
         $depositoAplicado = min($deposito, $totalFaltantes);

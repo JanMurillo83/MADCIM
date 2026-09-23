@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Filament\Widgets\IndicadoresDashboard;
 use App\Models\CajaMovimiento;
+use App\Models\CierreDevolucionRenta;
+use App\Models\ClienteDireccionEntrega;
+use App\Models\Clientes;
 use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
@@ -110,5 +113,131 @@ class IndicadoresDashboardTest extends TestCase
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Mensual | Depósitos Pendientes de Devolver'));
         $this->assertSame('$500.00', $this->findStatValue($stats, 'Anual | Depósitos Totales'));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Anual | Depósitos Pendientes de Devolver'));
+    }
+
+    public function test_rentas_por_vencer_considera_fecha_de_vencimiento_de_partida(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-22 10:00:00'));
+
+        $admin = User::factory()->create([
+            'role' => 'Administrador',
+        ]);
+
+        $this->actingAs($admin);
+
+        $producto = Productos::create([
+            'clave' => 'EQ-VENCIMIENTO',
+            'descripcion' => 'Equipo con vencimiento por partida',
+            'grupo' => 'EQUIPO',
+            'linea' => 'EQUIPO',
+        ]);
+
+        $nota = NotasVentaRenta::create([
+            'serie' => 'NR',
+            'folio' => '2',
+            'fecha_emision' => now(),
+            'estatus' => 'Activa',
+            'subtotal' => 100,
+            'impuestos_total' => 16,
+            'total' => 116,
+        ]);
+
+        NotaVentaRentaPartidas::create([
+            'nota_venta_renta_id' => $nota->id,
+            'cantidad' => 1,
+            'item' => (string) $producto->id,
+            'descripcion' => $producto->descripcion,
+            'fecha_vencimiento' => now()->addDays(3)->toDateString(),
+            'valor_unitario' => 100,
+            'subtotal' => 100,
+            'impuestos' => 16,
+            'total' => 116,
+        ]);
+
+        $widget = new class extends IndicadoresDashboard
+        {
+            public function stats(): array
+            {
+                return $this->getStats();
+            }
+        };
+
+        $this->assertSame('1', $this->findStatValue($widget->stats(), 'Rentas por vencer'));
+    }
+
+    public function test_depositos_pendientes_descuenta_deposito_aplicado_en_cierre(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-22 10:00:00'));
+
+        $admin = User::factory()->create([
+            'role' => 'Administrador',
+        ]);
+        $this->actingAs($admin);
+
+        $cliente = Clientes::create([
+            'clave' => 'CLI-DEPOSITO-INDICADOR',
+            'nombre' => 'Cliente indicador depósitos',
+            'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-INDICADOR-001',
+            'regimen' => '601',
+            'codigo' => '01000',
+            'calle' => 'Calle',
+            'exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'pais' => 'MEX',
+            'telefono' => '5555555555',
+            'correo' => 'indicador@example.com',
+            'contacto' => 'Contacto',
+            'saldo' => 0,
+        ]);
+        $direccion = ClienteDireccionEntrega::create([
+            'cliente_id' => $cliente->id,
+            'nombre_direccion' => 'Obra indicador',
+            'calle' => 'Obra',
+            'numero_exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'codigo_postal' => '01000',
+            'pais' => 'México',
+            'activa' => true,
+        ]);
+        $nota = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
+            'direccion_entrega_id' => $direccion->id,
+            'fecha_emision' => now(),
+            'estatus' => 'Activa',
+            'deposito' => 500,
+            'subtotal' => 0,
+            'impuestos_total' => 0,
+            'total' => 500,
+        ]);
+
+        CierreDevolucionRenta::create([
+            'cliente_id' => $cliente->id,
+            'direccion_entrega_id' => $direccion->id,
+            'estatus' => 'PendienteCaja',
+            'deposito_acumulado' => 500,
+            'deposito_aplicado' => 200,
+            'deposito_a_devolver' => 300,
+            'total_faltantes' => 200,
+            'saldo_por_cobrar' => 0,
+            'cerrada_en' => now(),
+        ]);
+
+        $widget = new class extends IndicadoresDashboard
+        {
+            public function stats(): array
+            {
+                return $this->getStats();
+            }
+        };
+
+        $stats = $widget->stats();
+
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Mensual | Depósitos Pendientes de Devolver'));
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Anual | Depósitos Pendientes de Devolver'));
     }
 }

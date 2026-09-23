@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Models\Productos;
+use App\Models\CuentaPorPagar;
+use App\Models\Proveedores;
 use App\Models\RecepcionCompra;
 use App\Models\RecepcionCompraPartida;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class RecepcionCompraInventoryService
@@ -26,6 +29,8 @@ class RecepcionCompraInventoryService
                 $this->aplicarPartida($partida);
             }
 
+            $this->generarCuentaPorPagar($recepcion);
+
             $recepcion->update(['estatus' => 'Cerrada']);
         });
     }
@@ -43,10 +48,71 @@ class RecepcionCompraInventoryService
                 foreach ($partidas as $partida) {
                     $this->revertirPartida($partida);
                 }
+
+                $this->cancelarCuentaPorPagar($recepcion);
             }
 
             $recepcion->update(['estatus' => 'Cancelada']);
         });
+    }
+
+    private function generarCuentaPorPagar(RecepcionCompra $recepcion): void
+    {
+        if (!$recepcion->proveedor_id) {
+            return;
+        }
+
+        $proveedor = Proveedores::whereKey($recepcion->proveedor_id)->lockForUpdate()->first();
+        if (!$proveedor) {
+            return;
+        }
+
+        $fechaEmision = $recepcion->fecha_emision?->toDateString() ?? now()->toDateString();
+        $diasCredito = max(0, (int) $proveedor->dias_credito);
+
+        CuentaPorPagar::updateOrCreate(
+            ['recepcion_compra_id' => $recepcion->id],
+            [
+                'proveedor_id' => $proveedor->id,
+                'fecha_emision' => $fechaEmision,
+                'fecha_vencimiento' => Carbon::parse($fechaEmision)->addDays($diasCredito)->toDateString(),
+                'moneda' => $recepcion->moneda,
+                'tipo_cambio' => $recepcion->tipo_cambio,
+                'importe' => (float) $recepcion->total,
+                'saldo_pendiente' => (float) $recepcion->total,
+                'estatus' => 'Pendiente',
+            ]
+        );
+
+        $this->recalcularSaldoProveedor($proveedor);
+    }
+
+    private function cancelarCuentaPorPagar(RecepcionCompra $recepcion): void
+    {
+        $cuenta = CuentaPorPagar::where('recepcion_compra_id', $recepcion->id)->first();
+        if (!$cuenta) {
+            return;
+        }
+
+        $cuenta->update([
+            'saldo_pendiente' => 0,
+            'estatus' => 'Cancelada',
+        ]);
+
+        $proveedor = Proveedores::whereKey($cuenta->proveedor_id)->lockForUpdate()->first();
+        if ($proveedor) {
+            $this->recalcularSaldoProveedor($proveedor);
+        }
+    }
+
+    private function recalcularSaldoProveedor(Proveedores $proveedor): void
+    {
+        $proveedor->update([
+            'saldo' => (float) CuentaPorPagar::query()
+                ->where('proveedor_id', $proveedor->id)
+                ->where('estatus', '!=', 'Cancelada')
+                ->sum('saldo_pendiente'),
+        ]);
     }
 
     private function aplicarPartida(RecepcionCompraPartida $partida): void

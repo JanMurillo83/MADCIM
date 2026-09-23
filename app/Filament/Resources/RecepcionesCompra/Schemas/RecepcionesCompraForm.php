@@ -140,8 +140,7 @@ class RecepcionesCompraForm
                             ->table([
                                 Repeater\TableColumn::make('Cantidad'),
                                 Repeater\TableColumn::make('Producto'),
-                                Repeater\TableColumn::make('Precio'),
-                                Repeater\TableColumn::make('Subtotal'),
+                                Repeater\TableColumn::make('Último Costo'),
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
@@ -172,12 +171,6 @@ class RecepcionesCompraForm
                                         }
                                         $set('descripcion', $producto->descripcion);
                                         $precio = (float) ($producto->ultimo_costo ?? 0);
-                                        if ($precio <= 0) {
-                                            $precio = (float) ($producto->costo ?? 0);
-                                        }
-                                        if ($precio <= 0) {
-                                            $precio = (float) $producto->precio_venta;
-                                        }
                                         $set('precio_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
@@ -185,7 +178,7 @@ class RecepcionesCompraForm
                                 Hidden::make('descripcion'),
                                 TextInput::make('precio_unitario')
                                     ->columnSpan(1)
-                                    ->label('Precio')
+                                    ->label('Último Costo')
                                     ->numeric()
                                     ->prefix('$')
                                     ->mask(RawJs::make("\$money(\$input, ',', '.')"))

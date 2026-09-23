@@ -38,6 +38,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'telefono' => '5555555555',
             'correo' => 'cierre@example.com',
             'contacto' => 'Contacto',
+            'folio_ine' => 'INE-VALIDO-001',
             'saldo' => 0,
         ]);
         $obra = ClienteDireccionEntrega::create([
@@ -102,6 +103,25 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'deposito_a_devolver' => 50,
         ]);
         $this->assertSame('Devuelta', $nota->fresh()->estatus);
+
+        try {
+            app(CierreDevolucionRentaService::class)->procesarDepositoPendiente(
+                $resultado['cierre_id'],
+                $usuario->id,
+                'INE-INCORRECTO',
+            );
+            $this->fail('Se esperaba rechazar el folio de INE incorrecto.');
+        } catch (\DomainException $exception) {
+            $this->assertSame('El folio de INE no coincide con el capturado en el cliente.', $exception->getMessage());
+        }
+
+        $this->assertSame('PendienteCaja', CierreDevolucionRenta::findOrFail($resultado['cierre_id'])->estatus);
+
+        $this->assertFalse(app(CierreDevolucionRentaService::class)->procesarDepositoPendiente(
+            $resultado['cierre_id'],
+            $usuario->id,
+            'INE-VALIDO-001',
+        ));
 
         $segundoIntento = app(CierreDevolucionRentaService::class)->cerrarPorObra($cliente->id, $obra->id, userId: $usuario->id);
 
@@ -181,8 +201,10 @@ class CierreDevolucionRentaServiceTest extends TestCase
 
         $notaVenta = NotasVentaVenta::findOrFail($resultado['nota_venta_venta_id']);
 
-        $this->assertSame(116.0, (float) $notaVenta->total);
-        $this->assertSame(106.0, (float) $notaVenta->saldo_pendiente);
+        $this->assertSame(100.0, (float) $notaVenta->total);
+        $this->assertSame(86.21, (float) $notaVenta->subtotal);
+        $this->assertSame(13.79, (float) $notaVenta->impuestos_total);
+        $this->assertSame(90.0, (float) $notaVenta->saldo_pendiente);
         $this->assertSame(10.0, (float) Pagos::where('documento_id', $notaVenta->id)->sum('importe'));
         $this->assertSame(Clientes::ESTATUS_BLOQUEADO, $cliente->fresh()->estatus_cliente);
         $this->assertSame(0.0, (float) $producto->fresh()->existencia);

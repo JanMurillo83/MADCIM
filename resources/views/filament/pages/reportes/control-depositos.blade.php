@@ -89,7 +89,7 @@
                                 <td class="px-4 py-2 text-right">${{ number_format((float) $cierre->deposito_a_devolver, 2) }}</td>
                                 <td class="px-4 py-2">{{ $cierre->estatus }}</td>
                                 <td class="px-4 py-2 text-right">
-                                    <x-filament::button wire:click="procesarDeposito({{ $cierre->id }})" size="sm" color="warning">
+                                    <x-filament::button wire:click="abrirVerificacionDeposito({{ $cierre->id }})" size="sm" color="warning">
                                         Procesar egreso
                                     </x-filament::button>
                                 </td>
@@ -99,6 +99,36 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div
+            x-data
+            x-show="$wire.cierreVerificacionId !== null"
+            x-cloak
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+            <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" @click.outside="$wire.cancelarVerificacionDeposito()">
+                <h2 class="text-lg font-semibold text-gray-900">Verificar devolución</h2>
+                <p class="mt-2 text-sm text-gray-600">
+                    Capture el Folio de INE del cliente para autorizar el depósito a devolver.
+                </p>
+                <label class="mt-4 block text-sm font-medium text-gray-700" for="folio-ine-deposito">Folio de INE</label>
+                <input
+                    id="folio-ine-deposito"
+                    type="text"
+                    wire:model.defer="folioIne"
+                    wire:keydown.enter="procesarDeposito"
+                    class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                    autocomplete="off"
+                />
+                @error('folioIne')
+                    <p class="mt-1 text-sm text-danger-600">{{ $message }}</p>
+                @enderror
+                <div class="mt-5 flex justify-end gap-2">
+                    <x-filament::button wire:click="cancelarVerificacionDeposito" color="gray">Cancelar</x-filament::button>
+                    <x-filament::button wire:click="procesarDeposito" color="warning">Verificar y procesar</x-filament::button>
+                </div>
             </div>
         </div>
 

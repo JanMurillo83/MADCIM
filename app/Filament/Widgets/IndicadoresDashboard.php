@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\CajaMovimiento;
+use App\Models\CierreDevolucionRenta;
 use App\Models\FacturasCfdi;
 use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
@@ -57,7 +58,12 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('fuente', 'Devolución depósito renta')
             ->sum('importe');
 
-        $depositosPendientesDelMes = $depositosCobradosDelMes - $depositosDevueltosDelMes;
+        $depositosAplicadosDelMes = CierreDevolucionRenta::query()
+            ->whereBetween('cerrada_en', [$inicioMes, $finMes])
+            ->where('estatus', '!=', 'Cancelado')
+            ->sum('deposito_aplicado');
+
+        $depositosPendientesDelMes = max(0, $depositosCobradosDelMes - $depositosAplicadosDelMes - $depositosDevueltosDelMes);
 
         $depositosCobradosDelAnio = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
@@ -70,7 +76,12 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('fuente', 'Devolución depósito renta')
             ->sum('importe');
 
-        $depositosPendientesDelAnio = $depositosCobradosDelAnio - $depositosDevueltosDelAnio;
+        $depositosAplicadosDelAnio = CierreDevolucionRenta::query()
+            ->whereBetween('cerrada_en', [$inicioAnio, $finAnio])
+            ->where('estatus', '!=', 'Cancelado')
+            ->sum('deposito_aplicado');
+
+        $depositosPendientesDelAnio = max(0, $depositosCobradosDelAnio - $depositosAplicadosDelAnio - $depositosDevueltosDelAnio);
 
         $rentasMaderaDelMes = NotaVentaRentaPartidas::query()
             ->whereHas('documento', function ($query) use ($inicioMes, $finMes) {
@@ -116,19 +127,37 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         // Rentas activas (no devueltas ni canceladas)
         $rentasBase = NotasVentaRenta::query()
-            ->whereNotNull('fecha_vencimiento')
             ->whereIn('estatus', ['Activa', 'Pagada']);
 
+        $aplicarFiltroVencimiento = function ($query, string $inicio, string $fin): void {
+            $query->where(function ($query) use ($inicio, $fin): void {
+                $query
+                    ->whereBetween('fecha_vencimiento', [$inicio, $fin])
+                    ->orWhereHas('partidas', fn ($partidas) => $partidas->whereBetween('fecha_vencimiento', [$inicio, $fin]))
+                    ->orWhereHas('notasEnvio', function ($envios) use ($inicio, $fin): void {
+                        $envios->where(function ($envio) use ($inicio, $fin): void {
+                            $envio
+                                ->whereBetween('fecha_vencimiento', [$inicio, $fin])
+                                ->orWhereHas('partidas', function ($partidas) use ($inicio, $fin): void {
+                                    $partidas
+                                        ->whereBetween('fecha_vencimiento', [$inicio, $fin])
+                                        ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad');
+                                });
+                        });
+                    });
+            });
+        };
+
         // Rentas vencidas: fecha_vencimiento ya pasó
-        $rentasVencidas = (clone $rentasBase)
-            ->where('fecha_vencimiento', '<', $now->toDateString())
-            ->count();
+        $rentasVencidasQuery = clone $rentasBase;
+        $aplicarFiltroVencimiento($rentasVencidasQuery, '1900-01-01', $now->copy()->subDay()->toDateString());
+        $rentasVencidas = $rentasVencidasQuery->count();
 
         // Rentas por vencer: fecha_vencimiento en los próximos 7 días
         $fechaFinPorVencer = $now->copy()->addDays($diasPorVencer);
-        $rentasPorVencer = (clone $rentasBase)
-            ->whereBetween('fecha_vencimiento', [$now->toDateString(), $fechaFinPorVencer->toDateString()])
-            ->count();
+        $rentasPorVencerQuery = clone $rentasBase;
+        $aplicarFiltroVencimiento($rentasPorVencerQuery, $now->toDateString(), $fechaFinPorVencer->toDateString());
+        $rentasPorVencer = $rentasPorVencerQuery->count();
 
         $valorInventario = Productos::query()
             ->selectRaw('SUM(existencia * precio_venta) as total')
