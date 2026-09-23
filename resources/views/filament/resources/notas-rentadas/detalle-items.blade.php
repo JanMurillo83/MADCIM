@@ -6,12 +6,13 @@
         <table class="w-full text-sm text-left text-white rtl:text-right">
             <thead class="border-b border-gray-500 bg-gray-700 text-white">
                 <tr>
-                    <th class="px-4 py-2 font-medium text-white">Producto</th>
-                    <th class="px-4 py-2 text-center font-medium text-white">Cantidad</th>
-                    <th class="px-4 py-2 text-center font-medium text-white">Devuelto</th>
-                    <th class="px-4 py-2 text-center font-medium text-white">Pendiente</th>
+                    <th class="px-4 py-2 font-medium text-white">Producto rentado</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Cantidad rentada</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Vencimiento de la renta</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Cantidad devuelta</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Cantidad pendiente</th>
                     <th class="px-4 py-2 font-medium text-white">Observaciones</th>
-                    <th class="px-4 py-2 text-center font-medium text-white">Estado</th>
+                    <th class="px-4 py-2 text-center font-medium text-white">Estado del producto</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-600 text-white">
@@ -22,6 +23,7 @@
                     <tr>
                         <td class="px-4 py-3 text-white">{{ $item->producto?->descripcion ?? $item->descripcion ?? '-' }}</td>
                         <td class="px-4 py-3 text-center text-white">{{ $item->cantidad }}</td>
+                        <td class="px-4 py-3 text-center text-white">{{ $item->fecha_vencimiento?->format('d/m/Y') ?? '-' }}</td>
                         <td class="px-4 py-3 text-center text-white">{{ (float)($item->cantidad_devuelta ?? 0) }}</td>
                         <td class="px-4 py-3 text-center text-white">{{ $pendiente }}</td>
                         <td class="px-4 py-3 text-white">{{ $item->observaciones ?? '-' }}</td>

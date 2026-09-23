@@ -92,13 +92,18 @@ class NotaDevolucionRenta extends Model
                 continue;
             }
 
-            $registros = RegistroRenta::query()
-                ->where('cliente_id', $this->cliente_id)
-                ->where('producto_id', $partida->producto_id)
-                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
+            $registros = $partida->registro_renta_id
+                ? RegistroRenta::query()
+                    ->whereKey($partida->registro_renta_id)
+                    ->lockForUpdate()
+                    ->get()
+                : RegistroRenta::query()
+                    ->where('cliente_id', $this->cliente_id)
+                    ->where('producto_id', $partida->producto_id)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
 
             $pendiente = abs($delta);
             foreach ($registros as $registro) {
@@ -216,11 +221,31 @@ class NotaDevolucionRenta extends Model
                     'estado' => $nuevaCantidadDevuelta >= $cantidadMaxima ? 'Devuelto' : 'Activo',
                 ]);
 
+                $registro = RegistroRenta::query()
+                    ->when(
+                        $partida->registro_renta_id,
+                        fn ($query) => $query->whereKey($partida->registro_renta_id),
+                        fn ($query) => $query->where('nota_envio_partida_id', $partidaEnvio->id),
+                    )
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($registro) {
+                    $cantidadDevuelta = max(0, min(
+                        (float) $registro->cantidad,
+                        (float) ($registro->cantidad_devuelta ?? 0) + $delta,
+                    ));
+                    $registro->update([
+                        'cantidad_devuelta' => $cantidadDevuelta,
+                        'estado' => $cantidadDevuelta >= (float) $registro->cantidad ? 'Devuelto' : 'Activo',
+                    ]);
+                }
+
                 $partida->update([
                     'cantidad_aplicada' => $cantidadObjetivo,
                 ]);
 
-                // Registrar entrada de inventario por cantidad devuelta aplicada en esta operación
+                // Mantener inventario sincronizado también al editar una devolución.
                 if ($delta > 0.00001) {
                     $producto = Productos::find($partidaEnvio->producto_id);
                     if ($producto) {
@@ -232,6 +257,13 @@ class NotaDevolucionRenta extends Model
                             documentoReferencia: $referencia
                         );
                     }
+                } elseif ($delta < -0.00001) {
+                    InventarioMovimientoService::salida(
+                        productoId: $partidaEnvio->producto_id,
+                        cantidad: abs($delta),
+                        motivo: "Cancelación de devolución de renta {$this->serie}{$this->folio}",
+                        documentoReferencia: $this->serie . $this->folio,
+                    );
                 }
             }
 
@@ -335,6 +367,22 @@ class NotaDevolucionRenta extends Model
                         'cantidad_devuelta' => $nuevaCantidadDevuelta,
                         'estado' => $nuevaCantidadDevuelta >= $cantidadMaxima ? 'Devuelto' : 'Activo',
                     ]);
+
+                    $registro = RegistroRenta::query()
+                        ->when(
+                            $partida->registro_renta_id,
+                            fn ($query) => $query->whereKey($partida->registro_renta_id),
+                            fn ($query) => $query->where('nota_envio_partida_id', $partidaEnvio->id),
+                        )
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($registro) {
+                        $registro->update([
+                            'cantidad_devuelta' => max(0, (float) ($registro->cantidad_devuelta ?? 0) - $aplicada),
+                            'estado' => 'Activo',
+                        ]);
+                    }
 
                     $partida->update([
                         'cantidad_aplicada' => 0,

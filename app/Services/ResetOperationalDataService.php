@@ -87,6 +87,16 @@ class ResetOperationalDataService
                         'ultimo_folio' => 0,
                     ]);
                 }
+
+                if (Schema::hasTable('cajas')) {
+                    DB::table('cajas')->update([
+                        'total_ingresos_cash' => 0,
+                        'total_egresos_cash' => 0,
+                        'total_diferencia' => 0,
+                        'observaciones_cierre' => null,
+                        'updated_at' => now(),
+                    ]);
+                }
             } finally {
                 if ($driver === 'mysql') {
                     DB::statement('SET FOREIGN_KEY_CHECKS=1');

@@ -30,11 +30,14 @@ class CierreDevolucionRentaService
                 return;
             }
 
-            $notaIds = NotasVentaRenta::query()
-                ->where('cliente_id', $cierre->cliente_id)
-                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
-                ->where('estatus', '!=', 'Cancelada')
-                ->pluck('id');
+            $notaIds = collect($cierre->nota_ids);
+            if ($notaIds->isEmpty()) {
+                $notaIds = NotasVentaRenta::query()
+                    ->where('cliente_id', $cierre->cliente_id)
+                    ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                    ->where('estatus', '!=', 'Cancelada')
+                    ->pluck('id');
+            }
 
             $devolucionPosterior = NotaDevolucionRentaPartida::query()
                 ->where('cantidad_aplicada', '>', 0)
@@ -60,8 +63,7 @@ class CierreDevolucionRentaService
             }
 
             $registros = RegistroRenta::query()
-                ->where('cliente_id', $cierre->cliente_id)
-                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $cierre->direccion_entrega_id))
+                ->whereIn('nota_venta_renta_id', $notaIds)
                 ->with('producto')
                 ->get();
 
@@ -74,14 +76,11 @@ class CierreDevolucionRentaService
             }
 
             NotaEnvioPartida::query()
-                ->whereHas('notaEnvio', fn ($query) => $query
-                    ->where('cliente_id', $cierre->cliente_id)
-                    ->where('direccion_entrega_id', $cierre->direccion_entrega_id))
+                ->whereHas('notaEnvio', fn ($query) => $query->whereIn('nota_venta_renta_id', $notaIds))
                 ->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
 
             NotaEnvio::query()
-                ->where('cliente_id', $cierre->cliente_id)
-                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                ->whereIn('nota_venta_renta_id', $notaIds)
                 ->update(['estado_renta' => 'Activa']);
 
             if ($cierre->caja_movimiento_id) {
@@ -196,10 +195,9 @@ class CierreDevolucionRentaService
             }
 
             $nota = NotasVentaRenta::query()
-                ->where('cliente_id', $cierre->cliente_id)
-                ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
+                ->whereIn('id', $cierre->nota_ids ?? [])
                 ->where('estatus', '!=', 'Cancelada')
-                ->orderByDesc('id')
+                ->orderBy('id')
                 ->firstOrFail();
 
             return $this->registrarDepositoPendiente($cierre, $nota, $cierre->observaciones, $userId);
@@ -215,65 +213,75 @@ class CierreDevolucionRentaService
         ?string $folioInterno = null,
     ): array
     {
-        $cierreExistente = CierreDevolucionRenta::query()
+        $cierrePendiente = CierreDevolucionRenta::query()
             ->where('cliente_id', $clienteId)
             ->where('direccion_entrega_id', $direccionEntregaId)
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+            ->latest('id')
             ->lockForUpdate()
             ->first();
 
-        if ($cierreExistente?->estatus === 'Procesado') {
-            return [
-                'already_closed' => true,
-                'resumen' => $this->resumenDesdeCierre($cierreExistente),
-                'nota_id' => NotasVentaRenta::query()
-                    ->where('cliente_id', $clienteId)
-                    ->where('direccion_entrega_id', $direccionEntregaId)
-                    ->orderByDesc('id')
-                    ->value('id'),
-                'cierre_id' => $cierreExistente->id,
-                'cierre_estatus' => $cierreExistente->estatus,
-            ];
-        }
-
-        $nota = NotasVentaRenta::query()
-            ->where('cliente_id', $clienteId)
-            ->where('direccion_entrega_id', $direccionEntregaId)
-            ->where('estatus', '!=', 'Cancelada')
-            ->orderBy('id')
-            ->firstOrFail();
-
-        // El depósito pertenece al conjunto de rentas de la obra, no a una sola nota.
-        $nota->deposito = (float) NotasVentaRenta::query()
-            ->where('cliente_id', $clienteId)
-            ->where('direccion_entrega_id', $direccionEntregaId)
-            ->where('estatus', '!=', 'Cancelada')
-            ->sum('deposito');
-
-        if ($cierreExistente?->estatus === 'PendienteCaja') {
-            $cajaUsada = $this->registrarDepositoPendiente($cierreExistente, $nota, $observaciones, $userId);
+        if ($cierrePendiente) {
+            $notaId = collect($cierrePendiente->nota_ids)->first();
+            $nota = NotasVentaRenta::query()->findOrFail($notaId);
+            $cajaUsada = $cierrePendiente->estatus === 'PendienteCaja'
+                ? $this->registrarDepositoPendiente($cierrePendiente, $nota, $observaciones, $userId)
+                : false;
 
             return [
                 'already_closed' => false,
-                'resumen' => $this->resumenDesdeCierre($cierreExistente->fresh()),
+                'resumen' => $this->resumenDesdeCierre($cierrePendiente->fresh()),
                 'nota_id' => $nota->id,
-                'cierre_id' => $cierreExistente->id,
-                'cierre_estatus' => $cierreExistente->fresh()->estatus,
+                'cierre_id' => $cierrePendiente->id,
+                'cierre_estatus' => $cierrePendiente->fresh()->estatus,
                 'caja_usada' => $cajaUsada,
             ];
         }
 
-        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno, (float) $nota->deposito);
-
-        NotasVentaRenta::query()
+        $notas = NotasVentaRenta::query()
             ->where('cliente_id', $clienteId)
             ->where('direccion_entrega_id', $direccionEntregaId)
             ->where('estatus', '!=', 'Cancelada')
+            ->whereNotIn('id', $this->notaIdsEnCierresActivos($clienteId, $direccionEntregaId))
+            ->orderBy('id')
+            ->get();
+
+        if ($notas->isEmpty()) {
+            $cierreProcesado = CierreDevolucionRenta::query()
+                ->where('cliente_id', $clienteId)
+                ->where('direccion_entrega_id', $direccionEntregaId)
+                ->where('estatus', 'Procesado')
+                ->latest('id')
+                ->first();
+
+            return [
+                'already_closed' => true,
+                'resumen' => $cierreProcesado ? $this->resumenDesdeCierre($cierreProcesado) : [],
+                'nota_id' => $cierreProcesado ? collect($cierreProcesado->nota_ids)->first() : null,
+                'cierre_id' => $cierreProcesado?->id,
+                'cierre_estatus' => $cierreProcesado?->estatus ?? 'Procesado',
+            ];
+        }
+
+        $nota = $notas->first();
+        $notaIds = $notas->pluck('id')->all();
+
+        // El depósito pertenece al conjunto de rentas de la obra, no a una sola nota.
+        $nota->deposito = (float) NotasVentaRenta::query()
+            ->whereIn('id', $notaIds)
+            ->sum('deposito');
+
+        $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno, (float) $nota->deposito, $notaIds);
+
+        NotasVentaRenta::query()
+            ->whereIn('id', $notaIds)
             ->update(['estatus' => $modo === 'venta_madera' ? 'Vendida' : 'Devuelta']);
 
         $totales = $resultado['resumen']['totales'];
         $cierre = CierreDevolucionRenta::create([
             'cliente_id' => $clienteId,
             'direccion_entrega_id' => $direccionEntregaId,
+            'nota_ids' => $notaIds,
             'estatus' => $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])
                 ? 'PendienteCaja'
                 : 'Procesado',
@@ -335,23 +343,24 @@ class CierreDevolucionRentaService
         bool $forzarCierre = false,
         ?string $folioInterno = null,
         ?float $depositoOverride = null,
+        ?array $notaIds = null,
     ): array
     {
-        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre, $folioInterno, $depositoOverride) {
+        return DB::transaction(function () use ($nota, $observaciones, $userId, $modo, $forzarCierre, $folioInterno, $depositoOverride, $notaIds) {
+            $notaIds ??= [$nota->id];
             $nota = NotasVentaRenta::query()
                 ->whereKey($nota->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $hayPendientesAcumulados = $this->tieneRegistrosAcumulados($nota)
+            $hayPendientesAcumulados = $this->tieneRegistrosAcumulados($nota, $notaIds)
                 && RegistroRenta::query()
-                    ->where('cliente_id', $nota->cliente_id)
-                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+                    ->whereIn('nota_venta_renta_id', $notaIds)
                     ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
                     ->exists();
 
             if (!$forzarCierre && in_array($nota->estatus, ['Devuelta', 'Vendida'], true) && !$hayPendientesAcumulados) {
-                $resumen = $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']));
+                    $resumen = $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']), $notaIds);
                 return [
                     'already_closed' => true,
                     'resumen' => $resumen,
@@ -361,9 +370,9 @@ class CierreDevolucionRentaService
             $nota->load(['notasEnvio.partidas.producto', 'cliente']);
 
             $resumen = $depositoOverride === null
-                ? $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']))
+                ? $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']), $notaIds)
                 : $this->aplicarDepositoAlResumen(
-                    $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente'])),
+                    $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']), $notaIds),
                     $depositoOverride,
                 );
             $modo = $nota->esMadera() && $modo === 'venta_madera' ? 'venta_madera' : 'devolucion';
@@ -371,7 +380,7 @@ class CierreDevolucionRentaService
 
             // Todo lo que salió en renta regresa administrativamente al inventario.
             // Si hubo una Nota de Devolución, solo se registra aquí la diferencia.
-            $this->asegurarEntradaInventarioRenta($nota, $userId, $referencia);
+            $this->asegurarEntradaInventarioRenta($nota, $userId, $referencia, $notaIds);
 
             $notaVentaVenta = null;
 
@@ -411,7 +420,9 @@ class CierreDevolucionRentaService
                     ]);
                 }
 
-                $this->registrarSalidasComoVenta($resumen['rows'], $notaVentaVenta, $referencia);
+                if (!$hayPendientesAcumulados) {
+                    $this->registrarSalidasComoVenta($resumen['rows'], $notaVentaVenta, $referencia);
+                }
 
                 if ((float) $resumen['totales']['deposito_aplicado'] > 0) {
                     Pagos::create([
@@ -496,10 +507,9 @@ class CierreDevolucionRentaService
                 }
             }
 
-            if ($this->tieneRegistrosAcumulados($nota)) {
+            if ($this->tieneRegistrosAcumulados($nota, $notaIds)) {
                 RegistroRenta::query()
-                    ->where('cliente_id', $nota->cliente_id)
-                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+                    ->whereIn('nota_venta_renta_id', $notaIds)
                     ->update([
                         'cantidad_devuelta' => DB::raw('cantidad'),
                         'estado' => 'Devuelto',
@@ -509,14 +519,14 @@ class CierreDevolucionRentaService
             // La renta queda cerrada también cuando el faltante ya se convirtió
             // en venta; evita que vuelva a aparecer como devolución pendiente.
             NotaEnvioPartida::query()
-                ->whereHas('notaEnvio', fn ($q) => $q->where('nota_venta_renta_id', $nota->id))
+                ->whereHas('notaEnvio', fn ($q) => $q->whereIn('nota_venta_renta_id', $notaIds))
                 ->update([
                     'cantidad_devuelta' => DB::raw('cantidad'),
                     'estado' => 'Devuelto',
                 ]);
 
             NotaEnvio::query()
-                ->where('nota_venta_renta_id', $nota->id)
+                ->whereIn('nota_venta_renta_id', $notaIds)
                 ->update(['estado_renta' => 'Devuelta']);
 
             $nota->update(['estatus' => $modo === 'venta_madera' ? 'Vendida' : 'Devuelta']);
@@ -537,15 +547,20 @@ class CierreDevolucionRentaService
         });
     }
 
-    private function asegurarEntradaInventarioRenta(NotasVentaRenta $nota, ?int $userId, string $referencia): void
+    private function asegurarEntradaInventarioRenta(NotasVentaRenta $nota, ?int $userId, string $referencia, array $notaIds): void
     {
-        if ($this->tieneRegistrosAcumulados($nota)) {
+        if ($this->tieneRegistrosAcumulados($nota, $notaIds)) {
             return;
         }
 
         $cantidadesEnviadas = [];
 
-        foreach ($nota->notasEnvio as $envio) {
+        $envios = NotaEnvio::query()
+            ->with('partidas')
+            ->whereIn('nota_venta_renta_id', $notaIds)
+            ->get();
+
+        foreach ($envios as $envio) {
             foreach ($envio->partidas as $partida) {
                 $productoId = (int) $partida->producto_id;
                 if ($productoId <= 0) {
@@ -558,8 +573,8 @@ class CierreDevolucionRentaService
         }
 
         $cantidadesAplicadas = NotaDevolucionRentaPartida::query()
-            ->whereHas('notaDevolucionRenta', function ($query) use ($nota) {
-                $query->where('nota_venta_renta_id', $nota->id)
+            ->whereHas('notaDevolucionRenta', function ($query) use ($notaIds) {
+                $query->whereIn('nota_venta_renta_id', $notaIds)
                     ->where('estatus', '!=', 'Cancelada');
             })
             ->where('cantidad_aplicada', '>', 0)
@@ -698,9 +713,7 @@ class CierreDevolucionRentaService
             ->all() ?? [];
 
         $totalObra = (float) NotasVentaRenta::query()
-            ->where('cliente_id', $cierre->cliente_id)
-            ->where('direccion_entrega_id', $cierre->direccion_entrega_id)
-            ->where('estatus', '!=', 'Cancelada')
+            ->whereIn('id', $cierre->nota_ids ?? [])
             ->sum('total');
 
         return [
@@ -728,17 +741,49 @@ class CierreDevolucionRentaService
         return $resumen;
     }
 
-    private function calcularResumen(NotasVentaRenta $nota): array
+    /**
+     * Returns notes already covered by a non-cancelled closure for an obra.
+     * New notes remain available for a later closure of the same obra.
+     */
+    private function notaIdsEnCierresActivos(int $clienteId, int $direccionEntregaId): array
     {
-        if ($this->tieneRegistrosAcumulados($nota)) {
-            return $this->calcularResumenAcumulado($nota);
+        return CierreDevolucionRenta::query()
+            ->where('cliente_id', $clienteId)
+            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->where('estatus', '!=', 'Cancelado')
+            ->pluck('nota_ids')
+            ->flatMap(function ($ids): array {
+                if (is_string($ids)) {
+                    $ids = json_decode($ids, true);
+                }
+
+                return is_array($ids) ? $ids : [];
+            })
+            ->map(fn ($id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function calcularResumen(NotasVentaRenta $nota, ?array $notaIds = null): array
+    {
+        $notaIds ??= [$nota->id];
+
+        if ($this->tieneRegistrosAcumulados($nota, $notaIds)) {
+            return $this->calcularResumenAcumulado($nota, $notaIds);
         }
 
         $rowsByKey = [];
 
         $nota->loadMissing(['notasEnvio.partidas.producto', 'cliente']);
 
-        foreach ($nota->notasEnvio as $envio) {
+        $envios = NotaEnvio::query()
+            ->with('partidas.producto')
+            ->whereIn('nota_venta_renta_id', $notaIds)
+            ->get();
+
+        foreach ($envios as $envio) {
             foreach ($envio->partidas as $partida) {
                 if (($partida->producto?->clave ?? '') === 'SRENTA-M2') {
                     continue;
@@ -790,8 +835,8 @@ class CierreDevolucionRentaService
         $subtotalFaltantes = round($totalFaltantes / 1.16, 2);
         $ivaFaltantes = round($totalFaltantes - ($totalFaltantes / 1.16), 2);
 
-        $deposito = (float) ($nota->deposito ?? 0);
-        $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
+        $deposito = (float) NotasVentaRenta::query()->whereIn('id', $notaIds)->sum('deposito');
+        $totalRenta = max(0, round((float) NotasVentaRenta::query()->whereIn('id', $notaIds)->sum('total') - $deposito, 2));
         $depositoAplicado = min($deposito, $totalFaltantes);
         $saldoPorCobrar = max(0, $totalFaltantes - $depositoAplicado);
         $depositoDevolver = max(0, $deposito - $depositoAplicado);
@@ -811,22 +856,21 @@ class CierreDevolucionRentaService
         ];
     }
 
-    private function tieneRegistrosAcumulados(NotasVentaRenta $nota): bool
+    private function tieneRegistrosAcumulados(NotasVentaRenta $nota, ?array $notaIds = null): bool
     {
-        return $nota->cliente_id
-            && $nota->direccion_entrega_id
-            && RegistroRenta::query()
-                ->where('cliente_id', $nota->cliente_id)
-                ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
-                ->exists();
+        $notaIds ??= [$nota->id];
+
+        return RegistroRenta::query()
+            ->whereIn('nota_venta_renta_id', $notaIds)
+            ->exists();
     }
 
-    private function calcularResumenAcumulado(NotasVentaRenta $nota): array
+    private function calcularResumenAcumulado(NotasVentaRenta $nota, ?array $notaIds = null): array
     {
+        $notaIds ??= [$nota->id];
         $registros = RegistroRenta::query()
             ->with('producto')
-            ->where('cliente_id', $nota->cliente_id)
-            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id))
+            ->whereIn('nota_venta_renta_id', $notaIds)
             ->get()
             ->groupBy('producto_id');
 
@@ -864,8 +908,8 @@ class CierreDevolucionRentaService
         $totalFaltantes = round(array_sum(array_column($rows, 'total')), 2);
         $subtotalFaltantes = round($totalFaltantes / 1.16, 2);
         $ivaFaltantes = round($totalFaltantes - ($totalFaltantes / 1.16), 2);
-        $deposito = (float) ($nota->deposito ?? 0);
-        $totalRenta = max(0, round((float) ($nota->total ?? 0) - $deposito, 2));
+        $deposito = (float) NotasVentaRenta::query()->whereIn('id', $notaIds)->sum('deposito');
+        $totalRenta = max(0, round((float) NotasVentaRenta::query()->whereIn('id', $notaIds)->sum('total') - $deposito, 2));
         $depositoAplicado = min($deposito, $totalFaltantes);
 
         return [

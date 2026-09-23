@@ -6,7 +6,6 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotaDevolucionRenta;
 use App\Models\NotaDevolucionRentaPartida;
 use App\Models\RegistroRenta;
-use App\Services\InventarioMovimientoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -47,8 +46,7 @@ class DevolucionRentaController extends Controller
                     ->when(
                         $nota->direccion_entrega_id,
                         fn ($query) => $query
-                            ->where('cliente_id', $nota->cliente_id)
-                            ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery->where('direccion_entrega_id', $nota->direccion_entrega_id)),
+                            ->where('nota_venta_renta_id', $nota->id),
                         fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
                     )
                     ->lockForUpdate()
@@ -66,18 +64,6 @@ class DevolucionRentaController extends Controller
                 }
 
                 $nuevaCantidadDevuelta = $cantidadActual + $cantidadAhora;
-                $registro->update([
-                    'cantidad_devuelta' => $nuevaCantidadDevuelta,
-                    'estado' => $nuevaCantidadDevuelta >= (float) $registro->cantidad ? 'Devuelto' : 'Activo',
-                ]);
-
-                InventarioMovimientoService::entrada(
-                    productoId: $registro->producto_id,
-                    cantidad: $cantidadAhora,
-                    motivo: 'Devolución de renta ' . ($nota->serie ?? '') . ($nota->folio ?? $nota->id),
-                    documentoReferencia: ($nota->serie ?? '') . ($nota->folio ?? $nota->id),
-                );
-
                 $itemsDevolucion[] = [
                     'producto_id' => $registro->producto_id,
                     'producto' => $registro->producto?->descripcion ?? 'Producto',
@@ -85,6 +71,9 @@ class DevolucionRentaController extends Controller
                     'cantidad_devuelta' => $nuevaCantidadDevuelta,
                     'cantidad_devuelta_ahora' => $cantidadAhora,
                     'cantidad_faltante' => max(0, (float) $registro->cantidad - $nuevaCantidadDevuelta),
+                    'registro_renta_id' => $registro->id,
+                    'nota_envio_partida_id' => $registro->nota_envio_partida_id,
+                    'observaciones' => $registro->observaciones,
                 ];
 
                 $totalDevueltoAhora += $cantidadAhora;
@@ -101,29 +90,28 @@ class DevolucionRentaController extends Controller
                 'cliente_id' => $nota->cliente_id,
                 'direccion_entrega_id' => $nota->direccion_entrega_id,
                 'fecha_emision' => now()->toDateString(),
-                'estatus' => 'Aplicada',
+                    'estatus' => 'Borrador',
                 'observaciones' => 'Devolución registrada desde la consulta de devoluciones.',
                 'aplicada_en' => now(),
                 'user_id' => Auth::id(),
             ]);
 
             foreach ($itemsDevolucion as $item) {
-                $registro = $this->buscarRegistroPorProducto(
-                    $nota,
-                    (int) $item['producto_id'],
-                );
-
                 NotaDevolucionRentaPartida::create([
                     'nota_devolucion_renta_id' => $notaDevolucion->id,
+                    'registro_renta_id' => $item['registro_renta_id'],
+                    'nota_envio_partida_id' => $item['nota_envio_partida_id'],
                     'producto_id' => $item['producto_id'],
                     'descripcion' => $item['producto'],
                     'cantidad_enviada' => $item['cantidad_rentada'],
                     'cantidad_devuelta' => $item['cantidad_devuelta'] - $item['cantidad_devuelta_ahora'],
                     'cantidad_a_devolver' => $item['cantidad_devuelta_ahora'],
-                    'cantidad_aplicada' => $item['cantidad_devuelta_ahora'],
-                    'observaciones' => $registro?->observaciones,
+                    'cantidad_aplicada' => 0,
+                    'observaciones' => $item['observaciones'],
                 ]);
             }
+
+            $notaDevolucion->aplicarCantidadesRecogidas();
 
             DB::commit();
 
@@ -168,8 +156,7 @@ class DevolucionRentaController extends Controller
             ->when(
                 $nota->direccion_entrega_id,
                 fn ($query) => $query
-                    ->where('cliente_id', $nota->cliente_id)
-                    ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery->where('direccion_entrega_id', $nota->direccion_entrega_id)),
+                    ->where('nota_venta_renta_id', $nota->id),
                 fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
             )
             ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
@@ -177,17 +164,4 @@ class DevolucionRentaController extends Controller
             ->get();
     }
 
-    private function buscarRegistroPorProducto(NotasVentaRenta $nota, int $productoId): ?RegistroRenta
-    {
-        return RegistroRenta::query()
-            ->where('cliente_id', $nota->cliente_id)
-            ->where('producto_id', $productoId)
-            ->when(
-                $nota->direccion_entrega_id,
-                fn ($query) => $query->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery->where('direccion_entrega_id', $nota->direccion_entrega_id)),
-                fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
-            )
-            ->latest('id')
-            ->first();
-    }
 }

@@ -133,6 +133,23 @@ class NotasVentaVentaTable
                                 ->success()
                                 ->send();
                         }),
+                    Action::make('marcar_entregada')
+                        ->label('Marcar Entregada')
+                        ->icon('heroicon-o-check')
+                        ->color('success')
+                        ->visible(fn (NotasVentaVenta $record) => $record->estatus_envio === 'Enviada' && $record->estatus !== 'Cancelada')
+                        ->requiresConfirmation()
+                        ->modalHeading(fn (NotasVentaVenta $record) => 'Marcar Entregada - Nota ' . $record->serie . $record->folio)
+                        ->modalDescription('¿Confirma que esta nota ha sido entregada?')
+                        ->modalSubmitActionLabel('Confirmar')
+                        ->action(function (NotasVentaVenta $record) {
+                            $record->update(['estatus_envio' => 'Entregada']);
+                            Notification::make()
+                                ->title('Estatus actualizado')
+                                ->body('La nota ' . $record->serie . $record->folio . ' ha sido marcada como Entregada.')
+                                ->success()
+                                ->send();
+                        }),
                     Action::make('cancelar')
                         ->label('Cancelar Nota')
                         ->icon('fas-times-circle')

@@ -108,12 +108,20 @@ class CreateNotasDevolucionRenta extends CreateRecord
             $devuelta = (float) ($partida['cantidad_devuelta'] ?? 0);
             $aDevolver = (float) ($partida['cantidad_a_devolver'] ?? 0);
             $totalADevolver += $aDevolver;
-            $pendienteActual = (float) RegistroRenta::query()
+            $registro = RegistroRenta::query()
+                ->whereKey($partida['registro_renta_id'] ?? 0)
                 ->where('cliente_id', $clienteId)
-                ->where('producto_id', $partida['producto_id'] ?? 0)
                 ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $direccionId))
-                ->selectRaw('COALESCE(SUM(cantidad), 0) - COALESCE(SUM(cantidad_devuelta), 0) as pendiente')
-                ->value('pendiente');
+                ->first();
+
+            $pendienteActual = $registro
+                ? max(0, (float) $registro->cantidad - (float) ($registro->cantidad_devuelta ?? 0))
+                : (float) RegistroRenta::query()
+                    ->where('cliente_id', $clienteId)
+                    ->where('producto_id', $partida['producto_id'] ?? 0)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $direccionId))
+                    ->selectRaw('COALESCE(SUM(cantidad), 0) - COALESCE(SUM(cantidad_devuelta), 0) as pendiente')
+                    ->value('pendiente');
 
             if ($aDevolver < 0 || $aDevolver > max(0, $pendienteActual)) {
                 throw ValidationException::withMessages([

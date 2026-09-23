@@ -2,7 +2,6 @@
 namespace App\Filament\Resources\NotasEnvio\Schemas;
 use App\Enums\TipoNotaRenta;
 use App\Models\NotasVentaRenta;
-use App\Models\NotasVentaVenta;
 use App\Models\Productos;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
@@ -266,30 +265,12 @@ class NotasEnvioForm
                             ->maxLength(50)
                             ->readOnly()
                             ->helperText('Se asigna al guardar.'),
-                        Select::make('tipo_origen')
-                            ->label('Tipo de Documento Origen')
-                            ->options([
-                                'renta' => 'Nota de Venta Renta',
-                                'venta' => 'Nota de Venta Venta',
-                            ])
-                            ->default('renta')
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function (Get $get, Set $set) {
-                                $set('nota_venta_renta_id', null);
-                                $set('nota_venta_venta_id', null);
-                                $set('cliente_id', null);
-                                $set('direccion_entrega_id', null);
-                                $set('partidas', []);
-                            })
-                            ->dehydrated(false),
                         Select::make('nota_venta_renta_id')
                             ->label('Nota de Venta Renta (Origen)')
                             ->options(self::notasRentaOptions())
                             ->native()
                             ->live()
-                            ->visible(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta')
-                            ->required(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'renta')
+                            ->required()
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 $notaId = $get('nota_venta_renta_id');
                                 if (!$notaId) return;
@@ -319,48 +300,6 @@ class NotasEnvioForm
                                         ->body('Capture manualmente los productos a enviar. El indicador mostrará los M2 pendientes y no generará un desglose sugerido.')
                                         ->info()
                                         ->send();
-                                }
-                                $set('partidas', $partidasData);
-                            })
-                            ->columnSpan(2),
-                        Select::make('nota_venta_venta_id')
-                            ->label('Nota de Venta Venta (Origen)')
-                            ->options(function () {
-                                return NotasVentaVenta::query()
-                                    ->whereIn('estatus', ['Activa', 'Pagada'])
-                                    ->get()
-                                    ->mapWithKeys(function ($nota) {
-                                        $label = ($nota->serie ? $nota->serie . '-' : '') . $nota->folio . ' - ' . ($nota->cliente?->nombre ?? 'Sin cliente');
-                                        return [$nota->id => $label];
-                                    })
-                                    ->all();
-                            })
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->visible(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'venta')
-                            ->required(fn (Get $get) => ($get('tipo_origen') ?? 'renta') === 'venta')
-                            ->afterStateUpdated(function (Get $get, Set $set) {
-                                $notaId = $get('nota_venta_venta_id');
-                                if (!$notaId) return;
-                                $nota = NotasVentaVenta::with(['cliente', 'partidas'])->find($notaId);
-                                if (!$nota) return;
-                                $set('cliente_id', $nota->cliente_id);
-                                // Cargar solo partidas pendientes de surtir
-                                $partidasData = [];
-                                foreach ($nota->partidas as $partida) {
-                                    $yaEnviado = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($q) use ($nota) {
-                                        $q->where('nota_venta_venta_id', $nota->id);
-                                    })->where('producto_id', $partida->item)->sum('cantidad');
-                                    $pendiente = (float)$partida->cantidad - (float)$yaEnviado;
-                                    if ($pendiente > 0) {
-                                        $partidasData[] = [
-                                            'producto_id' => $partida->item,
-                                            'descripcion' => $partida->descripcion ?? $partida->item,
-                                            'cantidad' => $pendiente,
-                                            'observaciones' => $partida->descripcion ?? $partida->item,
-                                        ];
-                                    }
                                 }
                                 $set('partidas', $partidasData);
                             })
@@ -398,7 +337,7 @@ class NotasEnvioForm
                         Placeholder::make('m2_cubiertos')
                             ->label('Cobertura M2')
                             ->visible(function (Get $get): bool {
-                                if (($get('tipo_origen') ?? 'renta') !== 'renta' || !$get('nota_venta_renta_id')) {
+                                if (!$get('nota_venta_renta_id')) {
                                     return false;
                                 }
 
@@ -487,12 +426,12 @@ class NotasEnvioForm
                                                 ->toDateString(),
                                         );
                                     })
-                                    ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
+                                    ->required(),
                                 DatePicker::make('fecha_vencimiento')
                                     ->label('Vencimiento')
                                     ->format('Y-m-d')
                                     ->readOnly()
-                                    ->required(fn (Get $get): bool => ($get('../../tipo_origen') ?? 'renta') === 'renta'),
+                                    ->required(),
                             ])
                             ->columns(6)
                             ->defaultItems(1)

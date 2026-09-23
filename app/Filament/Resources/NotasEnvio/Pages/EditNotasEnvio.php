@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\NotasEnvio\Pages;
 
 use App\Filament\Resources\NotasEnvio\NotasEnvioResource;
+use App\Models\NotaEnvio;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -13,7 +14,8 @@ class EditNotasEnvio extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            DeleteAction::make()
+                ->visible(fn (NotaEnvio $record): bool => $record->estatus === 'Pendiente'),
         ];
     }
 }

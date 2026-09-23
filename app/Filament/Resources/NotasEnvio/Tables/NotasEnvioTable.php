@@ -47,10 +47,6 @@ class NotasEnvioTable
                             $nota = $record->notaVentaRenta;
                             return $nota ? 'NR ' . ($nota->serie ?? '') . $nota->folio : '-';
                         }
-                        if ($record->nota_venta_venta_id) {
-                            $nota = $record->notaVentaVenta;
-                            return $nota ? 'NVV ' . ($nota->serie ?? '') . $nota->folio : '-';
-                        }
                         return '-';
                     })
                     ->searchable(query: fn ($query, $searchTerm) => $query),
@@ -406,7 +402,8 @@ class NotasEnvioTable
                     ->label('Cancelar Envío')
                     ->icon('fas-times-circle')
                     ->color('danger')
-                    ->visible(fn (NotaEnvio $record) => $record->estatus !== 'Cancelada')
+                    ->visible(fn (NotaEnvio $record): bool => $record->estatus !== 'Cancelada'
+                        && !$record->partidas()->where('cantidad_devuelta', '>', 0)->exists())
                     ->requiresConfirmation()
                     ->modalHeading(fn (NotaEnvio $record) => 'Cancelar Envío Folio ' . $record->folio)
                     ->modalDescription('¿Estás seguro de cancelar esta nota de envío? Se revertirán los movimientos de inventario y se marcarán los registros de renta como cancelados.')
@@ -434,8 +431,8 @@ class NotasEnvioTable
                                 );
                             }
 
-                            // Marcar registros de renta como cancelados
-                            RegistroRenta::where('nota_venta_renta_id', $record->nota_venta_renta_id)
+                            // Marcar únicamente los registros creados por este envío.
+                            RegistroRenta::whereIn('nota_envio_partida_id', $record->partidas()->pluck('id'))
                                 ->where('estado', 'Activo')
                                 ->update(['estado' => 'Cancelado']);
 

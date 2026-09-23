@@ -16,13 +16,14 @@
         .cobros-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .cobros-table th { background: #f3f4f6; color: #4b5563; font-size: 11px; letter-spacing: .04em; padding: 12px 14px; text-align: left; text-transform: uppercase; }
         .cobros-table td { border-top: 1px solid #eef0f2; color: #1f2937; font-size: 13px; padding: 13px 14px; vertical-align: middle; }
-        .cobros-table th:nth-child(1), .cobros-table td:nth-child(1) { width: 9%; }
+        .cobros-table th:nth-child(1), .cobros-table td:nth-child(1) { width: 8%; }
         .cobros-table th:nth-child(2), .cobros-table td:nth-child(2) { width: 12%; }
         .cobros-table th:nth-child(3), .cobros-table td:nth-child(3) { width: 12%; }
-        .cobros-table th:nth-child(4), .cobros-table td:nth-child(4) { width: 25%; }
-        .cobros-table th:nth-child(5), .cobros-table td:nth-child(5) { width: 13%; text-align: right; }
-        .cobros-table th:nth-child(6), .cobros-table td:nth-child(6) { width: 15%; text-align: right; }
+        .cobros-table th:nth-child(4), .cobros-table td:nth-child(4) { width: 11%; }
+        .cobros-table th:nth-child(5), .cobros-table td:nth-child(5) { width: 22%; }
+        .cobros-table th:nth-child(6), .cobros-table td:nth-child(6) { width: 12%; text-align: right; }
         .cobros-table th:nth-child(7), .cobros-table td:nth-child(7) { width: 14%; text-align: right; }
+        .cobros-table th:nth-child(8), .cobros-table td:nth-child(8) { width: 14%; text-align: right; }
         .cobros-actions { display: flex; justify-content: flex-end; gap: 7px; }
         .cobros-empty { color: #6b7280 !important; padding: 32px !important; text-align: center !important; }
         @media (max-width: 900px) { .cobros-heading { align-items: start; flex-direction: column; } .cobros-card { overflow-x: auto; } .cobros-table { min-width: 850px; } }
@@ -55,6 +56,7 @@
                     <thead>
                         <tr>
                             <th class="px-4 py-3 text-left">Tipo</th>
+                            <th class="px-4 py-3 text-left">Condición</th>
                             <th class="px-4 py-3 text-left">Nota</th>
                             <th class="px-4 py-3 text-left">Fecha</th>
                             <th class="px-4 py-3 text-left">Cliente</th>
@@ -67,6 +69,15 @@
                         @forelse($this->notasDeLaPestana() as $nota)
                             <tr>
                                 <td>{{ $nota['tipo_label'] }}</td>
+                                <td>
+                                    @if (($nota['condicion_pago'] ?? null) === 'Crédito')
+                                        <span class="font-semibold text-amber-700">Crédito</span>
+                                    @elseif (($nota['condicion_pago'] ?? null) === 'Contado')
+                                        <span class="font-semibold text-emerald-700">Contado</span>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
                                 <td><strong>{{ $nota['folio'] }}</strong></td>
                                 <td>{{ $nota['fecha'] }}</td>
                                 <td>{{ $nota['cliente'] }}</td>
@@ -120,7 +131,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="cobros-empty">No hay notas pendientes en esta pestaña.</td>
+                                <td colspan="8" class="cobros-empty">No hay notas pendientes en esta pestaña.</td>
                             </tr>
                         @endforelse
                     </tbody>

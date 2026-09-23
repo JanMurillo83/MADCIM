@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class NotaEnvioPartida extends Model
 {
@@ -40,5 +41,10 @@ class NotaEnvioPartida extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Productos::class, 'producto_id');
+    }
+
+    public function registroRenta(): HasOne
+    {
+        return $this->hasOne(RegistroRenta::class, 'nota_envio_partida_id');
     }
 }

@@ -54,21 +54,23 @@ class NotasDevolucionRentaForm
             ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId))
             ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
             ->whereDoesntHave('producto', fn ($query) => $query->where('clave', 'SRENTA-M2'))
+            ->orderBy('id')
             ->get()
-            ->groupBy('producto_id');
+            ;
 
         $partidas = [];
-        foreach ($registros as $productoId => $registrosProducto) {
-            $registro = $registrosProducto->first();
-            $enviada = (float) $registrosProducto->sum('cantidad');
-            $devuelta = (float) $registrosProducto->sum('cantidad_devuelta');
+        foreach ($registros as $registro) {
+            $enviada = (float) $registro->cantidad;
+            $devuelta = (float) ($registro->cantidad_devuelta ?? 0);
             $pendiente = $enviada - $devuelta;
             if ($pendiente <= 0) {
                 continue;
             }
 
             $partidas[] = [
-                'producto_id' => $productoId,
+                'registro_renta_id' => $registro->id,
+                'nota_envio_partida_id' => $registro->nota_envio_partida_id,
+                'producto_id' => $registro->producto_id,
                 'descripcion' => $registro->producto?->descripcion ?? 'Producto',
                 'cantidad_enviada' => $enviada,
                 'cantidad_devuelta' => $devuelta,
@@ -200,6 +202,8 @@ class NotasDevolucionRentaForm
                                 Repeater\TableColumn::make('Devolución'),
                             ])
                             ->schema([
+                                Hidden::make('registro_renta_id'),
+                                Hidden::make('nota_envio_partida_id'),
                                 Hidden::make('producto_id'),
                                 Hidden::make('cantidad_aplicada')
                                     ->default(0),

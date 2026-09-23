@@ -13,6 +13,7 @@ class NotaDevolucionRentaPartida extends Model
     protected $fillable = [
         'nota_devolucion_renta_id',
         'nota_envio_partida_id',
+        'registro_renta_id',
         'producto_id',
         'descripcion',
         'cantidad_enviada',
@@ -37,5 +38,10 @@ class NotaDevolucionRentaPartida extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Productos::class, 'producto_id');
+    }
+
+    public function registroRenta(): BelongsTo
+    {
+        return $this->belongsTo(RegistroRenta::class, 'registro_renta_id');
     }
 }

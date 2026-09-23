@@ -14,6 +14,7 @@
         .strong { font-weight: bold; }
         .total { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; font-size: 14px; font-weight: bold; }
         .footer { border-top: 1px dashed #000; margin-top: 12px; padding-top: 8px; }
+        .signature { margin-top: 28px; padding-top: 20px; border-top: 1px solid #000; }
     </style>
 </head>
 <body>
@@ -26,6 +27,10 @@
     <div class="row"><span class="strong">Fecha:</span><span>{{ optional($pago->fecha_pago_hora ?? $pago->fecha_pago)->format('d/m/Y H:i') }}</span></div>
     <div class="row"><span class="strong">Nota:</span><span>{{ $documento->serie }}-{{ $documento->folio }}</span></div>
     <div class="row"><span class="strong">Cliente:</span><span>{{ $pago->cliente?->nombre ?? 'N/A' }}</span></div>
+    <div class="row"><span class="strong">Condición:</span><span>{{ ($documento->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado' }}</span></div>
+    <div class="row"><span class="strong">Pago recibido:</span><span>{{ match ($pago->forma_pago) {
+        '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia', '04' => 'Tarjeta crédito', '28' => 'Tarjeta débito', default => $pago->forma_pago,
+    } }}</span></div>
 
     <div class="line"></div>
     @php $totalCobrado = $pagos->sum('importe'); @endphp
@@ -41,6 +46,12 @@
     <div class="row total"><span>Total aplicado:</span><span>${{ number_format($totalCobrado, 2) }}</span></div>
     @if($pago->referencia)
         <div class="row"><span>Referencia:</span><span>{{ $pago->referencia }}</span></div>
+    @endif
+
+    @if(($documento->condicion_pago ?? 'contado') === 'credito')
+        <div class="signature center">
+            Firma del cliente
+        </div>
     @endif
 
     <div class="footer center">Pago registrado correctamente.<br>Gracias por su preferencia.</div>

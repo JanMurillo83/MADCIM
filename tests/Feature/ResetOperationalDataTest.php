@@ -147,4 +147,37 @@ class ResetOperationalDataTest extends TestCase
         ]);
         $this->assertDatabaseHas('users', ['id' => $user->id]);
     }
+
+    public function test_reiniciar_datos_limpia_acumulados_de_caja_despues_de_borrar_movimientos(): void
+    {
+        $cajaId = DB::table('cajas')->insertGetId([
+            'nombre' => 'Caja acumulados',
+            'estatus' => 'Abierta',
+            'saldo_inicial_cash' => 1500,
+            'total_ingresos_cash' => 250,
+            'total_egresos_cash' => 40,
+            'total_diferencia' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('caja_movimientos')->insert([
+            'caja_id' => $cajaId,
+            'tipo' => 'Ingreso',
+            'metodo_pago' => 'Efectivo',
+            'importe' => 250,
+            'fecha' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(ResetOperationalDataService::class)->resetFromCommand();
+
+        $this->assertDatabaseMissing('caja_movimientos', ['caja_id' => $cajaId]);
+        $this->assertDatabaseHas('cajas', [
+            'id' => $cajaId,
+            'total_ingresos_cash' => 0,
+            'total_egresos_cash' => 0,
+            'total_diferencia' => 0,
+        ]);
+    }
 }

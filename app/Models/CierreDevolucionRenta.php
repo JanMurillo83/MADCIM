@@ -12,6 +12,7 @@ class CierreDevolucionRenta extends Model
     protected $fillable = [
         'cliente_id',
         'direccion_entrega_id',
+        'nota_ids',
         'estatus',
         'deposito_acumulado',
         'deposito_aplicado',
@@ -33,6 +34,7 @@ class CierreDevolucionRenta extends Model
         'total_faltantes' => 'decimal:2',
         'saldo_por_cobrar' => 'decimal:2',
         'cerrada_en' => 'datetime',
+        'nota_ids' => 'array',
     ];
 
     public function cliente(): BelongsTo

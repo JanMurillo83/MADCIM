@@ -7,6 +7,8 @@ use App\Models\ClienteDireccionEntrega;
 use App\Models\CierreDevolucionRenta;
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
+use App\Models\NotaDevolucionRenta;
+use App\Models\NotaDevolucionRentaPartida;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
@@ -209,5 +211,243 @@ class CierreDevolucionRentaServiceTest extends TestCase
         $this->assertSame(Clientes::ESTATUS_BLOQUEADO, $cliente->fresh()->estatus_cliente);
         $this->assertSame(0.0, (float) $producto->fresh()->existencia);
         $this->assertSame('Devuelta', $nota->fresh()->estatus);
+    }
+
+    public function test_cancelar_cierre_no_afecta_notas_creadas_despues_en_la_misma_obra(): void
+    {
+        $usuario = User::factory()->create();
+        $cliente = Clientes::create([
+            'clave' => 'CLI-CIERRE-SNAPSHOT',
+            'nombre' => 'Cliente snapshot',
+            'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-SNAPSHOT-001',
+            'regimen' => '601',
+            'codigo' => '01000',
+            'calle' => 'Calle',
+            'exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'pais' => 'MEX',
+            'telefono' => '5555555555',
+            'correo' => 'snapshot@example.com',
+            'contacto' => 'Contacto',
+            'saldo' => 0,
+        ]);
+        $obra = ClienteDireccionEntrega::create([
+            'cliente_id' => $cliente->id,
+            'nombre_direccion' => 'Obra snapshot',
+            'calle' => 'Obra',
+            'numero_exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'codigo_postal' => '01000',
+            'pais' => 'México',
+            'activa' => true,
+        ]);
+        $producto = Productos::create([
+            'clave' => 'EQ-CIERRE-SNAPSHOT',
+            'descripcion' => 'Equipo snapshot',
+            'grupo' => 'EQUIPO',
+            'linea' => 'RENTA',
+            'precio_venta' => 100,
+            'existencia' => 2,
+        ]);
+
+        $notaInicial = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
+            'direccion_entrega_id' => $obra->id,
+            'fecha_emision' => now(),
+            'condicion_pago' => 'contado',
+            'subtotal' => 0,
+            'impuestos_total' => 0,
+            'total' => 0,
+            'saldo_pendiente' => 0,
+            'deposito' => 0,
+            'estatus' => 'Activa',
+            'tipo_nota_renta' => 'equipo',
+        ]);
+        RegistroRenta::create([
+            'nota_venta_renta_id' => $notaInicial->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 1,
+            'dias_renta' => 1,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->toDateString(),
+            'importe_renta' => 0,
+            'importe_deposito' => 0,
+            'estado' => 'Devuelto',
+        ]);
+
+        $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+            $cliente->id,
+            $obra->id,
+            userId: $usuario->id,
+        );
+
+        $cierre = CierreDevolucionRenta::findOrFail($resultado['cierre_id']);
+        $this->assertSame([$notaInicial->id], $cierre->nota_ids);
+
+        $notaPosterior = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
+            'direccion_entrega_id' => $obra->id,
+            'fecha_emision' => now(),
+            'condicion_pago' => 'contado',
+            'subtotal' => 0,
+            'impuestos_total' => 0,
+            'total' => 0,
+            'saldo_pendiente' => 0,
+            'deposito' => 0,
+            'estatus' => 'Activa',
+            'tipo_nota_renta' => 'equipo',
+        ]);
+        $registroPosterior = RegistroRenta::create([
+            'nota_venta_renta_id' => $notaPosterior->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 0,
+            'dias_renta' => 1,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDay()->toDateString(),
+            'importe_renta' => 0,
+            'importe_deposito' => 0,
+            'estado' => 'Activo',
+        ]);
+
+        $segundoResultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+            $cliente->id,
+            $obra->id,
+            userId: $usuario->id,
+        );
+
+        $segundoCierre = CierreDevolucionRenta::findOrFail($segundoResultado['cierre_id']);
+        $this->assertSame([$notaPosterior->id], $segundoCierre->nota_ids);
+        $this->assertNotSame($cierre->id, $segundoCierre->id);
+        $cantidadPosteriorAntesDeCancelar = (float) $registroPosterior->fresh()->cantidad_devuelta;
+        $estadoPosteriorAntesDeCancelar = $registroPosterior->fresh()->estado;
+
+        app(CierreDevolucionRentaService::class)->cancelar($cierre, $usuario->id);
+
+        $this->assertSame('Devuelta', $notaPosterior->fresh()->estatus);
+        $this->assertSame($cantidadPosteriorAntesDeCancelar, (float) $registroPosterior->fresh()->cantidad_devuelta);
+        $this->assertSame($estadoPosteriorAntesDeCancelar, $registroPosterior->fresh()->estado);
+        $this->assertSame('Cancelado', $cierre->fresh()->estatus);
+    }
+
+    public function test_devolucion_aplica_la_partida_de_renta_exacta_con_producto_repetido(): void
+    {
+        $cliente = Clientes::create([
+            'clave' => 'CLI-TRACE-DEV',
+            'nombre' => 'Cliente trazabilidad',
+            'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-TRACE-001',
+            'regimen' => '601',
+            'codigo' => '01000',
+            'calle' => 'Calle',
+            'exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'pais' => 'MEX',
+            'telefono' => '5555555555',
+            'correo' => 'trace@example.com',
+            'contacto' => 'Contacto',
+            'saldo' => 0,
+        ]);
+        $obra = ClienteDireccionEntrega::create([
+            'cliente_id' => $cliente->id,
+            'nombre_direccion' => 'Obra trazable',
+            'calle' => 'Obra',
+            'numero_exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'codigo_postal' => '01000',
+            'pais' => 'México',
+            'activa' => true,
+        ]);
+        $producto = Productos::create([
+            'clave' => 'EQ-TRACE-DEV',
+            'descripcion' => 'Equipo repetido',
+            'grupo' => 'EQUIPO',
+            'linea' => 'RENTA',
+            'precio_venta' => 100,
+            'existencia' => 0,
+        ]);
+
+        $crearNota = function () use ($cliente, $obra): NotasVentaRenta {
+            return NotasVentaRenta::create([
+                'cliente_id' => $cliente->id,
+                'direccion_entrega_id' => $obra->id,
+                'fecha_emision' => now(),
+                'condicion_pago' => 'contado',
+                'subtotal' => 0,
+                'impuestos_total' => 0,
+                'total' => 0,
+                'saldo_pendiente' => 0,
+                'deposito' => 0,
+                'estatus' => 'Activa',
+                'tipo_nota_renta' => 'equipo',
+            ]);
+        };
+
+        $notaUno = $crearNota();
+        $notaDos = $crearNota();
+        $registroUno = RegistroRenta::create([
+            'nota_venta_renta_id' => $notaUno->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 0,
+            'dias_renta' => 1,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDays(2)->toDateString(),
+            'estado' => 'Activo',
+        ]);
+        $registroDos = RegistroRenta::create([
+            'nota_venta_renta_id' => $notaDos->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 0,
+            'dias_renta' => 1,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDays(10)->toDateString(),
+            'estado' => 'Activo',
+        ]);
+        $devolucion = NotaDevolucionRenta::create([
+            'serie' => 'NDR',
+            'folio_interno' => 'TRACE-001',
+            'nota_venta_renta_id' => $notaDos->id,
+            'cliente_id' => $cliente->id,
+            'direccion_entrega_id' => $obra->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Borrador',
+        ]);
+        NotaDevolucionRentaPartida::create([
+            'nota_devolucion_renta_id' => $devolucion->id,
+            'registro_renta_id' => $registroDos->id,
+            'producto_id' => $producto->id,
+            'descripcion' => $producto->descripcion,
+            'cantidad_enviada' => 1,
+            'cantidad_devuelta' => 0,
+            'cantidad_a_devolver' => 1,
+            'cantidad_aplicada' => 0,
+        ]);
+
+        $devolucion->aplicarCantidadesRecogidas();
+
+        $this->assertSame(0.0, (float) $registroUno->fresh()->cantidad_devuelta);
+        $this->assertSame(1.0, (float) $registroDos->fresh()->cantidad_devuelta);
+        $this->assertSame('Activo', $registroUno->fresh()->estado);
+        $this->assertSame('Devuelto', $registroDos->fresh()->estado);
     }
 }

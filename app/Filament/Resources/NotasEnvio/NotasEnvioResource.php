@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use App\Filament\Concerns\HasRoleResourceAccess;
+use Illuminate\Database\Eloquent\Builder;
 
 class NotasEnvioResource extends Resource
 {
@@ -35,6 +36,12 @@ class NotasEnvioResource extends Resource
     public static function table(Table $table): Table
     {
         return NotasEnvioTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereNotNull('nota_venta_renta_id');
     }
 
     public static function getRelations(): array

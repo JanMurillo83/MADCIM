@@ -23,6 +23,8 @@ class CreateNotasEnvio extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        unset($data['nota_venta_venta_id']);
+
         // Solo persiste columnas propias de nota_envio_partidas.
         $data['partidas'] = collect($data['partidas'] ?? [])
             ->map(function (array $partida): array {
@@ -34,19 +36,17 @@ class CreateNotasEnvio extends CreateRecord
             ->all();
 
         $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
-        if (($data['tipo_origen'] ?? 'renta') === 'renta') {
-            foreach ($data['partidas'] as $indice => $partida) {
-                if ((int) ($partida['dias_renta'] ?? 0) < 1) {
-                    throw ValidationException::withMessages([
-                        "partidas.{$indice}.dias_renta" => 'Capture los días de renta de la partida.',
-                    ]);
-                }
+        foreach ($data['partidas'] as $indice => $partida) {
+            if ((int) ($partida['dias_renta'] ?? 0) < 1) {
+                throw ValidationException::withMessages([
+                    "partidas.{$indice}.dias_renta" => 'Capture los días de renta de la partida.',
+                ]);
+            }
 
-                if (empty($partida['fecha_vencimiento'])) {
-                    throw ValidationException::withMessages([
-                        "partidas.{$indice}.fecha_vencimiento" => 'Capture la fecha de vencimiento de la partida.',
-                    ]);
-                }
+            if (empty($partida['fecha_vencimiento'])) {
+                throw ValidationException::withMessages([
+                    "partidas.{$indice}.fecha_vencimiento" => 'Capture la fecha de vencimiento de la partida.',
+                ]);
             }
         }
         if ($nota) {
@@ -147,6 +147,7 @@ class CreateNotasEnvio extends CreateRecord
 
                     RegistroRenta::create([
                         'nota_venta_renta_id' => $nota->id,
+                        'nota_envio_partida_id' => $partida->id,
                         'cliente_id' => $nota->cliente_id,
                         'cliente_nombre' => $cliente->nombre ?? '',
                         'cliente_contacto' => $cliente->contacto ?? null,
@@ -174,9 +175,6 @@ class CreateNotasEnvio extends CreateRecord
                     'estado_renta' => $record->nota_venta_renta_id ? 'Pendiente' : null,
                 ]);
 
-                if ($record->nota_venta_venta_id) {
-                    $record->notaVentaVenta()->update(['estatus_envio' => 'Entregada']);
-                }
             });
         } catch (\Throwable $exception) {
             report($exception);

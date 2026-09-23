@@ -9,6 +9,7 @@ class RegistroRenta extends Model
 {
     protected $fillable = [
         'nota_venta_renta_id',
+        'nota_envio_partida_id',
         'cliente_id',
         'cliente_nombre',
         'cliente_contacto',
@@ -55,5 +56,10 @@ class RegistroRenta extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Productos::class, 'producto_id');
+    }
+
+    public function notaEnvioPartida(): BelongsTo
+    {
+        return $this->belongsTo(NotaEnvioPartida::class, 'nota_envio_partida_id');
     }
 }
