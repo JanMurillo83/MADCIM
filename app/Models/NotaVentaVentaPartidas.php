@@ -22,4 +22,9 @@ class NotaVentaVentaPartidas extends Model
     {
         return $this->belongsTo(NotasVentaVenta::class, 'nota_venta_venta_id');
     }
+
+    public function producto(): BelongsTo
+    {
+        return $this->belongsTo(Productos::class, 'item');
+    }
 }

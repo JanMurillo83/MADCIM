@@ -93,6 +93,9 @@ class ResetOperationalDataService
                         'total_ingresos_cash' => 0,
                         'total_egresos_cash' => 0,
                         'total_diferencia' => 0,
+                        'efectivo_teorico' => 0,
+                        'efectivo_contado' => 0,
+                        'denominaciones_efectivo' => null,
                         'observaciones_cierre' => null,
                         'updated_at' => now(),
                     ]);

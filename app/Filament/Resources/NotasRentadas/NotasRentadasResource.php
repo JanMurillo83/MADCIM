@@ -566,6 +566,7 @@ class NotasRentadasResource extends Resource
                     ->url(fn (RegistroRenta $record) => route('notas-venta-renta.hoja-embarque', $record->nota_venta_renta_id))
                     ->openUrlInNewTab(),
             ])
+            ->recordActions([])
             ->defaultSort('fecha_renta', 'desc')
             ->paginated([10, 25, 50, 100]);
     }

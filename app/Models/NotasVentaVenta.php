@@ -24,6 +24,7 @@ class NotasVentaVenta extends Model
         'fecha_emision',
         'condicion_pago',
         'fecha_vencimiento_pago',
+        'cobro_credito_confirmado_en',
         'moneda',
         'tipo_cambio',
         'subtotal',
@@ -46,6 +47,7 @@ class NotasVentaVenta extends Model
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_vencimiento_pago' => 'date',
+        'cobro_credito_confirmado_en' => 'datetime',
     ];
 
     protected bool $omitirValidacionEstatusCliente = false;

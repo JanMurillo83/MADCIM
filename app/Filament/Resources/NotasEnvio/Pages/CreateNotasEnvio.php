@@ -36,6 +36,45 @@ class CreateNotasEnvio extends CreateRecord
             ->all();
 
         $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
+        if ($nota) {
+            $enviadosPorPartida = NotaEnvioPartida::query()
+                ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+                ->get(['nota_venta_renta_partida_id', 'producto_id', 'cantidad'])
+                ->groupBy('nota_venta_renta_partida_id')
+                ->map(fn ($partidas): float => $partidas->sum(fn ($partida): float => (float) $partida->cantidad));
+
+            $data['partidas'] = collect($data['partidas'] ?? [])
+                ->map(function (array $partida) use ($nota, $enviadosPorPartida): array {
+                    $origen = $nota->partidas->firstWhere('id', (int) ($partida['nota_venta_renta_partida_id'] ?? 0));
+                    if (!$origen) {
+                        return $partida;
+                    }
+
+                    $tipo = \App\Enums\TipoNotaRenta::tryFrom($origen->tipo_nota_renta ?? $nota->tipo_nota_renta ?? 'equipo')
+                        ?? \App\Enums\TipoNotaRenta::Equipo;
+                    $cantidadEnviada = (float) ($enviadosPorPartida->get($origen->id) ?? 0);
+                    $pendiente = max(0, (float) $origen->cantidad - $cantidadEnviada);
+                    $partida['dias_renta'] = max(1, (int) ($origen->dias_renta ?? $nota->dias_renta ?? 1));
+                    $partida['fecha_vencimiento'] = $origen->fecha_vencimiento?->toDateString()
+                        ?? Carbon::parse($nota->fecha_emision)->addDays($partida['dias_renta'])->toDateString();
+
+                    if ($tipo === \App\Enums\TipoNotaRenta::Equipo) {
+                        $partida['producto_id'] = $origen->item;
+                        $partida['cantidad'] = $pendiente;
+                    } elseif ($tipo === \App\Enums\TipoNotaRenta::MaderaPieza) {
+                        $partida['producto_id'] = $origen->item;
+                        if ((float) ($partida['cantidad'] ?? 0) > $pendiente + 0.0001) {
+                            throw ValidationException::withMessages([
+                                'partidas' => "La cantidad de {$origen->descripcion} supera el pendiente disponible.",
+                            ]);
+                        }
+                    }
+
+                    return $partida;
+                })
+                ->all();
+        }
+
         foreach ($data['partidas'] as $indice => $partida) {
             if ((int) ($partida['dias_renta'] ?? 0) < 1) {
                 throw ValidationException::withMessages([

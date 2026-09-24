@@ -127,7 +127,8 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         // Rentas activas (no devueltas ni canceladas)
         $rentasBase = NotasVentaRenta::query()
-            ->whereIn('estatus', ['Activa', 'Pagada']);
+            ->whereIn('estatus', ['Activa', 'Pagada'])
+            ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']));
 
         $aplicarFiltroVencimiento = function ($query, string $inicio, string $fin): void {
             $query->where(function ($query) use ($inicio, $fin): void {

@@ -81,6 +81,13 @@ class CreateNotasDevolucionRenta extends CreateRecord
         ));
 
         $data['partidas'] = $partidas;
+        $folioInterno = trim((string) ($data['folio_interno'] ?? ''));
+        if ($folioInterno !== '' && \App\Models\NotaDevolucionRenta::query()->where('folio_interno', $folioInterno)->exists()) {
+            throw ValidationException::withMessages([
+                'folio_interno' => 'El folio interno ya está registrado. Capture uno diferente.',
+            ]);
+        }
+
         $clienteId = (int) ($data['cliente_id'] ?? 0);
         $direccionId = (int) ($data['direccion_entrega_id'] ?? 0);
         $direccionValida = $direccionId > 0

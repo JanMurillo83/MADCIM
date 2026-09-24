@@ -28,6 +28,7 @@ class NotasVentaRenta extends Model
         'condicion_pago',
         'fecha_vencimiento',
         'fecha_vencimiento_pago',
+        'cobro_credito_confirmado_en',
         'moneda',
         'tipo_cambio',
         'deposito',
@@ -54,6 +55,7 @@ class NotasVentaRenta extends Model
         'fecha_emision' => 'datetime',
         'fecha_vencimiento' => 'date',
         'fecha_vencimiento_pago' => 'date',
+        'cobro_credito_confirmado_en' => 'datetime',
         'metros_m2' => 'decimal:2',
     ];
 

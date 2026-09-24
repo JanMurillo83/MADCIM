@@ -30,7 +30,7 @@ class DevolucionRentaController extends Controller
         $nota = NotasVentaRenta::with(['cliente', 'direccionEntrega', 'registrosRenta.producto'])->findOrFail($id);
 
         $request->validate([
-            'folio_interno' => 'required|string|max:100',
+            'folio_interno' => 'required|string|max:100|unique:notas_devolucion_renta,folio_interno',
             'items' => 'required|array',
             'items.*.cantidad_devuelta' => 'required|numeric|min:0',
         ]);
@@ -46,7 +46,10 @@ class DevolucionRentaController extends Controller
                     ->when(
                         $nota->direccion_entrega_id,
                         fn ($query) => $query
-                            ->where('nota_venta_renta_id', $nota->id),
+                            ->where('cliente_id', $nota->cliente_id)
+                            ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery
+                                ->where('direccion_entrega_id', $nota->direccion_entrega_id)
+                                ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']))),
                         fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
                     )
                     ->lockForUpdate()
@@ -156,7 +159,10 @@ class DevolucionRentaController extends Controller
             ->when(
                 $nota->direccion_entrega_id,
                 fn ($query) => $query
-                    ->where('nota_venta_renta_id', $nota->id),
+                    ->where('cliente_id', $nota->cliente_id)
+                    ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery
+                        ->where('direccion_entrega_id', $nota->direccion_entrega_id)
+                        ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']))),
                 fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
             )
             ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')

@@ -125,6 +125,7 @@ class NotasDevolucionRentaForm
                             ->label('Folio interno')
                             ->required()
                             ->maxLength(100)
+                            ->unique(ignoreRecord: true)
                             ->placeholder('Referencia interna'),
                         Select::make('cliente_id')
                             ->label('Cliente')

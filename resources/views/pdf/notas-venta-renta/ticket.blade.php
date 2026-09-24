@@ -282,13 +282,10 @@
     </div>
 
     <div class="payment-section">
-        <div class="payment-title">Estado de pago: {{ $condicionPagoTexto }}</div>
         @if($condicionPago === 'credito')
-            <div class="total-row">
-                <span>Saldo pendiente:</span>
-                <span>${{ number_format($notaVenta->saldo_pendiente ?? $notaVenta->total, 2) }}</span>
-            </div>
+            <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid #000; text-align: center;">Firma del cliente</div>
         @else
+            <div class="payment-title">Estado de pago: {{ $condicionPagoTexto }}</div>
             @forelse($notaVenta->pagos as $pago)
                 <div class="total-row">
                     <span>{{ match ($pago->forma_pago) {

@@ -147,13 +147,15 @@
     </div>
 
     <div class="info-section">
-        @if($notaVenta->condicion_pago === 'contado')
+        @if($notaVenta->condicion_pago === 'credito')
+            <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid #000; text-align: center;">Firma del cliente</div>
+        @elseif($notaVenta->pagos->isNotEmpty())
             @forelse($notaVenta->pagos as $pago)
                 <div class="info-row">
                     <span class="label">Forma de pago:</span>
                     <span>{{ match ($pago->forma_pago) {
                         '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia',
-                        '04' => 'Tarjeta de crédito', '28' => 'Tarjeta de débito',
+                        '04' => 'Tarjeta de crédito', '28' => 'Tarjeta de débito', '99' => 'Crédito',
                         default => $pago->forma_pago,
                     } }}</span>
                 </div>

@@ -90,6 +90,13 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'importe_deposito' => 50,
             'estado' => 'Devuelto',
         ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $nota->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Devuelta',
+        ]);
 
         $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
             $cliente->id,
@@ -282,6 +289,13 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'importe_deposito' => 0,
             'estado' => 'Devuelto',
         ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $notaInicial->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Devuelta',
+        ]);
 
         $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
             $cliente->id,
@@ -318,6 +332,13 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'importe_renta' => 0,
             'importe_deposito' => 0,
             'estado' => 'Activo',
+        ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $notaPosterior->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Vigente',
         ]);
 
         $segundoResultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
@@ -422,6 +443,20 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'fecha_renta' => now()->toDateString(),
             'fecha_vencimiento' => now()->addDays(10)->toDateString(),
             'estado' => 'Activo',
+        ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $notaUno->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Vigente',
+        ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $notaDos->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Vigente',
         ]);
         $devolucion = NotaDevolucionRenta::create([
             'serie' => 'NDR',

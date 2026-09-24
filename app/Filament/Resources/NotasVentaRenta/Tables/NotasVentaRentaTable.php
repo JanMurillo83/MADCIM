@@ -1,11 +1,11 @@
 <?php
 
 namespace App\Filament\Resources\NotasVentaRenta\Tables;
-
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use App\Services\CierreDevolucionRentaService;
+use App\Enums\TipoNotaRenta;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -20,6 +20,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
 class NotasVentaRentaTable
@@ -76,6 +77,10 @@ class NotasVentaRentaTable
                     ->label('Estatus Envío')
                     ->badge()
                     ->getStateUsing(function (NotasVentaRenta $record) {
+                        if ($record->estatus === 'Cancelada') {
+                            return 'Cancelada';
+                        }
+
                         $partidas = $record->esMaderaM2()
                             ? $record->desgloseM2->map(fn ($fila) => (object) [
                                 'item' => $fila->producto_id,
@@ -113,11 +118,12 @@ class NotasVentaRentaTable
                         if ($enviadas > 0) return 'Envío Parcial';
                         return 'Envío Parcial';
                     })
+                    ->getStateUsing(fn (NotasVentaRenta $record): string => self::estatusEnvioPorPartidas($record))
                     ->colors([
-                        'danger' => 'Pendiente.',
+                        'danger' => 'Cancelada',
                         'warning' => 'Envío Parcial',
                         'info' => 'Enviada',
-                        'gray' => 'Pendiente',
+                        'gray' => 'Pendiente.',
                         'primary' => 'Entregada Parcial',
                         'success' => 'Entregada',
                         'secondary' => 'Sin partidas',
@@ -126,6 +132,10 @@ class NotasVentaRentaTable
                     ->label('Estatus Renta')
                     ->badge()
                     ->getStateUsing(function (NotasVentaRenta $record) {
+                        if ($record->estatus === 'Cancelada') {
+                            return 'Cancelada';
+                        }
+
                         $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
                         if ($envios->isEmpty()) return 'Vigente';
 
@@ -135,6 +145,7 @@ class NotasVentaRentaTable
                     ->colors([
                         'success' => 'Vigente',
                         'gray' => 'Devuelta',
+                        'danger' => 'Cancelada',
                     ]),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
@@ -178,13 +189,6 @@ class NotasVentaRentaTable
                     ViewAction::make()
                         ->label('Consultar')
                         ->modalWidth('full'),
-                    Action::make('devolucion')
-                        ->label('Registrar Devolución')
-                        ->visible(fn (NotasVentaRenta $record): bool => $record->direccion_entrega_id !== null)
-                        ->icon('fas-undo')
-                        ->color('success')
-                        ->url(fn (NotasVentaRenta $record): string => route('notas-venta-renta.devolucion', $record->id))
-                        ->openUrlInNewTab(),
                     Action::make('imprimir_ticket')
                         ->label('Imprimir Ticket')
                         ->icon('fas-receipt')
@@ -284,6 +288,7 @@ class NotasVentaRentaTable
                                 $detalle .= '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
                                     . '<strong>' . e($row['producto']) . '</strong>'
                                     . '<div>Faltante: ' . number_format((float) $row['faltante'], 2)
+                                    . ' | Precio unitario: ' . $money((float) ($row['precio_unitario'] ?? 0))
                                     . ' | Importe: ' . $money((float) $row['total']) . '</div>'
                                     . '</div>';
                             }
@@ -395,7 +400,10 @@ class NotasVentaRentaTable
                         ->modalSubmitActionLabel('Sí, cancelar')
                         ->visible(fn ($record) => $record->estatus === 'Activa')
                         ->action(function ($record) {
-                            $record->update(['estatus' => 'Cancelada']);
+                            DB::transaction(function () use ($record): void {
+                                $record->update(['estatus' => 'Cancelada']);
+                                $record->notasEnvio()->update(['estatus' => 'Cancelada']);
+                            });
 
                             Notification::make()
                                 ->title('Nota cancelada')
@@ -431,5 +439,85 @@ class NotasVentaRentaTable
                     })
                     ->successRedirectUrl(fn ($record) => route('notas-venta-renta.preview', $record->id)),
             ], HeaderActionsPosition::Bottom);
+    }
+
+    private static function estatusEnvioPorPartidas(NotasVentaRenta $record): string
+    {
+        if ($record->estatus === 'Cancelada') {
+            return 'Cancelada';
+        }
+
+        $partidas = $record->partidas;
+        if ($partidas->isEmpty()) {
+            return 'Sin partidas';
+        }
+
+        $envios = NotaEnvio::query()
+            ->where('nota_venta_renta_id', $record->id)
+            ->get();
+        if ($envios->isEmpty()) {
+            return 'Pendiente.';
+        }
+
+        $envioPartidas = NotaEnvioPartida::query()
+            ->with('producto')
+            ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $record->id))
+            ->get();
+        $tieneEnviado = false;
+        $tienePendiente = false;
+
+        foreach ($partidas as $partida) {
+            $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $record->tipo_nota_renta ?? 'equipo')
+                ?? TipoNotaRenta::Equipo;
+
+            if ($tipo->esMaderaM2()) {
+                $objetivoM2 = (float) ($partida->metros_m2 ?? 0);
+                $cubiertoM2 = $envioPartidas
+                    ->filter(fn ($envioPartida): bool =>
+                        (int) $envioPartida->nota_venta_renta_partida_id === (int) $partida->id
+                        || (float) ($envioPartida->producto?->m2_cubre ?? 0) > 0
+                    )
+                    ->sum(fn ($envioPartida): float =>
+                        (float) $envioPartida->cantidad * (float) ($envioPartida->producto?->m2_cubre ?? 0)
+                    );
+
+                $tieneEnviado = $tieneEnviado || $cubiertoM2 > 0;
+                if ($objetivoM2 > 0 && $cubiertoM2 < ($objetivoM2 - 1.0)) {
+                    $tienePendiente = true;
+                }
+
+                continue;
+            }
+
+            $enviado = $envioPartidas
+                ->filter(fn ($envioPartida): bool =>
+                    (int) $envioPartida->nota_venta_renta_partida_id === (int) $partida->id
+                    || ((int) $partida->item === (int) $envioPartida->producto_id && !$envioPartida->nota_venta_renta_partida_id)
+                )
+                ->sum(fn ($envioPartida): float => (float) $envioPartida->cantidad);
+
+            $tieneEnviado = $tieneEnviado || $enviado > 0;
+            if ($enviado < (float) $partida->cantidad) {
+                $tienePendiente = true;
+            }
+        }
+
+        if (!$tieneEnviado) {
+            return 'Pendiente.';
+        }
+
+        $totalEnvios = $envios->count();
+        $entregadas = $envios->where('estatus', 'Entregada')->count();
+        $todosEnviados = $envios->every(fn ($envio): bool => in_array($envio->estatus, ['Enviada', 'Entregada'], true));
+
+        if ($tienePendiente) {
+            return $entregadas > 0 ? 'Entregada Parcial' : 'Envío Parcial';
+        }
+
+        if ($entregadas >= $totalEnvios) {
+            return 'Entregada';
+        }
+
+        return $todosEnviados ? 'Enviada' : 'Envío Parcial';
     }
 }

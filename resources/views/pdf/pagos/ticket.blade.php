@@ -29,14 +29,14 @@
     <div class="row"><span class="strong">Cliente:</span><span>{{ $pago->cliente?->nombre ?? 'N/A' }}</span></div>
     <div class="row"><span class="strong">Condición:</span><span>{{ ($documento->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado' }}</span></div>
     <div class="row"><span class="strong">Pago recibido:</span><span>{{ match ($pago->forma_pago) {
-        '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia', '04' => 'Tarjeta crédito', '28' => 'Tarjeta débito', default => $pago->forma_pago,
+        '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia', '04' => 'Tarjeta crédito', '28' => 'Tarjeta débito', '99' => 'Crédito', default => $pago->forma_pago,
     } }}</span></div>
 
     <div class="line"></div>
     @php $totalCobrado = $pagos->sum('importe'); @endphp
     @foreach($pagos as $pagoLinea)
         <div class="row"><span>{{ match ($pagoLinea->forma_pago) {
-            '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia', '04' => 'Tarjeta crédito', '28' => 'Tarjeta débito', default => $pagoLinea->forma_pago,
+            '01' => 'Efectivo', '02' => 'Cheque', '03' => 'Transferencia', '04' => 'Tarjeta crédito', '28' => 'Tarjeta débito', '99' => 'Crédito', default => $pagoLinea->forma_pago,
         } }}:</span><span>${{ number_format($pagoLinea->importe, 2) }}</span></div>
         @if($pagoLinea->forma_pago === '01')
             <div class="row"><span>Recibido:</span><span>${{ number_format($pagoLinea->importe_recibido, 2) }}</span></div>

@@ -98,14 +98,13 @@ class NotasVentaRentaForm
             $tipoRentaPartida = $partida['tipo_renta'] ?? $tipoRenta;
             $duracionPartida = max(1, (float) ($partida['duracion_renta'] ?? $duracion));
             $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRentaPartida, $tipoNotaRenta);
-            $valorUnitario = $tipoNotaRenta->esMadera()
-                ? $precioBase
-                : round($precioBase * $duracionPartida, 2);
-            $cantidad = (float) ($partida['cantidad'] ?? 1);
-            $totalConIva = round($cantidad * $valorUnitario, 2);
+            $valorUnitario = $precioBase;
+            $cantidad = $tipoNotaRenta->esEquipo() ? 1.0 : (float) ($partida['cantidad'] ?? 1);
+            $totalConIva = round($cantidad * $valorUnitario * ($tipoNotaRenta->esEquipo() ? $duracionPartida : 1), 2);
             $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
 
             $partidas[$key]['valor_unitario'] = $valorUnitario;
+            $partidas[$key]['cantidad'] = $cantidad;
             $partidas[$key]['subtotal'] = $desglose['subtotal'];
             $partidas[$key]['impuestos'] = $desglose['iva'];
             $partidas[$key]['total'] = $totalConIva;
@@ -126,7 +125,8 @@ class NotasVentaRentaForm
     {
         $cantidad = (float) $get('cantidad');
         $valorUnitario = (float) $get('valor_unitario');
-        $totalConIva = round($cantidad * $valorUnitario, 2);
+        $factorDuracion = self::esEquipo($get) ? self::resolverDuracionRenta($get) : 1;
+        $totalConIva = round($cantidad * $valorUnitario * $factorDuracion, 2);
         $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
 
         $set('subtotal', $desglose['subtotal']);
@@ -156,7 +156,8 @@ class NotasVentaRentaForm
         $tipoRenta = $get('tipo_renta') ?? 'dia';
         $duracion = self::resolverDuracionRenta($get);
         $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipo);
-        $set('valor_unitario', $tipo->esMadera() ? $precioBase : round($precioBase * $duracion, 2));
+        $set('cantidad', $tipo->esEquipo() ? 1 : $get('cantidad'));
+        $set('valor_unitario', $precioBase);
         self::recalculatePartidaTotales($get, $set);
     }
 
@@ -178,7 +179,7 @@ class NotasVentaRentaForm
         $set('item', $productoId);
         $set('descripcion', $producto->descripcion . ' - ' . $metros . ' M2');
         $set('cantidad', 1);
-        $set('valor_unitario', $calculo['total_renta']);
+        $set('valor_unitario', $calculo['precio_renta_m2']);
         $set('subtotal', $calculo['subtotal_renta']);
         $set('impuestos', $calculo['iva_renta']);
         $set('total', $calculo['total_renta']);
@@ -578,6 +579,7 @@ class NotasVentaRentaForm
                                     ->numeric()
                                     ->required()
                                     ->default(1)
+                                    ->readOnly(fn (Get $get): bool => self::esMaderaM2($get) || self::esEquipo($get))
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         self::recalculatePartidaTotales($get, $set);
@@ -651,9 +653,10 @@ class NotasVentaRentaForm
                                         $tipoRenta = $get('tipo_renta') ?? 'dia';
                                         $duracion = max(1, (float) ($get('duracion_renta') ?? 1));
                                         $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
-                                        $precio = $tipoNotaRenta?->esMadera() === true
-                                            ? $precioBase
-                                            : round($precioBase * $duracion, 2);
+                                        $precio = $precioBase;
+                                        if ($tipoNotaRenta?->esEquipo()) {
+                                            $set('cantidad', 1);
+                                        }
                                         $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);

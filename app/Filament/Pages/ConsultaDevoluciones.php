@@ -46,7 +46,8 @@ class ConsultaDevoluciones extends Page implements HasActions
                 $query->whereHas('notasVentaRenta', function ($notaQuery) {
                     $notaQuery
                         ->whereNotIn('estatus', ['Cancelada', 'Devuelta', 'Vendida'])
-                        ->whereHas('registrosRenta');
+                            ->whereHas('registrosRenta')
+                            ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']));
                 })->orWhereIn('id', CierreDevolucionRenta::query()
                     ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
                     ->select('cliente_id'));
@@ -106,6 +107,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                     ->where('cliente_id', $this->clienteCierreId)
                     ->where('direccion_entrega_id', $this->direccionCierreId)
                     ->where('estatus', '!=', 'Cancelada')
+                        ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
                     ->sum('total');
                 $totales['deposito'] = (float) ($totales['deposito'] ?? 0);
                 $totales['total_renta'] = max(0, round($totalNotas - $totales['deposito'], 2));
@@ -117,6 +119,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                     '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
                     . '<strong>' . e($row['producto']) . '</strong>'
                     . '<div>Faltante: ' . number_format((float) $row['faltante'], 2)
+                        . ' | Precio unitario: ' . $money((float) ($row['precio_unitario'] ?? 0))
                     . ' | Importe: ' . $money((float) $row['total']) . '</div>'
                     . '</div>'
                 )->implode('');
@@ -193,6 +196,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                 'notaVentaRenta',
                 fn ($notaQuery) => $notaQuery->where('direccion_entrega_id', $this->direccion_entrega_id)
             ))
+            ->whereHas('notaVentaRenta.notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
             ->get();
 
         $items = collect($items);

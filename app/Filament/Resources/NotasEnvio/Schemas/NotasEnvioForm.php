@@ -1,6 +1,7 @@
 <?php
 namespace App\Filament\Resources\NotasEnvio\Schemas;
 use App\Enums\TipoNotaRenta;
+use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
 use Carbon\Carbon;
@@ -19,6 +20,41 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 class NotasEnvioForm
 {
+    private static function tipoPartidaActual(Get $get): ?TipoNotaRenta
+    {
+        $tipo = TipoNotaRenta::tryFrom($get('tipo_nota_renta') ?? '');
+        if ($tipo) {
+            return $tipo;
+        }
+
+        $partidaId = $get('nota_venta_renta_partida_id');
+        if ($partidaId) {
+            return TipoNotaRenta::tryFrom(
+                (string) NotaVentaRentaPartidas::query()->whereKey($partidaId)->value('tipo_nota_renta'),
+            );
+        }
+
+        return null;
+    }
+
+    private static function esPartidaM2(Get $get): bool
+    {
+        return self::tipoPartidaActual($get)?->esMaderaM2() ?? false;
+    }
+
+    private static function esPartidaEquipo(Get $get): bool
+    {
+        return self::tipoPartidaActual($get) === TipoNotaRenta::Equipo;
+    }
+
+    private static function bloqueaProducto(Get $get): bool
+    {
+        return in_array(self::tipoPartidaActual($get), [
+            TipoNotaRenta::Equipo,
+            TipoNotaRenta::MaderaPieza,
+        ], true);
+    }
+
     private static function diasRentaDePartida($partida): int
     {
         $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? 'equipo') ?? TipoNotaRenta::Equipo;
@@ -117,12 +153,41 @@ class NotasEnvioForm
         );
     }
 
+    private static function m2EnviadoDePartida(NotasVentaRenta $nota, int $partidaId): float
+    {
+        $partidasM2 = $nota->partidas
+            ->filter(fn ($partida) => TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $nota->tipo_nota_renta ?? '')?->esMaderaM2())
+            ->pluck('id');
+
+        return \App\Models\NotaEnvioPartida::query()
+            ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+            ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
+            ->filter(function ($envioPartida) use ($partidaId, $partidasM2): bool {
+                if ((int) $envioPartida->nota_venta_renta_partida_id === $partidaId) {
+                    return true;
+                }
+
+                return $partidasM2->count() === 1
+                    && !$envioPartida->nota_venta_renta_partida_id
+                    && (float) (Productos::find($envioPartida->producto_id)?->m2_cubre ?? 0) > 0;
+            })
+            ->sum(fn ($envioPartida): float =>
+                (float) $envioPartida->cantidad * (float) (Productos::find($envioPartida->producto_id)?->m2_cubre ?? 0)
+            );
+    }
+
     private static function partidasPendientesDeNota(NotasVentaRenta $nota): array
     {
         $partidasOrigen = collect();
         foreach ($nota->partidas as $partida) {
             $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $nota->tipo_nota_renta ?? 'equipo');
             if ($tipo?->esMaderaM2()) {
+                $objetivoM2 = (float) ($partida->metros_m2 ?? 0);
+                $enviadoM2 = self::m2EnviadoDePartida($nota, (int) $partida->id);
+                if ($objetivoM2 > 0 && $objetivoM2 - $enviadoM2 <= 1.0) {
+                    continue;
+                }
+
                 $desglose = $nota->desgloseM2
                     ->where('nota_venta_renta_partida_id', $partida->id);
                 foreach ($desglose as $fila) {
@@ -132,6 +197,7 @@ class NotasEnvioForm
                         'descripcion' => is_array($fila) ? ($fila['descripcion'] ?? null) : $fila->descripcion,
                         'cantidad' => is_array($fila) ? ($fila['cantidad'] ?? 0) : $fila->cantidad,
                         'm2_cubre' => is_array($fila) ? ($fila['m2_cubre'] ?? 0) : ($fila->m2_cubre ?? 0),
+                        'tipo_nota_renta' => $partida->tipo_nota_renta ?? $nota->tipo_nota_renta,
                     ]);
                 }
                 continue;
@@ -143,6 +209,7 @@ class NotasEnvioForm
                 'descripcion' => $partida->descripcion,
                 'cantidad' => $partida->cantidad,
                 'm2_cubre' => null,
+                    'tipo_nota_renta' => $partida->tipo_nota_renta ?? $nota->tipo_nota_renta,
             ]);
         }
 
@@ -160,6 +227,7 @@ class NotasEnvioForm
                 'descripcion' => $partida->descripcion,
                 'cantidad' => 0.0,
                 'm2_cubre' => (float) ($partida->m2_cubre ?? 0),
+                'tipo_nota_renta' => $partida->tipo_nota_renta ?? $nota->tipo_nota_renta,
             ];
             $objetivos[$clave]['cantidad'] += (float) $partida->cantidad;
         }
@@ -189,6 +257,7 @@ class NotasEnvioForm
 
             $partidasData[] = [
                 'nota_venta_renta_partida_id' => $objetivo['partida_id'],
+                'tipo_nota_renta' => $objetivo['tipo_nota_renta'],
                 'producto_id' => $objetivo['producto_id'],
                 'descripcion' => $objetivo['descripcion'],
                 'cantidad' => $pendiente,
@@ -208,19 +277,12 @@ class NotasEnvioForm
             }
 
             $objetivoM2 = (float) ($partida->metros_m2 ?? 0);
-            $enviadoM2 = \App\Models\NotaEnvioPartida::query()
-                ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
-                ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
-                ->filter(function ($envioPartida) use ($partida): bool {
-                    $producto = Productos::find($envioPartida->producto_id);
-                    return (int) $envioPartida->nota_venta_renta_partida_id === (int) $partida->id
-                        || (float) ($producto?->m2_cubre ?? 0) > 0;
-                })
-                ->sum(fn ($envioPartida): float => (float) $envioPartida->cantidad * (float) (Productos::find($envioPartida->producto_id)?->m2_cubre ?? 0));
+            $enviadoM2 = self::m2EnviadoDePartida($nota, (int) $partida->id);
 
-            if ($objetivoM2 > $enviadoM2 + 0.0001) {
+            if ($objetivoM2 - $enviadoM2 > 1.0) {
                 $partidasData[] = [
                     'nota_venta_renta_partida_id' => $partida->id,
+                    'tipo_nota_renta' => $partida->tipo_nota_renta ?? $nota->tipo_nota_renta,
                     'producto_id' => null,
                     'descripcion' => 'Captura manual de productos M2 (pendiente: ' . number_format($objetivoM2 - $enviadoM2, 2) . ' M2)',
                     'cantidad' => 1,
@@ -381,6 +443,7 @@ class NotasEnvioForm
                             })
                             ->schema([
                                 Hidden::make('nota_venta_renta_partida_id'),
+                                Hidden::make('tipo_nota_renta'),
                                 Select::make('producto_id')
                                     ->label('Producto')
                                     ->required()
@@ -388,6 +451,8 @@ class NotasEnvioForm
                                     ->pluck('descripcion', 'id'))
                                     ->searchable()
                                     ->live()
+                                    ->disabled(fn (Get $get): bool => self::bloqueaProducto($get))
+                                    ->dehydrated()
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         $productoId = $get('producto_id');
                                         $producto = Productos::find($productoId);
@@ -402,30 +467,14 @@ class NotasEnvioForm
                                     ->required()
                                     ->default(1)
                                     ->minValue(0.01)
+                                    ->readOnly(fn (Get $get): bool => self::esPartidaEquipo($get))
+                                    ->live(onBlur: true)
                                     ->columnSpan(1),
                                 TextInput::make('dias_renta')
                                     ->label('Días de Renta')
                                     ->numeric()
                                     ->minValue(1)
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                        if (!filled($state) || !filled($get('../../fecha_emision'))) {
-                                            $set('fecha_vencimiento', null);
-
-                                            return;
-                                        }
-
-                                        $fechaBase = self::fechaBaseNotaRenta(
-                                            $get('../../nota_venta_renta_id'),
-                                            $get('../../fecha_emision'),
-                                        );
-                                        $set(
-                                            'fecha_vencimiento',
-                                            $fechaBase
-                                                ->addDays(max(1, (int) $state))
-                                                ->toDateString(),
-                                        );
-                                    })
+                                    ->readOnly()
                                     ->required(),
                                 DatePicker::make('fecha_vencimiento')
                                     ->label('Vencimiento')

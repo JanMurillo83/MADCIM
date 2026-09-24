@@ -7,10 +7,36 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
 
 class CobroNotaService
 {
+    public function confirmarCredito(string $documentoTipo, int $documentoId): Model
+    {
+        return DB::transaction(function () use ($documentoTipo, $documentoId): Model {
+            $documento = match ($documentoTipo) {
+                'notas_venta_renta' => NotasVentaRenta::query()->lockForUpdate()->findOrFail($documentoId),
+                'notas_venta_venta' => NotasVentaVenta::query()->lockForUpdate()->findOrFail($documentoId),
+                default => throw new RuntimeException('Tipo de documento no soportado.'),
+            };
+
+            if ($documento->condicion_pago !== 'credito') {
+                throw new RuntimeException('La nota no está registrada a crédito.');
+            }
+
+            if ((float) $documento->saldo_pendiente <= 0 || $documento->estatus === 'Cancelada') {
+                throw new RuntimeException('La nota no tiene saldo pendiente de crédito.');
+            }
+
+            $documento->forceFill([
+                'cobro_credito_confirmado_en' => now(),
+            ])->saveQuietly();
+
+            return $documento;
+        });
+    }
+
     public function cobrar(string $documentoTipo, int $documentoId, array $data, int $userId): Pagos
     {
         return DB::transaction(function () use ($documentoTipo, $documentoId, $data, $userId): Pagos {
@@ -35,20 +61,21 @@ class CobroNotaService
                 throw new RuntimeException('El pago no puede ser mayor al saldo pendiente.');
             }
 
-            $cajaId = null;
-            if (collect($lineas)->contains(fn (array $linea): bool => ($linea['forma_pago'] ?? null) === '01')) {
-                $cajaId = Caja::query()
-                    ->where('estatus', 'Abierta')
-                    ->where('usuario_apertura_id', $userId)
-                    ->lockForUpdate()
-                    ->value('id');
+            $cajaId = Caja::query()
+                ->where('estatus', 'Abierta')
+                ->where('usuario_apertura_id', $userId)
+                ->lockForUpdate()
+                ->value('id');
 
-                if (!$cajaId) {
-                    throw new RuntimeException('No tienes una caja abierta para recibir efectivo.');
-                }
+            if (!$cajaId && collect($lineas)->contains(fn (array $linea): bool => ($linea['forma_pago'] ?? null) === '01')) {
+                throw new RuntimeException('No tienes una caja abierta para recibir efectivo.');
             }
 
             $primerPago = null;
+            $formasPago = collect($lineas)
+                ->map(fn (array $linea): string => (string) ($linea['forma_pago'] ?? '01'))
+                ->unique()
+                ->values();
             foreach ($lineas as $linea) {
                 $formaPago = (string) ($linea['forma_pago'] ?? '01');
                 $importe = round((float) $linea['importe'], 2);
@@ -71,11 +98,17 @@ class CobroNotaService
                     'referencia' => $data['referencia'] ?? null,
                     'observaciones' => $data['observaciones'] ?? null,
                     'user_id' => $userId,
-                    'caja_id' => $formaPago === '01' ? $cajaId : null,
+                    'caja_id' => $cajaId,
                 ]);
 
                 $primerPago ??= $pago;
             }
+
+            $documento->forceFill([
+                'forma_pago' => $formasPago->count() === 1
+                    ? $formasPago->first()
+                    : $formasPago->implode(','),
+            ])->saveQuietly();
 
             return $primerPago;
         });

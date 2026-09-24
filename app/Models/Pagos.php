@@ -151,11 +151,7 @@ class Pagos extends Model
 
     public function sincronizarMovimientoCaja(): void
     {
-        // Solo aplicable a pagos en efectivo y con caja asignada
-        // Nota: actualmente `forma_pago` se guarda como clave SAT (p.ej. '01'), pero puede existir dato legado como 'Efectivo'.
-        $esEfectivo = in_array($this->forma_pago, ['01', 'Efectivo'], true);
-
-        if (!$esEfectivo || empty($this->caja_id)) {
+        if (empty($this->caja_id)) {
             // Si existe un movimiento previo, eliminarlo
             try {
                 \App\Models\CajaMovimiento::where('movimentable_type', self::class)
@@ -165,7 +161,17 @@ class Pagos extends Model
             return;
         }
 
-        // Upsert del movimiento de caja asociado a este pago
+        $metodoPago = match ((string) $this->forma_pago) {
+            '01', 'Efectivo' => 'Efectivo',
+            '02' => 'Cheque',
+            '03' => 'Transferencia',
+            '04' => 'Tarjeta crédito',
+            '28' => 'Tarjeta débito',
+            '99' => 'Crédito',
+            default => (string) $this->forma_pago,
+        };
+
+        // Registra todas las formas para el desglose; los totales de caja filtran Efectivo.
         \App\Models\CajaMovimiento::updateOrCreate(
             [
                 'movimentable_type' => self::class,
@@ -175,7 +181,7 @@ class Pagos extends Model
                 'caja_id' => $this->caja_id,
                 'tipo' => 'Ingreso',
                 'fuente' => 'pago',
-                'metodo_pago' => 'Efectivo',
+                'metodo_pago' => $metodoPago,
                 'importe' => $this->importe,
                 'referencia' => $this->referencia,
                 'observaciones' => $this->observaciones,

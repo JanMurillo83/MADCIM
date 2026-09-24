@@ -116,16 +116,6 @@ class NotasEnvioTable
                         'danger' => 'Cancelada',
                         'gray' => 'Devuelta',
                     ])->sortable(),
-                TextColumn::make('estado_renta')
-                    ->label('Estado Renta')
-                    ->badge()
-                    ->colors([
-                        'warning' => 'Pendiente',
-                        'info' => 'Parcial',
-                        'success' => 'Devuelta',
-                        'gray' => 'Vigente',
-                        'danger' => 'Vencido',
-                    ])
             ])
             ->defaultSort('id', 'desc')
             ->headerActions([

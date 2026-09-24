@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\CajaMovimientoTicketController;
+use App\Http\Controllers\CajaCierreTicketController;
 use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
@@ -19,6 +20,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('pagos.ticket');
     Route::get('/caja-movimientos/{id}/devolucion-deposito/ticket', [CajaMovimientoTicketController::class, 'devolucionDeposito'])
         ->name('caja-movimientos.devolucion-deposito.ticket');
+    Route::get('/cajas/{id}/cierre/ticket', CajaCierreTicketController::class)
+        ->name('cajas.cierre.ticket');
 });
 
 Route::middleware(['auth'])->group(function () {

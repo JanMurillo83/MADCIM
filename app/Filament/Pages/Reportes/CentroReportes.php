@@ -14,6 +14,7 @@ use App\Filament\Pages\Reportes\OrdenesCompraPorEstatus;
 use App\Filament\Pages\Reportes\ProductosMasRentados;
 use App\Filament\Pages\Reportes\RecepcionesPorProveedor;
 use App\Filament\Pages\Reportes\ReporteConcentrado;
+use App\Filament\Pages\Reportes\ReporteDiario;
 use App\Filament\Pages\Reportes\ConcentradoHistorico;
 use App\Filament\Pages\Reportes\RentasActivasVencidas;
 use App\Filament\Pages\Reportes\VentasPorLinea;
@@ -36,6 +37,11 @@ class CentroReportes extends Page
     public function mount(): void
     {
         $this->reportes = [
+            [
+                'titulo' => 'Reporte Diario',
+                'descripcion' => 'Resumen ejecutivo de operaciones, documentos, productos, pagos y egresos del día.',
+                'url' => ReporteDiario::getUrl(),
+            ],
             [
                 'titulo' => 'Ventas y Rentas por Periodo',
                 'descripcion' => 'Ventas, rentas y CFDI por rango de fechas con filtros por cliente, sucursal y usuario.',

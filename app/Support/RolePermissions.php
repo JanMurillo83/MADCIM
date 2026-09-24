@@ -51,6 +51,7 @@ class RolePermissions
         'App\\Filament\\Pages\\DetalleCliente' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
 
         'App\\Filament\\Pages\\Reportes\\CentroReportes' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
+        'App\\Filament\\Pages\\Reportes\\ReporteDiario' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\CajaDiaria' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\ControlDepositos' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\CuentasPorCobrar' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],

@@ -23,6 +23,9 @@ class Caja extends Model
         'usuario_cierre_id',
         'total_ingresos_cash',
         'total_egresos_cash',
+        'efectivo_teorico',
+        'efectivo_contado',
+        'denominaciones_efectivo',
         'total_diferencia',
         'observaciones_cierre',
     ];
@@ -33,6 +36,9 @@ class Caja extends Model
         'saldo_inicial_cash' => 'decimal:2',
         'total_ingresos_cash' => 'decimal:2',
         'total_egresos_cash' => 'decimal:2',
+        'efectivo_teorico' => 'decimal:2',
+        'efectivo_contado' => 'decimal:2',
+        'denominaciones_efectivo' => 'array',
         'total_diferencia' => 'decimal:2',
     ];
 

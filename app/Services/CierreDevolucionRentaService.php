@@ -242,6 +242,7 @@ class CierreDevolucionRentaService
             ->where('cliente_id', $clienteId)
             ->where('direccion_entrega_id', $direccionEntregaId)
             ->where('estatus', '!=', 'Cancelada')
+            ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
             ->whereNotIn('id', $this->notaIdsEnCierresActivos($clienteId, $direccionEntregaId))
             ->orderBy('id')
             ->get();
@@ -313,17 +314,23 @@ class CierreDevolucionRentaService
 
     public function obtenerResumenPorObra(NotasVentaRenta $nota): array
     {
-        $resumen = $this->obtenerResumen($nota);
-        $depositoNotas = (float) NotasVentaRenta::query()
+        $notaIds = NotasVentaRenta::query()
             ->where('cliente_id', $nota->cliente_id)
             ->where('direccion_entrega_id', $nota->direccion_entrega_id)
             ->where('estatus', '!=', 'Cancelada')
+            ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
+            ->pluck('id')
+            ->all();
+
+        $resumen = empty($notaIds)
+            ? ['rows' => [], 'totales' => ['total_faltantes' => 0, 'deposito' => 0, 'deposito_aplicado' => 0, 'saldo_por_cobrar' => 0, 'deposito_devolver' => 0, 'total_renta' => 0]]
+            : $this->calcularResumen($nota->fresh(['notasEnvio.partidas.producto', 'cliente']), $notaIds);
+        $depositoNotas = (float) NotasVentaRenta::query()
+            ->whereIn('id', $notaIds)
             ->sum('deposito');
         $deposito = $depositoNotas;
         $totalObra = (float) NotasVentaRenta::query()
-            ->where('cliente_id', $nota->cliente_id)
-            ->where('direccion_entrega_id', $nota->direccion_entrega_id)
-            ->where('estatus', '!=', 'Cancelada')
+            ->whereIn('id', $notaIds)
             ->sum('total');
 
         $resumen['totales']['deposito'] = $deposito;

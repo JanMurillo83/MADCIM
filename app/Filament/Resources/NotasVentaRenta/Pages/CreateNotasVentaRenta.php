@@ -20,6 +20,8 @@ class CreateNotasVentaRenta extends CreateRecord
 {
     protected static string $resource = NotasVentaRentaResource::class;
 
+    public ?string $notaGuardadaFolio = null;
+
     protected function getHeaderActions(): array
     {
         return [
@@ -66,6 +68,32 @@ class CreateNotasVentaRenta extends CreateRecord
     public function cancelarCaptura(): void
     {
         $this->redirect($this->getResource()::getUrl('index'));
+    }
+
+    public function notaGuardadaAction(): Action
+    {
+        return Action::make('notaGuardada')
+            ->modalHeading('Nota guardada')
+            ->modalDescription(fn (): HtmlString => new HtmlString(
+                '<div class="space-y-2">'
+                . '<p>Folio guardado: <strong>' . e($this->notaGuardadaFolio ?? '-') . '</strong></p>'
+                . '<p>Pasar a pagar a Caja.</p>'
+                . '</div>'
+            ))
+            ->modalSubmitActionLabel('OK')
+            ->modalCancelAction(false)
+            ->modalCloseButton(false)
+            ->action(function (): void {
+                $this->limpiarCaptura();
+            });
+    }
+
+    public function limpiarCaptura(): void
+    {
+        $this->record = null;
+        $this->form->model($this->getResource()::getModel());
+        $this->fillForm();
+        $this->notaGuardadaFolio = null;
     }
 
     protected function getCreateFormAction(): Action
@@ -154,7 +182,7 @@ class CreateNotasVentaRenta extends CreateRecord
         foreach ($data['partidas'] ?? [] as $partida) {
             $tipo = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? $data['tipo_nota_renta'] ?? 'equipo')
                 ?? TipoNotaRenta::Equipo;
-            $cantidad = max(0.0, (float) ($partida['cantidad'] ?? 0));
+            $cantidad = $tipo === TipoNotaRenta::Equipo ? 1.0 : max(0.0, (float) ($partida['cantidad'] ?? 0));
             $tipoRenta = $partida['tipo_renta'] ?? 'dia';
             $duracion = max(1, (int) ($partida['duracion_renta'] ?? 1));
             $dias = $tipo->esMadera()
@@ -180,7 +208,7 @@ class CreateNotasVentaRenta extends CreateRecord
                 $partida['item'] = $producto->id;
                 $partida['descripcion'] = $producto->descripcion . ' - ' . $metros . ' M2';
                 $partida['cantidad'] = 1;
-                $partida['valor_unitario'] = $calculo['total_renta'];
+                $partida['valor_unitario'] = $calculo['precio_renta_m2'];
                 $partida['subtotal'] = $calculo['subtotal_renta'];
                 $partida['impuestos'] = $calculo['iva_renta'];
                 $partida['total'] = $calculo['total_renta'];
@@ -193,8 +221,8 @@ class CreateNotasVentaRenta extends CreateRecord
                         'mes' => (float) $producto->precio_renta_mes,
                         default => (float) $producto->precio_renta_dia,
                     };
-                $valorUnitario = $tipo->esMadera() ? $precioBase : round($precioBase * $duracion, 2);
-                $totalConIva = round($cantidad * $valorUnitario, 2);
+                $valorUnitario = $precioBase;
+                $totalConIva = round($cantidad * $valorUnitario * ($tipo === TipoNotaRenta::Equipo ? $duracion : 1), 2);
                 $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
                 $partida['valor_unitario'] = $valorUnitario;
                 $partida['subtotal'] = $desglose['subtotal'];
@@ -252,7 +280,7 @@ class CreateNotasVentaRenta extends CreateRecord
                 'item' => $producto->id,
                 'descripcion' => $producto->descripcion . ' - ' . $metros . ' M2',
                 'cantidad' => 1,
-                'valor_unitario' => $totalConIva,
+                'valor_unitario' => $calculo['precio_renta_m2'],
                 'subtotal' => $subtotal,
                 'impuestos' => $iva,
                 'total' => $totalConIva,
@@ -287,8 +315,10 @@ class CreateNotasVentaRenta extends CreateRecord
             'saldo_pendiente' => $total,
         ])->saveQuietly();
 
-        $ticketUrl = route('notas-venta-renta.pdf.ticket', ['id' => $record->id]);
-        $this->js("window.open('{$ticketUrl}', '_blank');");
+        $this->notaGuardadaFolio = trim(($record->serie ?? '') . '-' . ($record->folio ?? $record->id), '-');
+        $this->unmountAction(canCancelParentActions: false);
+        $this->mountAction('notaGuardada');
+        $this->halt();
     }
 
     // Los registros de renta se crean desde las Notas de Envío

@@ -52,10 +52,14 @@ class NotasDevolucionRentaTable
                     ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_enviada'), 2, '.', ',')),
                 TextColumn::make('items_recogidos')
                     ->label('Devueltos')
-                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_devuelta'), 2, '.', ',')),
+                    ->state(fn ($record): string => number_format((float) $record->partidas->sum(
+                        fn ($partida): float => (float) ($partida->cantidad_devuelta ?? 0) + (float) ($partida->cantidad_aplicada ?? 0),
+                    ), 2, '.', ',')),
                 TextColumn::make('items_a_devolver')
-                    ->label('A devolver')
-                    ->state(fn ($record): string => number_format((float) $record->partidas->sum('cantidad_a_devolver'), 2, '.', ',')),
+                    ->label('Pendientes por devolver')
+                    ->state(fn ($record): string => number_format((float) $record->partidas->sum(
+                        fn ($partida): float => max(0, (float) ($partida->cantidad_a_devolver ?? 0) - (float) ($partida->cantidad_aplicada ?? 0)),
+                    ), 2, '.', ',')),
                 TextColumn::make('aplicada_en')
                     ->label('Aplicada en')
                     ->dateTime('d/m/Y H:i')

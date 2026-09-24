@@ -16,6 +16,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
@@ -89,6 +90,7 @@ class CobrosPendientes extends Page implements HasActions
                 'id' => $nota->id,
                 'folio' => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')),
                 'condicion_pago' => ($nota->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado',
+                'credito_confirmado' => $nota->cobro_credito_confirmado_en !== null,
                 'fecha' => optional($nota->fecha_emision)->format('d/m/Y'),
                 'cliente' => $nota->cliente?->nombre ?? 'N/A',
                 'total' => (float) $nota->total,
@@ -106,6 +108,7 @@ class CobrosPendientes extends Page implements HasActions
                 'id' => $nota->id,
                 'folio' => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')),
                 'condicion_pago' => ($nota->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado',
+                'credito_confirmado' => $nota->cobro_credito_confirmado_en !== null,
                 'fecha' => optional($nota->fecha_emision)->format('d/m/Y'),
                 'cliente' => $nota->cliente?->nombre ?? 'N/A',
                 'total' => (float) $nota->total,
@@ -152,19 +155,97 @@ class CobrosPendientes extends Page implements HasActions
 
         return $this->notasPendientes->filter(function (array $nota) use ($hoy): bool {
             $fecha = \Carbon\Carbon::createFromFormat('d/m/Y', $nota['fecha'])->toDateString();
+            $creditoConfirmado = (bool) ($nota['credito_confirmado'] ?? false);
 
-            return $this->pestana === 'hoy' ? $fecha === $hoy : $fecha < $hoy;
+            return $this->pestana === 'hoy'
+                ? !$creditoConfirmado && $fecha === $hoy
+                : $creditoConfirmado || $fecha < $hoy;
         })->values();
+    }
+
+    public function condicionPagoSeleccionada(): string
+    {
+        $nota = $this->notasPendientes->first(
+            fn (array $nota): bool => $nota['tipo'] === $this->tipoSeleccionado && $nota['id'] === $this->notaSeleccionada,
+        );
+
+        return (string) ($nota['condicion_pago'] ?? 'Contado');
+    }
+
+    public function esCreditoSeleccionado(): bool
+    {
+        return $this->condicionPagoSeleccionada() === 'Crédito';
     }
 
     public function pagarAction(): Action
     {
         return Action::make('pagar')
             ->label('Registrar pago')
-            ->modalHeading('Registrar pago')
+            ->modalHeading(fn (): string => $this->esCreditoSeleccionado() ? 'Confirmar pago de crédito' : 'Registrar pago')
             ->modalSubmitActionLabel('Guardar e imprimir ticket')
             ->modalWidth('5xl')
-            ->form([
+            ->form(fn (): array => $this->esCreditoSeleccionado()
+                ? [
+                    Placeholder::make('confirmacion_credito')
+                        ->label('Confirmación')
+                        ->content('Se confirma el Ticket a Crédito.')
+                        ->columnSpanFull(),
+                ]
+                : $this->formularioPagoContado())
+            ->action(function (array $data): void {
+                try {
+                    if ($this->esCreditoSeleccionado()) {
+                        app(CobroNotaService::class)->confirmarCredito(
+                            $this->tipoSeleccionado,
+                            (int) $this->notaSeleccionada,
+                        );
+
+                        $ticketUrl = $this->tipoSeleccionado === 'notas_venta_renta'
+                            ? route('notas-venta-renta.pdf.ticket', $this->notaSeleccionada)
+                            : route('notas-venta-venta.pdf.ticket', $this->notaSeleccionada);
+
+                        $this->dispatch('abrir-ticket-pago', url: $ticketUrl);
+                        Notification::make()
+                            ->title('Crédito confirmado')
+                            ->body('La nota permanece en Cuentas por Cobrar.')
+                            ->success()
+                            ->send();
+
+                        return;
+                    }
+
+                    $pago = app(CobroNotaService::class)->cobrar(
+                        $this->tipoSeleccionado,
+                        (int) $this->notaSeleccionada,
+                        $data,
+                        (int) Auth::id(),
+                    );
+
+                    $ticketUrl = $this->tipoSeleccionado === 'notas_venta_renta'
+                        ? route('notas-venta-renta.pdf.ticket', $this->notaSeleccionada)
+                        : route('notas-venta-venta.pdf.ticket', $this->notaSeleccionada);
+
+                    $this->dispatch('abrir-ticket-pago', url: $ticketUrl);
+                    unset($this->notasPendientes);
+                    $this->dispatch('$refresh');
+                    Notification::make()
+                        ->title('Pago registrado')
+                        ->body('El ticket se abrirá en una nueva pestaña.')
+                        ->success()
+                        ->send();
+                } catch (\Throwable $exception) {
+                    Notification::make()
+                        ->title('No se pudo registrar el pago')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    private function formularioPagoContado(): array
+    {
+        return [
                 Section::make('Datos del pago')->schema([
                     DatePicker::make('fecha_pago')
                         ->label('Fecha de pago')
@@ -215,29 +296,6 @@ class CobrosPendientes extends Page implements HasActions
                         ->rows(2)
                         ->columnSpanFull(),
                 ])->columns(2),
-            ])
-            ->action(function (array $data): void {
-                try {
-                        $pago = app(CobroNotaService::class)->cobrar(
-                        $this->tipoSeleccionado,
-                        (int) $this->notaSeleccionada,
-                        $data,
-                        (int) Auth::id(),
-                    );
-
-                    $this->dispatch('abrir-ticket-pago', url: route('pagos.ticket', $pago->id));
-                    Notification::make()
-                        ->title('Pago registrado')
-                        ->body('El ticket se abrirá en una nueva pestaña.')
-                        ->success()
-                        ->send();
-                } catch (\Throwable $exception) {
-                    Notification::make()
-                        ->title('No se pudo registrar el pago')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
+        ];
     }
 }

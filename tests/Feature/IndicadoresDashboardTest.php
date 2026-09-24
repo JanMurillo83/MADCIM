@@ -8,6 +8,7 @@ use App\Models\CierreDevolucionRenta;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\Clientes;
 use App\Models\NotaVentaRentaPartidas;
+use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
 use App\Models\User;
@@ -139,6 +140,33 @@ class IndicadoresDashboardTest extends TestCase
             'estatus' => 'Activa',
             'subtotal' => 100,
             'impuestos_total' => 16,
+            'total' => 116,
+        ]);
+
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $nota->id,
+            'fecha_emision' => now()->toDateString(),
+            'estatus' => 'Enviada',
+        ]);
+
+        $notaNoEnviada = NotasVentaRenta::create([
+            'serie' => 'NR',
+            'folio' => '3',
+            'fecha_emision' => now(),
+            'estatus' => 'Activa',
+            'subtotal' => 100,
+            'impuestos_total' => 16,
+            'total' => 116,
+        ]);
+        NotaVentaRentaPartidas::create([
+            'nota_venta_renta_id' => $notaNoEnviada->id,
+            'cantidad' => 1,
+            'item' => (string) $producto->id,
+            'descripcion' => $producto->descripcion,
+            'fecha_vencimiento' => now()->addDays(3)->toDateString(),
+            'valor_unitario' => 100,
+            'subtotal' => 100,
+            'impuestos' => 16,
             'total' => 116,
         ]);
 
