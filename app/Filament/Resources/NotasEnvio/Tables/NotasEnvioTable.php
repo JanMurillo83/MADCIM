@@ -74,7 +74,17 @@ class NotasEnvioTable
                 TextColumn::make('dias_vencimiento')
                     ->label('Dias Vencimiento')
                     ->state(function (NotaEnvio $record): string {
-                        $vencimientos = $record->partidas
+                        $partidas = $record->partidas;
+                        $contenidoDevuelto = $record->estado_renta === 'Devuelta'
+                            || ($partidas->isNotEmpty() && $partidas->every(
+                                fn (NotaEnvioPartida $partida): bool => (float) ($partida->cantidad_devuelta ?? 0) >= (float) $partida->cantidad,
+                            ));
+
+                        if ($contenidoDevuelto) {
+                            return 'Devuelta';
+                        }
+
+                        $vencimientos = $partidas
                             ->filter(fn (NotaEnvioPartida $partida): bool => (bool) $partida->fecha_vencimiento)
                             ->map(fn (NotaEnvioPartida $partida): int => Carbon::today()->diffInDays($partida->fecha_vencimiento, false));
 
@@ -96,6 +106,10 @@ class NotasEnvioTable
                     })
                     ->badge()
                     ->color(function (string $state): string {
+                        if ($state === 'Devuelta') {
+                            return 'gray';
+                        }
+
                         if (str_starts_with($state, 'Faltan')) {
                             return 'success';
                         }

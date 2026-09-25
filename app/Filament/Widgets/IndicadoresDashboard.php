@@ -9,6 +9,9 @@ use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Productos;
+use App\Models\RegistroRenta;
+use App\Filament\Pages\ProductosRentaPorVencer;
+use App\Filament\Pages\ProductosRentaVencidos;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\HtmlString;
@@ -125,28 +128,13 @@ class IndicadoresDashboard extends StatsOverviewWidget
 
         $diasPorVencer = 7;
 
-        // Rentas activas (no devueltas ni canceladas)
-        $rentasBase = NotasVentaRenta::query()
-            ->whereIn('estatus', ['Activa', 'Pagada'])
-            ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']));
+        // Productos rentados con cantidad pendiente de devolución.
+        $rentasBase = RegistroRenta::query()
+            ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
+            ->whereHas('notaVentaRenta', fn ($query) => $query->whereIn('estatus', ['Activa', 'Pagada']));
 
         $aplicarFiltroVencimiento = function ($query, string $inicio, string $fin): void {
-            $query->where(function ($query) use ($inicio, $fin): void {
-                $query
-                    ->whereBetween('fecha_vencimiento', [$inicio, $fin])
-                    ->orWhereHas('partidas', fn ($partidas) => $partidas->whereBetween('fecha_vencimiento', [$inicio, $fin]))
-                    ->orWhereHas('notasEnvio', function ($envios) use ($inicio, $fin): void {
-                        $envios->where(function ($envio) use ($inicio, $fin): void {
-                            $envio
-                                ->whereBetween('fecha_vencimiento', [$inicio, $fin])
-                                ->orWhereHas('partidas', function ($partidas) use ($inicio, $fin): void {
-                                    $partidas
-                                        ->whereBetween('fecha_vencimiento', [$inicio, $fin])
-                                        ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad');
-                                });
-                        });
-                    });
-            });
+            $query->whereBetween('fecha_vencimiento', [$inicio, $fin]);
         };
 
         // Rentas vencidas: fecha_vencimiento ya pasó
@@ -206,11 +194,11 @@ class IndicadoresDashboard extends StatsOverviewWidget
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('warning'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
-                ->description($this->descriptionWithLink('Rentas sin devolucion', '/notas-rentadas'))
+                ->description($this->descriptionWithLink('Productos rentados sin devolucion', ProductosRentaVencidos::getUrl()))
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('danger'),
             Stat::make('Rentas por vencer', (string) $rentasPorVencer)
-                ->description($this->descriptionWithLink('Proximas ' . $diasPorVencer . ' dias', '/notas-rentadas'))
+                ->description($this->descriptionWithLink('Productos proximos a vencer', ProductosRentaPorVencer::getUrl()))
                 ->icon('heroicon-o-clock')
                 ->color('warning'),
             Stat::make('Valor inventario actual', $this->formatCurrency((float) $valorInventario))

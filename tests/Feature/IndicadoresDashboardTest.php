@@ -11,6 +11,7 @@ use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
+use App\Models\RegistroRenta;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
@@ -35,6 +36,7 @@ class IndicadoresDashboardTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-03-03 10:00:00'));
 
+        /** @var \Illuminate\Contracts\Auth\Authenticatable $admin */
         $admin = User::factory()->create([
             'role' => 'Administrador',
         ]);
@@ -120,6 +122,7 @@ class IndicadoresDashboardTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-09-22 10:00:00'));
 
+        /** @var \Illuminate\Contracts\Auth\Authenticatable $admin */
         $admin = User::factory()->create([
             'role' => 'Administrador',
         ]);
@@ -133,7 +136,27 @@ class IndicadoresDashboardTest extends TestCase
             'linea' => 'EQUIPO',
         ]);
 
+        $cliente = Clientes::create([
+            'clave' => 'CLI-VENCIMIENTO',
+            'nombre' => 'Cliente con vencimiento',
+            'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-VENCIMIENTO-001',
+            'regimen' => '601',
+            'codigo' => '01000',
+            'calle' => 'Calle',
+            'exterior' => '1',
+            'interior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'CDMX',
+            'pais' => 'MEX',
+            'telefono' => '5555555555',
+            'correo' => 'vencimiento@example.com',
+            'contacto' => 'Contacto',
+        ]);
+
         $nota = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
             'serie' => 'NR',
             'folio' => '2',
             'fecha_emision' => now(),
@@ -170,6 +193,19 @@ class IndicadoresDashboardTest extends TestCase
             'total' => 116,
         ]);
 
+        RegistroRenta::create([
+            'nota_venta_renta_id' => $nota->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 0,
+            'dias_renta' => 3,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDays(3)->toDateString(),
+            'estado' => 'Activo',
+        ]);
+
         NotaVentaRentaPartidas::create([
             'nota_venta_renta_id' => $nota->id,
             'cantidad' => 1,
@@ -197,6 +233,7 @@ class IndicadoresDashboardTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-09-22 10:00:00'));
 
+        /** @var \Illuminate\Contracts\Auth\Authenticatable $admin */
         $admin = User::factory()->create([
             'role' => 'Administrador',
         ]);

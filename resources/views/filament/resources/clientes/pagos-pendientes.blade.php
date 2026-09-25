@@ -2,29 +2,29 @@
 
 <div class="cliente-pagos-pendientes space-y-6">
     <div class="rounded-lg border border-default bg-white p-4 dark:bg-gray-900">
-        <h3 class="text-base font-semibold !text-black">Resumen</h3>
+        <h3 class="text-base font-semibold text-white!">Resumen</h3>
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Cliente</div>
-                <div class="text-lg font-semibold !text-black">{{ $cliente->nombre }}</div>
+                <div class="text-sm text-white!">Cliente</div>
+                <div class="text-lg font-semibold text-white!">{{ $cliente->nombre }}</div>
             </div>
             <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Saldo registrado</div>
-                <div class="text-lg font-semibold !text-black">${{ number_format((float) $cliente->saldo, 2) }}</div>
+                <div class="text-sm text-white!">Saldo registrado</div>
+                <div class="text-lg font-semibold text-white!">${{ number_format((float) $cliente->saldo, 2) }}</div>
             </div>
             <div class="rounded bg-neutral-secondary-soft p-3">
-                <div class="text-sm !text-black">Total pendiente (documentos abiertos)</div>
-                <div class="text-lg font-semibold !text-black">${{ number_format((float) $totalPendiente, 2) }}</div>
+                <div class="text-sm text-white!">Total pendiente (documentos abiertos)</div>
+                <div class="text-lg font-semibold text-white!">${{ number_format((float) $totalPendiente, 2) }}</div>
             </div>
         </div>
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-black">Notas de venta con saldo pendiente</h3>
+        <h3 class="text-base font-semibold text-black!">Notas de venta con saldo pendiente</h3>
         @if($notasVenta->isEmpty())
-            <p class="mt-2 text-sm !text-black">No hay notas de venta con saldo pendiente.</p>
+            <p class="mt-2 text-sm text-black!">No hay notas de venta con saldo pendiente.</p>
         @else
-            <table class="mt-3 w-full text-left text-sm rtl:text-right !text-black">
+            <table class="mt-3 w-full text-left text-sm rtl:text-right text-black!">
                 <thead class="border-b border-default bg-neutral-secondary-soft">
                     <tr>
                         <th class="px-4 py-2 font-medium">Folio</th>
@@ -50,20 +50,23 @@
                 <tfoot class="border-t border-default bg-neutral-secondary-soft font-semibold">
                     <tr>
                         <td class="px-4 py-2" colspan="4">Total notas de venta</td>
-                        <td class="px-4 py-2 text-right">${{ number_format((float) $notasVenta->sum('saldo_pendiente'), 2) }}</td>
+                            <h3 class="text-base font-semibold text-white!">Resumen</h3>
                         <td></td>
                     </tr>
                 </tfoot>
-            </table>
+                                    <div class="text-sm text-white!">Cliente</div>
+                                    <div class="text-lg font-semibold text-white!">{{ $cliente->nombre }}</div>
         @endif
     </div>
 
-    <div>
-        <h3 class="text-base font-semibold !text-black">Notas de renta con saldo pendiente</h3>
+                                    <div class="text-sm text-white!">Saldo registrado</div>
+                                    <div class="text-lg font-semibold text-white!">${{ number_format((float) $cliente->saldo, 2) }}</div>
+        <h3 class="text-base font-semibold text-black!">Notas de renta con saldo pendiente</h3>
         @if($notasRenta->isEmpty())
-            <p class="mt-2 text-sm !text-black">No hay notas de renta con saldo pendiente.</p>
-        @else
-            <table class="mt-3 w-full text-left text-sm rtl:text-right !text-black">
+            <p class="mt-2 text-sm text-black!">No hay notas de renta con saldo pendiente.</p>
+                                    <div class="text-sm text-white!">Total pendiente (documentos abiertos)</div>
+                                    <div class="text-lg font-semibold text-white!">${{ number_format((float) $totalPendiente, 2) }}</div>
+            <table class="mt-3 w-full text-left text-sm rtl:text-right text-black!">
                 <thead class="border-b border-default bg-neutral-secondary-soft">
                     <tr>
                         <th class="px-4 py-2 font-medium">Folio</th>
@@ -98,11 +101,11 @@
     </div>
 
     <div>
-        <h3 class="text-base font-semibold !text-black">Pagos recibidos</h3>
+        <h3 class="text-base font-semibold text-black!">Pagos recibidos</h3>
         @if($pagos->isEmpty())
-            <p class="mt-2 text-sm !text-black">No hay pagos registrados para este cliente.</p>
+            <p class="mt-2 text-sm text-black!">No hay pagos registrados para este cliente.</p>
         @else
-            <table class="mt-3 w-full text-left text-sm rtl:text-right !text-black">
+            <table class="mt-3 w-full text-left text-sm rtl:text-right text-black!">
                 <thead class="border-b border-default bg-neutral-secondary-soft">
                     <tr>
                         <th class="px-4 py-2 font-medium">Folio</th>

@@ -33,7 +33,9 @@ class CajaArqueoService
     /** @return array<string, mixed> */
     public function resumen(Caja $caja): array
     {
-        $movimientos = $caja->movimientos()->get();
+        $movimientos = $caja->movimientos()
+            ->when($caja->fecha_apertura, fn ($query) => $query->where('fecha', '>=', $caja->fecha_apertura))
+            ->get();
         $ingresosEfectivo = (float) $movimientos
             ->where('tipo', 'Ingreso')
             ->where('metodo_pago', 'Efectivo')
@@ -60,6 +62,31 @@ class CajaArqueoService
             'efectivo_teorico' => (float) ($caja->saldo_inicial_cash ?? 0) + $ingresosEfectivo - $egresosEfectivo,
             'desglose' => $desglose,
         ];
+    }
+
+    public function abrir(Caja $caja, float|int|string $saldoInicial, ?int $usuarioId): Caja
+    {
+        return DB::transaction(function () use ($caja, $saldoInicial, $usuarioId): Caja {
+            $caja = Caja::query()->lockForUpdate()->findOrFail($caja->id);
+
+            $caja->update([
+                'saldo_inicial_cash' => $saldoInicial,
+                'total_ingresos_cash' => 0,
+                'total_egresos_cash' => 0,
+                'efectivo_teorico' => 0,
+                'efectivo_contado' => 0,
+                'denominaciones_efectivo' => null,
+                'total_diferencia' => 0,
+                'observaciones_cierre' => null,
+                'estatus' => 'Abierta',
+                'fecha_apertura' => now(),
+                'fecha_cierre' => null,
+                'usuario_apertura_id' => $usuarioId,
+                'usuario_cierre_id' => null,
+            ]);
+
+            return $caja->fresh();
+        });
     }
 
     public function efectivoContado(array $denominaciones): float

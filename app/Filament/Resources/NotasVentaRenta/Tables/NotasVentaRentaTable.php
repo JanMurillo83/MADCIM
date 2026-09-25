@@ -56,6 +56,9 @@ class NotasVentaRentaTable
                     ->sortable(),
                 TextColumn::make('saldo_pendiente')
                     ->label('Saldo Pendiente')
+                    ->getStateUsing(fn (NotasVentaRenta $record): float => $record->estatus === 'Cancelada'
+                        ? 0.0
+                        : (float) $record->saldo_pendiente)
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
                     ->sortable()
@@ -401,7 +404,10 @@ class NotasVentaRentaTable
                         ->visible(fn ($record) => $record->estatus === 'Activa')
                         ->action(function ($record) {
                             DB::transaction(function () use ($record): void {
-                                $record->update(['estatus' => 'Cancelada']);
+                                $record->update([
+                                    'estatus' => 'Cancelada',
+                                    'saldo_pendiente' => 0,
+                                ]);
                                 $record->notasEnvio()->update(['estatus' => 'Cancelada']);
                             });
 

@@ -419,8 +419,7 @@ class NotasVentaVentaForm
                         ->modalHeading('Confirmar nota de venta')
                         ->modalSubmitActionLabel('Guardar')
                         ->modalCancelActionLabel('Revisar')
-                        ->form(fn ($livewire): array => $livewire->formularioPagosContado())
-                        ->action(fn ($livewire, array $data) => $livewire->guardarConPago($data)),
+                        ->action(fn ($livewire) => $livewire->guardarCaptura()),
                 ])->columnSpanFull(),
             ])
             ->columns(1);

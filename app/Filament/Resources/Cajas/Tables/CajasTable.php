@@ -61,11 +61,7 @@ class CajasTable
                                 ->danger()->send();
                             return;
                         }
-                        $record->saldo_inicial_cash = $data['saldo_inicial_cash'];
-                        $record->estatus = 'Abierta';
-                        $record->fecha_apertura = now();
-                        $record->usuario_apertura_id = $userId;
-                        $record->save();
+                        app(CajaArqueoService::class)->abrir($record, $data['saldo_inicial_cash'], $userId);
                         \Filament\Notifications\Notification::make()
                             ->title('Caja abierta')
                             ->success()->send();
