@@ -21,15 +21,17 @@ class IndicadoresDashboardTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private function findStatValue(array $stats, string $label): ?string
+    private function findStatValue(array $stats, string $label, int $occurrence = 1): ?string
     {
+        $matches = [];
+
         foreach ($stats as $stat) {
             if ((string) $stat->getLabel() === $label) {
-                return (string) $stat->getValue();
+                $matches[] = (string) $stat->getValue();
             }
         }
 
-        return null;
+        return $matches[$occurrence - 1] ?? null;
     }
 
     public function test_rentas_madera_y_equipo_del_mes_separadas_y_depositos_totales_y_pendientes_consideran_devoluciones(): void
@@ -110,12 +112,12 @@ class IndicadoresDashboardTest extends TestCase
 
         $stats = $widget->stats();
 
-        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Mensual | Renta Madera'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Mensual | Renta Equipo'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Mensual | Depósitos Totales'));
-        $this->assertSame('$200.00', $this->findStatValue($stats, 'Mensual | Depósitos Pendientes de Devolver'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Anual | Depósitos Totales'));
-        $this->assertSame('$200.00', $this->findStatValue($stats, 'Anual | Depósitos Pendientes de Devolver'));
+        $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Renta de madera'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Renta de equipo'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Depósitos cobrados'));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes'));
+        $this->assertSame('$500.00', $this->findStatValue($stats, 'Depósitos cobrados', 2));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes', 2));
     }
 
     public function test_rentas_por_vencer_considera_fecha_de_vencimiento_de_partida(): void
@@ -302,7 +304,7 @@ class IndicadoresDashboardTest extends TestCase
 
         $stats = $widget->stats();
 
-        $this->assertSame('$300.00', $this->findStatValue($stats, 'Mensual | Depósitos Pendientes de Devolver'));
-        $this->assertSame('$300.00', $this->findStatValue($stats, 'Anual | Depósitos Pendientes de Devolver'));
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes'));
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes', 2));
     }
 }

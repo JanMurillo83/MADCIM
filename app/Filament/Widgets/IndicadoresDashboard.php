@@ -4,12 +4,15 @@ namespace App\Filament\Widgets;
 
 use App\Models\CajaMovimiento;
 use App\Models\CierreDevolucionRenta;
+use App\Models\FacturaCfdiPartidas;
 use App\Models\FacturasCfdi;
 use App\Models\NotaVentaRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use App\Filament\Pages\ProductosRentaPorVencer;
 use App\Filament\Pages\ProductosRentaVencidos;
 use Filament\Widgets\StatsOverviewWidget;
@@ -18,6 +21,35 @@ use Illuminate\Support\HtmlString;
 
 class IndicadoresDashboard extends StatsOverviewWidget
 {
+    public function content(Schema $schema): Schema
+    {
+        $stats = $this->getStats();
+
+        return $schema
+            ->columns(['@xl' => 2, '!@lg' => 1])
+            ->components([
+                Section::make('Este mes')
+                    ->description('Resultados de ' . now()->locale('es')->translatedFormat('F Y'))
+                    ->schema(array_slice($stats, 0, 5))
+                    ->columns(['@xl' => 2, '!@lg' => 1])
+                    ->contained()
+                    ->gridContainer(),
+                Section::make('Acumulado del año')
+                    ->description('Resultados acumulados de ' . now()->year)
+                    ->schema(array_slice($stats, 5, 5))
+                    ->columns(['@xl' => 2, '!@lg' => 1])
+                    ->contained()
+                    ->gridContainer(),
+                Section::make('Operación actual')
+                    ->description('Seguimiento de rentas e inventario')
+                    ->schema(array_slice($stats, 10))
+                    ->columns(['@xl' => 3, '!@lg' => 1])
+                    ->contained()
+                    ->gridContainer()
+                    ->columnSpanFull(),
+            ]);
+    }
+
     protected function getStats(): array
     {
         $now = now();
@@ -36,7 +68,8 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
 
-        $ventasDelMes = $ventasNotas + $ventasFacturas;
+        $ventasNotasYaFacturadasDelMes = $this->importeNotasIncluidasEnFacturas($inicioMes, $finMes);
+        $ventasDelMes = $ventasNotas + $ventasFacturas - $ventasNotasYaFacturadasDelMes;
 
         $ventasNotasAnio = NotasVentaVenta::query()
             ->whereBetween('fecha_emision', [$inicioAnio, $finAnio])
@@ -48,7 +81,8 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
 
-        $ventasDelAnio = $ventasNotasAnio + $ventasFacturasAnio;
+        $ventasNotasYaFacturadasDelAnio = $this->importeNotasIncluidasEnFacturas($inicioAnio, $finAnio);
+        $ventasDelAnio = $ventasNotasAnio + $ventasFacturasAnio - $ventasNotasYaFacturadasDelAnio;
 
         $depositosCobradosDelMes = NotasVentaRenta::query()
             ->whereBetween('fecha_emision', [$inicioMes, $finMes])
@@ -153,44 +187,44 @@ class IndicadoresDashboard extends StatsOverviewWidget
             ->value('total') ?? 0;
 
         return [
-            Stat::make('Mensual | Ventas', $this->formatCurrency($ventasDelMes))
+            Stat::make('Ventas', $this->formatCurrency($ventasDelMes))
                 ->description($this->descriptionWithLink('Notas de venta y facturas del mes', '/notas-venta-venta/notas-venta-ventas'))
                 ->icon('heroicon-o-banknotes')
                 ->color('info'),
-            Stat::make('Mensual | Renta Madera', $this->formatCurrency((float) $rentasMaderaDelMes))
+            Stat::make('Renta de madera', $this->formatCurrency((float) $rentasMaderaDelMes))
                 ->description($this->descriptionWithLink('Notas de renta del mes (línea MADERA)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-receipt-refund')
                 ->color('info'),
-            Stat::make('Mensual | Renta Equipo', $this->formatCurrency((float) $rentasEquipoDelMes))
+            Stat::make('Renta de equipo', $this->formatCurrency((float) $rentasEquipoDelMes))
                 ->description($this->descriptionWithLink('Notas de renta del mes (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-receipt-refund')
                 ->color('info'),
-            Stat::make('Mensual | Depósitos Totales', $this->formatCurrency((float) $depositosCobradosDelMes))
+            Stat::make('Depósitos cobrados', $this->formatCurrency((float) $depositosCobradosDelMes))
                 ->description($this->descriptionWithLink('Monto total de depósitos cobrados en el mes', '/control-depositos'))
                 ->icon('heroicon-o-shield-check')
                 ->color('info'),
-            Stat::make('Mensual | Depósitos Pendientes de Devolver', $this->formatCurrency((float) $depositosPendientesDelMes))
-                ->description($this->descriptionWithLink('Monto de depósitos del mes aún pendiente de devolver', '/control-depositos'))
+            Stat::make('Depósitos pendientes', $this->formatCurrency((float) $depositosPendientesDelMes))
+                ->description($this->descriptionWithLink('Pendiente de devolución de los depósitos cobrados este mes', '/control-depositos'))
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('warning'),
-            Stat::make('Anual | Ventas Acumuladas', $this->formatCurrency((float) $ventasDelAnio))
+            Stat::make('Ventas', $this->formatCurrency((float) $ventasDelAnio))
                 ->description($this->descriptionWithLink('Notas de venta y facturas del año', '/notas-venta-venta/notas-venta-ventas'))
                 ->icon('heroicon-o-chart-bar-square')
                 ->color('success'),
-            Stat::make('Anual | Renta Madera', $this->formatCurrency((float) $rentasMaderaDelAnio))
+            Stat::make('Renta de madera', $this->formatCurrency((float) $rentasMaderaDelAnio))
                 ->description($this->descriptionWithLink('Notas de renta del año (línea MADERA)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-rectangle-group')
                 ->color('success'),
-            Stat::make('Anual | Renta Equipo', $this->formatCurrency((float) $rentasEquipoDelAnio))
+            Stat::make('Renta de equipo', $this->formatCurrency((float) $rentasEquipoDelAnio))
                 ->description($this->descriptionWithLink('Notas de renta del año (línea EQUIPO)', '/notas-venta-renta/notas-venta-rentas'))
                 ->icon('heroicon-o-wrench-screwdriver')
                 ->color('success'),
-            Stat::make('Anual | Depósitos Totales', $this->formatCurrency((float) $depositosCobradosDelAnio))
+            Stat::make('Depósitos cobrados', $this->formatCurrency((float) $depositosCobradosDelAnio))
                 ->description($this->descriptionWithLink('Monto total de depósitos cobrados en el año', '/control-depositos'))
                 ->icon('heroicon-o-calendar-days')
                 ->color('success'),
-            Stat::make('Anual | Depósitos Pendientes de Devolver', $this->formatCurrency((float) $depositosPendientesDelAnio))
-                ->description($this->descriptionWithLink('Monto de depósitos del año aún pendiente de devolver', '/control-depositos'))
+            Stat::make('Depósitos pendientes', $this->formatCurrency((float) $depositosPendientesDelAnio))
+                ->description($this->descriptionWithLink('Pendiente de devolución de los depósitos cobrados este año', '/control-depositos'))
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('warning'),
             Stat::make('Rentas vencidas', (string) $rentasVencidas)
@@ -213,6 +247,50 @@ class IndicadoresDashboard extends StatsOverviewWidget
         $safeUrl = e($url);
 
         return new HtmlString($safeText . ' <a class="fi-btn fi-size-xs fi-outlined" href="' . $safeUrl . '" wire:navigate>Ver</a>');
+    }
+
+    private function importeNotasIncluidasEnFacturas($inicio, $fin): float
+    {
+        $partidasFacturadas = FacturaCfdiPartidas::query()
+            ->where('no_identificacion', 'like', 'NVV:%')
+            ->whereHas('documento', function ($query) use ($inicio, $fin): void {
+                $query->whereBetween('fecha_emision', [$inicio, $fin])
+                    ->where('estatus', '!=', 'Cancelada');
+            })
+            ->get(['no_identificacion', 'total']);
+
+        if ($partidasFacturadas->isEmpty()) {
+            return 0;
+        }
+
+        $notaIds = $partidasFacturadas
+            ->map(fn (FacturaCfdiPartidas $partida): ?int => $this->notaIdDesdeIdentificador($partida->no_identificacion))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $notasActivas = NotasVentaVenta::query()
+            ->whereIn('id', $notaIds)
+            ->where('estatus', '!=', 'Cancelada')
+            ->pluck('id')
+            ->flip();
+
+        return (float) $partidasFacturadas
+            ->filter(function (FacturaCfdiPartidas $partida) use ($notasActivas): bool {
+                $notaId = $this->notaIdDesdeIdentificador($partida->no_identificacion);
+
+                return $notaId !== null && $notasActivas->has($notaId);
+            })
+            ->sum('total');
+    }
+
+    private function notaIdDesdeIdentificador(?string $identificador): ?int
+    {
+        if (!preg_match('/^NVV:(\d+):\d+$/', (string) $identificador, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 
     private function formatCurrency(float $value): string

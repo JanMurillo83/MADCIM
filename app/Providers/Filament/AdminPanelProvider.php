@@ -45,14 +45,14 @@ class AdminPanelProvider extends PanelProvider
             ->path('/')
             ->login()
             ->font('sans')
-            ->favicon(asset('/images/ICON.png'))
+            ->favicon(asset('/images/madcim-icon.png'))
             ->brandName('MADCIM')
-            ->brandLogo(asset('/images/Logo_n.png'))
-            ->brandLogoHeight('100px')
+            ->brandLogo(asset('/images/madcim-logo-horizontal.png'))
+            ->brandLogoHeight('56px')
             ->topNavigation()
             ->maxContentWidth('full')
             ->colors([
-                'primary' => Color::hex('#139043'),
+                'primary' => Color::hex('#1F6B3D'),
             ])
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
