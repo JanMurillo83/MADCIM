@@ -1,0 +1,32 @@
+CLAVE,NOMBRE,UNIDAD
+H87,Pieza,H87
+EA,Elemento,EA
+E48,Unidad de Servicio,E48
+ACT,Actividad,ACT
+KGM,Kilogramo,KGM
+E51,Trabajo,E51
+A9,Tarifa,A9
+MTR,Metro,MTR
+AB,Paquete a granel,AB
+BB,Caja base,BB
+KT,Kit,KT
+SET,Conjunto,SET
+LTR,Litro,LTR
+XBX,Caja,XBX
+MON,Mes,MON
+HUR,Hora,HUR
+MTK,Metro cuadrado,MTK
+11,Equipos,11
+MGM,Miligramo,MGM
+XPK,Paquete,XPK
+XKI,Kit (Conjunto de piezas),XKI
+AS,Variedad,AS
+GRM,Gramo,GRM
+PR,Par,PR
+DPC,Docenas de piezas,DPC
+xun,Unidad,xun
+DAY,Día,DAY
+XLT,Lote,XLT
+10,Grupos,10
+MLT,Mililitro,MLT
+E54,Viaje,E54

@@ -4,12 +4,16 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use SplFileObject;
 
 class SatCatalogsSeeder extends Seeder
 {
     public function run(): void
     {
         $now = now();
+
+        $this->importarCatalogoProductos($now);
+        $this->importarCatalogoUnidades($now);
 
         DB::table('sat_tipo_comprobante')->upsert(
             [
@@ -69,6 +73,133 @@ class SatCatalogsSeeder extends Seeder
             ],
             ['clave'],
             ['descripcion', 'updated_at']
+        );
+    }
+
+    private function importarCatalogoProductos(\Illuminate\Support\Carbon|\Carbon\Carbon $now): void
+    {
+        $path = database_path('seeders/SAT/CveSAT.csv');
+        if (!is_file($path)) {
+            throw new \RuntimeException("No se encontró el catálogo SAT de productos: {$path}");
+        }
+
+        $csv = new SplFileObject($path, 'r');
+        $csv->setFlags(SplFileObject::READ_CSV | SplFileObject::DROP_NEW_LINE);
+        $csv->setCsvControl(',', '"', '\\');
+        $header = $csv->fgetcsv();
+        $indices = $this->indicesColumnas($header ?: []);
+
+        if (!isset($indices['clave'], $indices['descripcion'])) {
+            throw new \RuntimeException('El CSV CveSAT.csv debe incluir las columnas CLAVE y DESCRIPCION.');
+        }
+
+        $this->importarFilas($csv, function (array $row) use ($indices, $now): ?array {
+            $clave = trim((string) ($row[$indices['clave']] ?? ''));
+            $descripcion = trim((string) ($row[$indices['descripcion']] ?? ''));
+
+            if ($clave === '' || $descripcion === '') {
+                return null;
+            }
+
+            return [
+                'clave' => $clave,
+                'descripcion' => $descripcion,
+                'palabras_similares' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }, 'sat_clave_prod_serv');
+    }
+
+    private function importarCatalogoUnidades(\Illuminate\Support\Carbon|\Carbon\Carbon $now): void
+    {
+        $path = database_path('seeders/SAT/Unidades.csv');
+        if (!is_file($path)) {
+            throw new \RuntimeException("No se encontró el catálogo SAT de unidades: {$path}");
+        }
+
+        $csv = new SplFileObject($path, 'r');
+        $csv->setFlags(SplFileObject::READ_CSV | SplFileObject::DROP_NEW_LINE);
+        $csv->setCsvControl(',', '"', '\\');
+        $header = $csv->fgetcsv();
+        $indices = $this->indicesColumnas($header ?: []);
+
+        if (!isset($indices['clave'], $indices['nombre'], $indices['unidad'])) {
+            throw new \RuntimeException('El CSV Unidades.csv debe incluir CLAVE, NOMBRE y UNIDAD.');
+        }
+
+        $this->importarFilas($csv, function (array $row) use ($indices, $now): ?array {
+            $clave = trim((string) ($row[$indices['clave']] ?? ''));
+            $nombre = trim((string) ($row[$indices['nombre']] ?? ''));
+            $simbolo = trim((string) ($row[$indices['unidad']] ?? ''));
+
+            if ($clave === '' || $nombre === '') {
+                return null;
+            }
+
+            return [
+                'clave' => $clave,
+                'nombre' => $nombre,
+                'descripcion' => $nombre,
+                'simbolo' => $simbolo !== '' ? $simbolo : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }, 'sat_clave_unidad');
+    }
+
+    /** @param array<int, string|null> $header
+     *  @return array<string, int>
+     */
+    private function indicesColumnas(array $header): array
+    {
+        $indices = [];
+        foreach ($header as $index => $nombre) {
+            $nombre = strtolower(trim((string) preg_replace('/^\xEF\xBB\xBF/', '', (string) $nombre)));
+            if ($nombre !== '') {
+                $indices[$nombre] = $index;
+            }
+        }
+
+        return $indices;
+    }
+
+    /** @param callable(array<int, string|null>): ?array $mapear
+     */
+    private function importarFilas(SplFileObject $csv, callable $mapear, string $tabla): void
+    {
+        $buffer = [];
+        while (!$csv->eof()) {
+            $row = $csv->fgetcsv();
+            if (!is_array($row) || count($row) < 2) {
+                continue;
+            }
+
+            $registro = $mapear($row);
+            if ($registro === null) {
+                continue;
+            }
+
+            $buffer[] = $registro;
+            if (count($buffer) === 500) {
+                $this->guardarLote($tabla, $buffer);
+                $buffer = [];
+            }
+        }
+
+        if ($buffer !== []) {
+            $this->guardarLote($tabla, $buffer);
+        }
+    }
+
+    /** @param array<int, array<string, mixed>> $lote
+     */
+    private function guardarLote(string $tabla, array $lote): void
+    {
+        DB::table($tabla)->upsert(
+            $lote,
+            ['clave'],
+            array_values(array_diff(array_keys($lote[0]), ['clave', 'created_at'])),
         );
     }
 }
