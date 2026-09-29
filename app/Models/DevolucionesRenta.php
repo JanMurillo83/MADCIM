@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSucursalScope;
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,9 +12,11 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class DevolucionesRenta extends Model
 {
     use HasDocumentoSerieFolio;
+    use BelongsToSucursalScope;
 
     protected $table = 'devoluciones_renta';
     protected $fillable = [
+        'sucursal_id',
         'serie',
         'folio',
         'folio_interno',
@@ -62,6 +65,51 @@ class DevolucionesRenta extends Model
         'cfdi_fecha_timbrado' => 'datetime',
         'cfdi_fecha_cancelacion' => 'datetime',
     ];
+
+    public function notaOrigen(): BelongsTo
+    {
+        return $this->belongsTo(NotasVentaRenta::class, 'documento_origen_id');
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $devolucion): void {
+            $user = auth()->user();
+            if (!$user) {
+                return;
+            }
+
+            $sucursalOrigen = $devolucion->documento_origen_id
+                ? NotasVentaRenta::withoutGlobalScope('sucursal')->whereKey($devolucion->documento_origen_id)->value('sucursal_id')
+                : null;
+
+            if ($sucursalOrigen) {
+                $devolucion->sucursal_id = $sucursalOrigen;
+                return;
+            }
+
+            if (!$user->isAdmin()) {
+                if (!$user->sucursal_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'sucursal_id' => 'Tu usuario debe tener una sucursal asignada para crear devoluciones.',
+                    ]);
+                }
+
+                $devolucion->sucursal_id = $user->sucursal_id;
+            }
+
+            if ($devolucion->documento_origen_id && !$sucursalOrigen) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'documento_origen_id' => 'No se encontró la sucursal del documento origen de la devolución.',
+                ]);
+            }
+        });
+    }
 
     public function partidas(): HasMany
     {

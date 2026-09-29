@@ -64,6 +64,7 @@ class ProductosTable
                     ->sortable(),
                 TextColumn::make('existencia')
                     ->label('Exist.')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
@@ -97,6 +98,7 @@ class ProductosTable
             ->filters([
                 Filter::make('con_existencias')
                     ->label('Con existencias')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->query(fn (Builder $query): Builder => $query->where('existencia', '>', 0)),
             ])
             ->recordActions([
@@ -105,6 +107,7 @@ class ProductosTable
                         ->label('Consultar')
                         ->modalWidth('7xl'),
                     EditAction::make()
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->modalWidth('7xl')
                     ->modalSubmitAction(function ($action) {
                         $action->icon('fas-floppy-disk');
@@ -127,7 +130,7 @@ class ProductosTable
                     ->icon('fas-file-export')
                     ->action(function (HasTable $livewire) {
                         $query = $livewire->getTableQueryForExport();
-                        $productos = $query->get([
+                        $columnas = [
                             'clave',
                             'descripcion',
                             'm2_cubre',
@@ -137,15 +140,25 @@ class ProductosTable
                             'precio_renta_mes',
                             'precio_renta_dia',
                             'precio_renta_semana',
-                            'existencia',
                             'grupo',
                             'linea',
                             'largo',
                             'ancho',
-                        ]);
+                        ];
+                        if (auth()->user()?->isAdmin()) {
+                            $columnas[] = 'existencia';
+                        }
+                        $productos = $query->get($columnas);
 
                         $rows = [];
-                        $rows[] = ProductosImportService::HEADERS;
+                        $encabezados = ProductosImportService::HEADERS;
+                        if (!auth()->user()?->isAdmin()) {
+                            $indiceExistencia = array_search('existencia', $encabezados, true);
+                            if ($indiceExistencia !== false) {
+                                unset($encabezados[$indiceExistencia]);
+                            }
+                        }
+                        $rows[] = array_values($encabezados);
 
                         foreach ($productos as $producto) {
                             $rows[] = [
@@ -158,12 +171,14 @@ class ProductosTable
                                 number_format((float) $producto->precio_renta_mes, 8, '.', ''),
                                 number_format((float) $producto->precio_renta_dia, 8, '.', ''),
                                 number_format((float) $producto->precio_renta_semana, 8, '.', ''),
-                                number_format((float) $producto->existencia, 8, '.', ''),
                                 $producto->grupo,
                                 $producto->linea,
                                 number_format((float) $producto->largo, 8, '.', ''),
                                 number_format((float) $producto->ancho, 8, '.', ''),
                             ];
+                            if (auth()->user()?->isAdmin()) {
+                                array_splice($rows[array_key_last($rows)], array_search('existencia', ProductosImportService::HEADERS, true), 0, [number_format((float) $producto->existencia, 8, '.', '')]);
+                            }
                         }
 
                         $filename = 'productos_consulta_' . now()->format('Ymd_His') . '.csv';

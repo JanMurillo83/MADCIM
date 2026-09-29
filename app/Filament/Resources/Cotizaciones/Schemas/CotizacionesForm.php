@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Cotizaciones\Schemas;
 use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
+use App\Models\Sucursal;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -162,6 +163,14 @@ class CotizacionesForm
                             ->relationship('cliente', 'nombre')
                             ->searchable()
                             ->preload(),
+                        Select::make('sucursal_id')
+                            ->label('Sucursal')
+                            ->options(fn () => auth()->user()?->isAdmin()
+                                ? Sucursal::query()->orderBy('nombre')->pluck('nombre', 'id')
+                                : Sucursal::query()->whereKey(auth()->user()?->sucursal_id)->pluck('nombre', 'id'))
+                            ->default(fn () => auth()->user()?->sucursal_id)
+                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false))
+                            ->dehydrated(),
                         Placeholder::make('direccion_cliente')
                             ->label('Direccion cliente')
                             ->content(function (Get $get) {
@@ -248,7 +257,7 @@ class CotizacionesForm
                                     ->label('Precio')
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -261,7 +270,7 @@ class CotizacionesForm
                                     ->columnSpan(1)
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -272,7 +281,7 @@ class CotizacionesForm
                                     ->columnSpan(1)
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -302,7 +311,7 @@ class CotizacionesForm
                             ->required()
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([
@@ -314,7 +323,7 @@ class CotizacionesForm
                             ->required()
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([

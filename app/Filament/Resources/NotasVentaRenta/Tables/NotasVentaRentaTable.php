@@ -4,15 +4,15 @@ namespace App\Filament\Resources\NotasVentaRenta\Tables;
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
-use App\Services\CierreDevolucionRentaService;
+use App\Models\RegistroRenta;
+use App\Services\AmpliacionVigenciaRentaService;
 use App\Enums\TipoNotaRenta;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Forms\Components\Select;
@@ -21,7 +21,7 @@ use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\HtmlString;
+use App\Filament\Resources\NotasVentaRenta\NotasVentaRentaResource;
 
 class NotasVentaRentaTable
 {
@@ -36,6 +36,11 @@ class NotasVentaRentaTable
                             ->orWhere('folio', 'like', "%{$searchTerm}%"),
                     )
                 ->getStateUsing(fn ($record) => $record->serie.$record->folio),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->searchable()
@@ -139,6 +144,24 @@ class NotasVentaRentaTable
                             return 'Cancelada';
                         }
 
+                        if ($record->estatus === 'Devuelta') {
+                            return 'Devuelta';
+                        }
+
+                        if ($record->estatus === 'Vendida') {
+                            return 'Vendida';
+                        }
+
+                        $tieneRentaVencida = RegistroRenta::query()
+                            ->where('nota_venta_renta_id', $record->id)
+                            ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
+                            ->whereDate('fecha_vencimiento', '<', now()->toDateString())
+                            ->exists();
+
+                        if ($tieneRentaVencida) {
+                            return 'Vencida';
+                        }
+
                         $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
                         if ($envios->isEmpty()) return 'Vigente';
 
@@ -148,7 +171,8 @@ class NotasVentaRentaTable
                     ->colors([
                         'success' => 'Vigente',
                         'gray' => 'Devuelta',
-                        'danger' => 'Cancelada',
+                        'warning' => 'Vendida',
+                        'danger' => ['Vencida', 'Cancelada'],
                     ]),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
@@ -268,131 +292,198 @@ class NotasVentaRentaTable
                         })
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar'),
-                    Action::make('cerrar_devolucion_renta')
-                        ->label('Vista previa de cierre')
-                        ->icon('heroicon-o-check-circle')
-                        ->color('danger')
-                        ->visible(function (NotasVentaRenta $record) {
-                            return !in_array($record->estatus, ['Devuelta', 'Vendida'], true)
-                                && $record->notasEnvio()->exists();
-                        })
-                        ->modalHeading(fn (NotasVentaRenta $record) => 'Vista previa del cierre - Nota ' . $record->serie . '-' . $record->folio)
-                        ->modalWidth('7xl')
-                        ->modalSubmitActionLabel('Confirmar y procesar cierre')
+                    Action::make('ampliar_vigencia')
+                        ->label('Ampliar Vigencia')
+                        ->icon('heroicon-o-calendar-days')
+                        ->color('warning')
+                        ->visible(fn (NotasVentaRenta $record): bool => $record->estatus === 'Activa')
+                        ->modalHeading(fn (NotasVentaRenta $record): string => 'Ampliar vigencia - Nota ' . $record->serie . '-' . $record->folio)
+                        ->modalDescription('La renovación generará una Nota de Venta a crédito. Para madera puede aplicar tarifa 0%, 50% o regular; no se agrega depósito.')
+                        ->modalWidth('5xl')
                         ->form(function (NotasVentaRenta $record): array {
-                            $resumenData = $record->direccion_entrega_id
-                                ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($record)
-                                : app(CierreDevolucionRentaService::class)->obtenerResumen($record);
-                            $totales = $resumenData['totales'];
-                            $money = static fn (float $value): string => '$' . number_format($value, 2);
-                            $detalle = '';
+                            $record->loadMissing(['partidas.producto', 'desgloseM2.producto']);
+                            $components = [];
+                            $esM2 = $record->partidas->isEmpty()
+                                ? (TipoNotaRenta::tryFrom($record->tipo_nota_renta ?? '')?->esMaderaM2() ?? false)
+                                : $record->partidas->contains(fn ($partida) => TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $record->tipo_nota_renta ?? '')?->esMaderaM2() ?? false);
+                            $partidasNota = $record->partidas;
 
-                            foreach ($resumenData['rows'] as $row) {
-                                $detalle .= '<div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">'
-                                    . '<strong>' . e($row['producto']) . '</strong>'
-                                    . '<div>Faltante: ' . number_format((float) $row['faltante'], 2)
-                                    . ' | Precio unitario: ' . $money((float) ($row['precio_unitario'] ?? 0))
-                                    . ' | Importe: ' . $money((float) $row['total']) . '</div>'
-                                    . '</div>';
+                            foreach ($partidasNota as $index => $partida) {
+                                $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $record->tipo_nota_renta ?? 'equipo')
+                                    ?? TipoNotaRenta::Equipo;
+                                $components[] = Placeholder::make("partida_{$index}_descripcion")
+                                    ->label($tipo->label())
+                                    ->content($partida->descripcion ?: $partida->producto?->descripcion ?: 'Partida ' . ($index + 1))
+                                    ->columnSpan($tipo->esEquipo() ? 2 : 1);
+
+                                if ($tipo->esEquipo()) {
+                                    $registrosActivos = RegistroRenta::query()
+                                        ->where('nota_venta_renta_id', $record->id)
+                                        ->whereHas('notaEnvioPartida', fn ($query) => $query->where('nota_venta_renta_partida_id', $partida->id))
+                                        ->where('estado', 'Activo')
+                                        ->whereNotNull('fecha_vencimiento')
+                                        ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                                        ->get();
+                                    if ($registrosActivos->isEmpty()) {
+                                        continue;
+                                    }
+                                }
+
+                                if ($tipo->esMaderaM2()) {
+                                    continue;
+                                } elseif ($tipo->esMaderaPieza()) {
+                                    if (!$esM2) {
+                                        $enRenta = RegistroRenta::query()
+                                            ->where('nota_venta_renta_id', $record->id)
+                                            ->where('producto_id', $partida->item)
+                                            ->where('estado', 'Activo')
+                                            ->whereNotNull('fecha_vencimiento')
+                                            ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                                            ->get()
+                                            ->sum(fn (RegistroRenta $registro): float => (float) $registro->cantidad - (float) ($registro->cantidad_devuelta ?? 0));
+                                        $components[] = Placeholder::make("madera_pieza_{$partida->id}_disponible")
+                                            ->label('Piezas activas')
+                                            ->content(number_format((float) $enRenta, 2));
+                                        $components[] = TextInput::make("partidas.{$partida->id}.cantidad")
+                                            ->label('Piezas a renovar')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->maxValue($enRenta)
+                                            ->default((float) $enRenta)
+                                            ->required();
+                                    }
+                                    $components[] = Select::make("partidas.{$partida->id}.tarifa")
+                                        ->label('Tarifa')
+                                        ->options(['0' => 'Precio 0%', '50' => 'Precio 50%', '100' => 'Precio regular'])
+                                        ->default('100')
+                                        ->required();
+                                } else {
+                                    $registrosActivos = RegistroRenta::query()
+                                        ->where('nota_venta_renta_id', $record->id)
+                                        ->whereHas('notaEnvioPartida', fn ($query) => $query->where('nota_venta_renta_partida_id', $partida->id))
+                                        ->where('estado', 'Activo')
+                                        ->whereNotNull('fecha_vencimiento')
+                                        ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                                        ->get();
+                                    $diasDisponibles = max(1, (int) ($partida->dias_renta ?? $record->dias_renta ?? 1));
+                                    $components[] = Placeholder::make("partida_{$index}_vencimiento")
+                                        ->label('Vencimiento actual')
+                                        ->content((string) ($registrosActivos->max('fecha_vencimiento')?->format('d/m/Y') ?? $partida->fecha_vencimiento?->format('d/m/Y') ?? '-'));
+                                    $components[] = TextInput::make("partidas.{$partida->id}.dias_ampliacion")
+                                        ->label('Días a ampliar')
+                                        ->numeric()
+                                        ->live(onBlur: true)
+                                        ->minValue(1)
+                                        ->default($diasDisponibles)
+                                        ->required();
+                                    $components[] = Placeholder::make("partida_{$index}_dias")
+                                        ->label('Importe estimado por periodo')
+                                        ->content((string) max(1, (int) ($partida->dias_renta ?? $record->dias_renta ?? 1)) . ' días');
+                                    $components[] = Placeholder::make("partida_{$index}_importe")
+                                        ->label('Importe estimado por días')
+                                        ->content(function (\Filament\Schemas\Components\Utilities\Get $get) use ($partida, $registrosActivos): string {
+                                            $precio = match ($partida->tipo_renta ?? 'dia') {
+                                                'semana' => (float) ($partida->producto?->precio_renta_semana ?? 0),
+                                                'mes' => (float) ($partida->producto?->precio_renta_mes ?? 0),
+                                                default => (float) ($partida->producto?->precio_renta_dia ?? 0),
+                                            };
+                                            $diasIniciales = max(1, (int) ($partida->dias_renta ?? 1));
+                                            $diasAmpliacion = max(1, (int) ($get("partidas.{$partida->id}.dias_ampliacion") ?? $diasIniciales));
+                                            $cantidad = $registrosActivos->sum(fn (RegistroRenta $registro): float => (float) $registro->cantidad - (float) ($registro->cantidad_devuelta ?? 0));
+                                            $baseDiaria = $precio * max(1, (int) ($partida->duracion_renta ?? 1)) / $diasIniciales;
+                                            return '$' . number_format($baseDiaria * $diasAmpliacion * $cantidad, 2);
+                                        });
+                                }
                             }
 
-                            if ($detalle === '') {
-                                $detalle = '<div style="padding: 8px 0;">No hay faltantes por cobrar en esta renta.</div>';
+                            if ($esM2) {
+                                $filasM2 = $record->desgloseM2;
+                                if ($filasM2->isEmpty() && $record->partidas->isNotEmpty()) {
+                                    $filasM2 = $record->partidas
+                                        ->filter(fn ($partida) => TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $record->tipo_nota_renta ?? '')?->esMaderaM2())
+                                        ->map(function ($partida) {
+                                            return (object) [
+                                                'id' => 'partida_' . $partida->id,
+                                                'partida_id' => $partida->id,
+                                                'descripcion' => $partida->descripcion,
+                                                'm2_total' => $partida->metros_m2,
+                                                'producto' => $partida->producto,
+                                            ];
+                                        });
+                                }
+                                foreach ($filasM2 as $fila) {
+                                    $components[] = Placeholder::make("m2_{$fila->id}_descripcion")
+                                        ->label($fila->descripcion ?: $fila->producto?->descripcion ?: 'Madera por M2')
+                                        ->content(number_format((float) $fila->m2_total, 2) . ' M² actuales')
+                                        ->columnSpan(2);
+                                    $components[] = TextInput::make("m2.{$fila->id}.metros_m2")
+                                        ->label('M² a renovar')
+                                        ->numeric()
+                                        ->minValue(0)
+                                        ->default((float) $fila->m2_total)
+                                        ->required();
+                                    $components[] = Select::make("m2.{$fila->id}.tarifa")
+                                        ->label('Tarifa')
+                                        ->options(['0' => 'Precio 0%', '50' => 'Precio 50%', '100' => 'Precio regular'])
+                                        ->default('100')
+                                        ->required();
+                                }
                             }
 
-                            $resumen = new HtmlString(
-                                '<div style="line-height: 1.6; white-space: normal;">'
-                                . '<div style="font-weight: 700; margin-bottom: 8px;">Detalle de faltantes</div>'
-                                . $detalle
-                                . '<div style="font-weight: 700; margin: 14px 0 8px;">Resumen de la renta</div>'
-                                . '<div style="display: grid; gap: 4px;">'
-                                . '<div><strong>Total de renta:</strong> ' . $money((float) ($totales['total_renta'] ?? 0)) . '</div>'
-                                . '<div><strong>Depósito recibido:</strong> ' . $money((float) ($totales['deposito'] ?? 0)) . '</div>'
-                                . '<div><strong>Total faltantes:</strong> ' . $money((float) ($totales['total_faltantes'] ?? 0)) . '</div>'
-                                . '<div><strong>Depósito aplicado:</strong> ' . $money((float) ($totales['deposito_aplicado'] ?? 0)) . '</div>'
-                                . '<div><strong>Saldo por cobrar:</strong> ' . $money((float) ($totales['saldo_por_cobrar'] ?? 0)) . '</div>'
-                                . '<div><strong>Depósito a devolver:</strong> ' . $money((float) ($totales['deposito_devolver'] ?? 0)) . '</div>'
-                                . '</div></div>'
-                            );
-
-                            return [
-                                Placeholder::make('resumen')
-                                    ->label('Resumen de Devolución')
-                                    ->content($resumen),
-                                Textarea::make('observaciones')
-                                    ->label('Observaciones')
-                                    ->rows(3),
-                                Select::make('modo_cierre')
-                                    ->label('Resolución de la renta')
-                                    ->options([
-                                        'devolucion' => 'Recibir devolución y aplicar depósito/faltantes',
-                                        'venta_madera' => 'Cliente se queda con la madera y se genera venta',
-                                    ])
-                                    ->default('devolucion')
-                                    ->required()
-                                    ->visible(fn () => $record->tieneMadera()),
+                            return $components ?: [
+                                Placeholder::make('sin_partidas_ampliables')
+                                    ->label('Sin partidas ampliables')
+                                    ->content('No hay rentas activas enviadas para ampliar.'),
                             ];
                         })
                         ->action(function (NotasVentaRenta $record, array $data): void {
-                            $servicioCierre = app(CierreDevolucionRentaService::class);
-                            $resultado = $record->direccion_entrega_id
-                                ? $servicioCierre->cerrarPorObra(
-                                    $record->cliente_id,
-                                    $record->direccion_entrega_id,
-                                    $data['observaciones'] ?? null,
-                                    Auth::id(),
-                                    $data['modo_cierre'] ?? 'devolucion',
-                                )
-                                : $servicioCierre->cerrar(
-                                    $record,
-                                    $data['observaciones'] ?? null,
-                                    Auth::id(),
-                                    $data['modo_cierre'] ?? 'devolucion',
-                                    false,
-                                );
+                            try {
+                                $partidas = [];
+                                foreach ($data['partidas'] ?? [] as $id => $values) {
+                                    $tipo = TipoNotaRenta::tryFrom($record->partidas->firstWhere('id', (int) $id)?->tipo_nota_renta ?? $record->tipo_nota_renta ?? 'equipo');
+                                    if (!$tipo?->esEquipo() && !$tipo?->esMaderaPieza()) {
+                                        continue;
+                                    }
+                                    $partidas[] = ['partida_id' => (int) $id, ...$values];
+                                }
+                                foreach ($data['m2'] ?? [] as $id => $values) {
+                                    if (str_starts_with((string) $id, 'partida_')) {
+                                        $partidas[] = ['partida_id' => (int) substr((string) $id, 8), ...$values];
+                                        continue;
+                                    }
+                                    $fila = $record->desgloseM2()->whereKey($id)->first();
+                                    if ($fila) {
+                                        $partidas[] = ['fila_m2_id' => (int) $id, ...$values];
+                                    }
+                                }
 
-                            $totales = $resultado['resumen']['totales'];
-                            session(['cierre_devolucion_resumen_nvr_' . $record->id => $resultado['resumen']]);
-                            if (!empty($resultado['nota_id']) && (int) $resultado['nota_id'] !== (int) $record->id) {
-                                session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
-                            }
 
-                            if (!empty($resultado['already_closed'])) {
+                                $notaVenta = app(AmpliacionVigenciaRentaService::class)
+                                    ->ampliar($record, $partidas, Auth::id());
+
                                 Notification::make()
-                                    ->title('Renta ya cerrada')
-                                    ->body('La nota de renta ya había sido cerrada previamente.')
-                                    ->warning()
+                                    ->title('Vigencia ampliada')
+                                    ->body('Se generó la Nota de Venta ' . $notaVenta->serie . '-' . $notaVenta->folio . ' por $' . number_format((float) $notaVenta->total, 2) . ' a crédito.')
+                                    ->success()
+                                    ->persistent()
                                     ->send();
-                                return;
+                            } catch (\Illuminate\Validation\ValidationException $exception) {
+                                Notification::make()
+                                    ->title('No se pudo ampliar la vigencia')
+                                    ->body(collect($exception->errors())->flatten()->implode(' '))
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            } catch (\Throwable $exception) {
+                                report($exception);
+                                Notification::make()
+                                    ->title('No se pudo ampliar la vigencia')
+                                    ->body('Ocurrió un error al generar la Nota de Venta de renovación.')
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
                             }
-
-                            $mensaje = 'Cierre de devolución consolidado procesado. ';
-                            if (($resultado['modo'] ?? null) === 'venta_madera') {
-                                $mensaje = 'La madera se convirtió en venta y la NR quedó marcada como Vendida. ';
-                            }
-                            if (!empty($resultado['nota_venta_venta_id'])) {
-                                $mensaje .= 'Se generó Nota de Venta por faltantes: $' . number_format((float) $totales['total_faltantes'], 2) . '. ';
-                                $mensaje .= 'Depósito aplicado: $' . number_format((float) $totales['deposito_aplicado'], 2) . '. ';
-                                $mensaje .= 'Saldo por cobrar: $' . number_format((float) $totales['saldo_por_cobrar'], 2) . '. ';
-                            }
-
-                            $mensaje .= 'Depósito devuelto: $' . number_format((float) $totales['deposito_devolver'], 2);
-
-                            if ((float) $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])) {
-                                $mensaje .= ' (No se encontró caja abierta para registrar el egreso)';
-                            }
-
-                            Notification::make()
-                                ->title('Cierre de devolución procesado')
-                                ->body($mensaje)
-                                ->success()
-                                ->persistent()
-                                ->send();
-                        })
-                        ->after(function (NotasVentaRenta $record, array $data): void {
-                            session(['cierre_devolucion_observaciones_nvr_' . $record->id => $data['observaciones'] ?? null]);
-                        })
-                        ->successRedirectUrl(fn (NotasVentaRenta $record) => route('notas-venta-renta.cierre-devolucion-ticket', $record->id)),
+                        }),
                     Action::make('cancelar')
                         ->label('Cancelar Nota')
                         ->icon('fas-times-circle')
@@ -420,30 +511,10 @@ class NotasVentaRentaTable
                 ])
             ], RecordActionsPosition::BeforeColumns)
             ->headerActions([
-                CreateAction::make()
-                    ->createAnother(false)
+                Action::make('nuevo')
                     ->label('Nuevo')
                     ->icon('fas-circle-plus')
-                    ->modalWidth('full')
-                    ->modalSubmitAction(function ($action) {
-                        $action->icon('fas-floppy-disk');
-                        $action->label('Guardar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('success');
-                        return $action;
-                    })->modalCancelAction(function ($action) {
-                        $action->icon('fas-ban');
-                        $action->label('Cancelar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('danger');
-                        return $action;
-                    })->after(function ($record) {
-                        $record->update([
-                            'estatus' => 'Activa',
-                            'saldo_pendiente' => $record->total
-                        ]);
-                    })
-                    ->successRedirectUrl(fn ($record) => route('notas-venta-renta.preview', $record->id)),
+                    ->url(fn (): string => NotasVentaRentaResource::getUrl('create')),
             ], HeaderActionsPosition::Bottom);
     }
 

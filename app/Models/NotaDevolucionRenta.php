@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSucursalScope;
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use App\Models\NotaDevolucionRentaPartida;
 use App\Models\RegistroRenta;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 class NotaDevolucionRenta extends Model
 {
     use HasDocumentoSerieFolio;
+    use BelongsToSucursalScope;
 
     protected $table = 'notas_devolucion_renta';
 
@@ -37,9 +39,66 @@ class NotaDevolucionRenta extends Model
         'aplicada_en' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $devolucion): void {
+            $user = auth()->user();
+            if (!$user) {
+                return;
+            }
+
+            $sucursalOrigen = $devolucion->nota_envio_id
+                ? NotaEnvio::withoutGlobalScope('sucursal')->whereKey($devolucion->nota_envio_id)->value('sucursal_id')
+                : null;
+            $sucursalOrigen ??= $devolucion->nota_venta_renta_id
+                ? NotasVentaRenta::withoutGlobalScope('sucursal')->whereKey($devolucion->nota_venta_renta_id)->value('sucursal_id')
+                : null;
+            if ($sucursalOrigen) {
+                $devolucion->sucursal_id = $sucursalOrigen;
+                return;
+            }
+
+            if ($devolucion->nota_envio_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'nota_envio_id' => 'No se encontró la sucursal del envío origen de la devolución.',
+                ]);
+            }
+
+            if (!$user->isAdmin()) {
+                if (!$user->sucursal_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'sucursal_id' => 'Tu usuario debe tener una sucursal asignada para registrar devoluciones.',
+                    ]);
+                }
+
+                $devolucion->sucursal_id = $user->sucursal_id;
+            }
+
+            $devolucion->sucursal_id ??= $sucursalOrigen;
+        });
+
+        static::updating(function (self $devolucion): void {
+            $user = auth()->user();
+            if ($user && !$user->isAdmin()) {
+                if (!$user->sucursal_id || (int) $devolucion->getOriginal('sucursal_id') !== (int) $user->sucursal_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'sucursal_id' => 'No puedes modificar devoluciones de otra sucursal.',
+                    ]);
+                }
+
+                $devolucion->sucursal_id = $user->sucursal_id;
+            }
+        });
+    }
+
     public function notaEnvio(): BelongsTo
     {
         return $this->belongsTo(NotaEnvio::class, 'nota_envio_id');
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
     public function notaOrigen(): BelongsTo

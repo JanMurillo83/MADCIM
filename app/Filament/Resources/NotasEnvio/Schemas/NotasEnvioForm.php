@@ -88,6 +88,20 @@ class NotasEnvioForm
         return Carbon::parse($fechaEmision ?: $fallback);
     }
 
+    private static function actualizarVencimientos(Get $get, Set $set, ?string $fechaVigencia): void
+    {
+        if (blank($fechaVigencia)) {
+            return;
+        }
+
+        $fechaBase = Carbon::parse($fechaVigencia);
+
+        foreach ($get('partidas') ?? [] as $indice => $partida) {
+            $dias = max(1, (int) ($partida['dias_renta'] ?? 1));
+            $set("partidas.{$indice}.fecha_vencimiento", $fechaBase->copy()->addDays($dias)->toDateString());
+        }
+    }
+
     private static function copiarValoresPartidaAnterior(Get $get, Set $set): void
     {
         $partidas = $get('partidas');
@@ -340,6 +354,7 @@ class NotasEnvioForm
                                 if (!$nota) return;
                                 $set('cliente_id', $nota->cliente_id);
                                 $set('direccion_entrega_id', $nota->direccion_entrega_id);
+                                $set('inicio_vigencia', Carbon::parse($nota->fecha_emision)->toDateString());
                                 // Las NR M2 se surten con productos físicos del desglose,
                                 // no con la partida conceptual de renta.
                                 $partidasData = self::partidasPendientesDeNota($nota);
@@ -368,15 +383,22 @@ class NotasEnvioForm
                             ->columnSpan(2),
                         DatePicker::make('fecha_emision')
                             ->default(Carbon::now()->format('Y-m-d'))
+                            ->format('Y-m-d'),
+                        DatePicker::make('inicio_vigencia')
+                            ->label('Inicio de Vigencia')
                             ->format('Y-m-d')
+                            ->required()
+                            ->minDate(fn (Get $get): ?string => filled($get('nota_venta_renta_id'))
+                                ? self::fechaBaseNotaRenta((int) $get('nota_venta_renta_id'), now())->toDateString()
+                                : null)
+                            ->maxDate(fn (Get $get): ?string => filled($get('nota_venta_renta_id'))
+                                ? self::fechaBaseNotaRenta((int) $get('nota_venta_renta_id'), now())->addDays(4)->toDateString()
+                                : null)
                             ->live()
-                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                $fechaBase = self::fechaBaseNotaRenta($get('nota_venta_renta_id'), $state);
-                                foreach ($get('partidas') ?? [] as $indice => $partida) {
-                                    $dias = max(1, (int) ($partida['dias_renta'] ?? 1));
-                                    $set("partidas.{$indice}.fecha_vencimiento", $fechaBase->copy()->addDays($dias)->toDateString());
-                                }
-                            }),
+                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
+                                self::actualizarVencimientos($get, $set, $state);
+                            })
+                            ->helperText('Debe estar entre la fecha de emisión de la Nota de Venta Renta y los 4 días posteriores.'),
                         Select::make('cliente_id')
                             ->label('Cliente')
                             ->relationship('cliente', 'nombre')

@@ -9,13 +9,14 @@ use App\Services\InventarioMovimientoService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
-use Filament\Actions\CreateAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Filament\Resources\NotasVentaVenta\NotasVentaVentaResource;
 
 class NotasVentaVentaTable
 {
@@ -25,6 +26,11 @@ class NotasVentaVentaTable
             ->columns([
                 TextColumn::make('serie')
                 ->label('Nota Origen')->getStateUsing(fn ($record) => $record->serie.$record->folio),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->searchable()
@@ -201,29 +207,10 @@ class NotasVentaVentaTable
                 ])
             ], RecordActionsPosition::BeforeColumns)
             ->headerActions([
-                CreateAction::make()
-                    ->createAnother(false)
+                Action::make('nuevo')
                     ->label('Nuevo')
                     ->icon('fas-circle-plus')
-                    ->modalWidth('full')
-                    ->modalSubmitAction(function ($action) {
-                        $action->icon('fas-floppy-disk');
-                        $action->label('Guardar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('success');
-                        return $action;
-                    })->modalCancelAction(function ($action) {
-                        $action->icon('fas-ban');
-                        $action->label('Cancelar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('danger');
-                        return $action;
-                    })->after(function ($record) {
-                        $record->update([
-                            'estatus' => 'Activa',
-                            'saldo_pendiente' => $record->total
-                        ]);
-                    }),
+                    ->url(fn (): string => NotasVentaVentaResource::getUrl('create')),
             ], HeaderActionsPosition::Bottom);
     }
 }

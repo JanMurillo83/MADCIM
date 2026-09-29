@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSucursalScope;
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,8 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Cotizaciones extends Model
 {
     use HasDocumentoSerieFolio;
+    use BelongsToSucursalScope;
 
     protected $fillable = [
+        'sucursal_id',
         'cliente_id',
         'serie',
         'folio',
@@ -50,6 +53,11 @@ class Cotizaciones extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Clientes::class, 'cliente_id');
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
     public function documentoOrigen(): BelongsTo

@@ -149,8 +149,12 @@
             <span>{{ $notaRenta->serie }}-{{ $notaRenta->folio }}</span>
         </div>
         <div class="info-row">
-            <span class="label">Fecha Renta:</span>
+            <span class="label">Emisión Nota Renta:</span>
             <span>{{ $notaRenta->fecha_emision ? $notaRenta->fecha_emision->format('d/m/Y') : '-' }}</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Inicio de Vigencia:</span>
+            <span>{{ $notaEnvio->inicio_vigencia ? $notaEnvio->inicio_vigencia->format('d/m/Y') : '-' }}</span>
         </div>
         <div class="info-row">
             <span class="label">Vencimiento:</span>

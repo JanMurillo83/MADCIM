@@ -4,13 +4,14 @@ namespace App\Filament\Pages\Concerns;
 
 use App\Models\Clientes;
 use App\Models\RegistroRenta;
-use App\Models\Sucursal;
+use App\Filament\Concerns\RestringeSucursal;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 
 trait ConsultaProductosRenta
 {
+    use RestringeSucursal;
     public ?int $cliente_id = null;
     public ?int $sucursal_id = null;
 
@@ -19,6 +20,11 @@ trait ConsultaProductosRenta
     abstract public function tituloConsulta(): string;
 
     abstract public function descripcionConsulta(): string;
+
+    public function mount(): void
+    {
+        $this->inicializarSucursalUsuario();
+    }
 
     public function getClientesProperty(): Collection
     {
@@ -29,9 +35,7 @@ trait ConsultaProductosRenta
 
     public function getSucursalesProperty(): Collection
     {
-        return collect(Sucursal::query()
-            ->orderBy('nombre')
-            ->pluck('nombre', 'id'));
+        return $this->sucursalesDisponibles();
     }
 
     #[Computed]
@@ -44,9 +48,9 @@ trait ConsultaProductosRenta
                 $query->whereIn('estatus', ['Activa', 'Pagada']);
             })
             ->when($this->cliente_id, fn (Builder $query) => $query->where('cliente_id', $this->cliente_id))
-            ->when($this->sucursal_id, fn (Builder $query) => $query->whereHas(
+            ->when($this->sucursalEfectiva(), fn (Builder $query) => $query->whereHas(
                 'notaVentaRenta',
-                fn (Builder $notaQuery) => $notaQuery->where('sucursal_id', $this->sucursal_id),
+                fn (Builder $notaQuery) => $notaQuery->where('sucursal_id', $this->sucursalEfectiva()),
             ));
 
         $this->aplicarFiltroFecha($query);

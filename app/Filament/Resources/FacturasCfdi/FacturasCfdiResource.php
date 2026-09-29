@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FacturasCfdi;
 
 use App\Filament\Resources\FacturasCfdi\Pages\ListFacturasCfdi;
+use App\Filament\Resources\FacturasCfdi\Pages\CreateFacturasCfdi;
 use App\Filament\Resources\FacturasCfdi\Schemas\FacturasCfdiForm;
 use App\Filament\Resources\FacturasCfdi\Tables\FacturasCfdiTable;
 use App\Models\FacturasCfdi;
@@ -44,7 +45,7 @@ class FacturasCfdiResource extends Resource
     {
         return [
             'index' => ListFacturasCfdi::route('/'),
-            //'create' => CreateFacturasCfdi::route('/create'),
+            'create' => CreateFacturasCfdi::route('/create'),
             //'edit' => EditFacturasCfdi::route('/{record}/edit'),
         ];
     }

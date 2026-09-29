@@ -120,11 +120,14 @@ class OrdenesCompraForm
                             ->visible(false),
                         Select::make('sucursal_id')
                             ->label('Sucursal')
-                            ->options(Sucursal::query()->orderBy('nombre')->pluck('nombre', 'id'))
+                            ->options(fn () => auth()->user()?->isAdmin()
+                                ? Sucursal::query()->orderBy('nombre')->pluck('nombre', 'id')
+                                : Sucursal::query()->whereKey(auth()->user()?->sucursal_id)->pluck('nombre', 'id'))
                             ->searchable()
                             ->preload()
                             ->default(fn () => auth()->user()?->sucursal_id)
-                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
+                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false))
+                            ->dehydrated(),
                         Hidden::make('user_id')
                             ->default(fn () => auth()->id()),
                     ])
@@ -188,7 +191,7 @@ class OrdenesCompraForm
                                     ->label('Precio')
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -201,7 +204,7 @@ class OrdenesCompraForm
                                     ->columnSpan(1)
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -212,7 +215,7 @@ class OrdenesCompraForm
                                     ->columnSpan(1)
                                     ->numeric()
                                     ->prefix('$')
-                                    ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                                    ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
@@ -238,7 +241,7 @@ class OrdenesCompraForm
                             ->required()
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([
@@ -250,7 +253,7 @@ class OrdenesCompraForm
                             ->required()
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
                             ->extraAttributes([

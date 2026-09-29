@@ -8,6 +8,7 @@ use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class NotasDevolucionRentaTable
 {
@@ -24,6 +25,11 @@ class NotasDevolucionRentaTable
                 TextColumn::make('folio_interno')
                     ->label('Folio interno')
                     ->searchable(),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('direccionEntrega.nombre_direccion')
                     ->label('Obra')
                     ->searchable(),

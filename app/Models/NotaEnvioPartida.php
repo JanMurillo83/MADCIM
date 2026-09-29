@@ -10,6 +10,22 @@ class NotaEnvioPartida extends Model
 {
     protected $table = 'nota_envio_partidas';
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $partida): void {
+            $envio = NotaEnvio::query()->find($partida->nota_envio_id);
+            $partidaRenta = $partida->nota_venta_renta_partida_id
+                ? NotaVentaRentaPartidas::query()->with('documento')->find($partida->nota_venta_renta_partida_id)
+                : null;
+
+            if ($envio && $partidaRenta && (int) $envio->nota_venta_renta_id !== (int) $partidaRenta->nota_venta_renta_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'partidas' => 'La partida seleccionada no pertenece a la Nota de Venta Renta del envío.',
+                ]);
+            }
+        });
+    }
+
     protected $fillable = [
         'nota_envio_id',
         'nota_venta_renta_partida_id',

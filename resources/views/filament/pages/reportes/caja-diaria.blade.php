@@ -33,7 +33,8 @@
                     @endforeach
                 </select>
             </div>
-            <div>
+            @if(auth()->user()?->isAdmin())
+<div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
                 <select wire:model.live="sucursal_id"
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
@@ -43,6 +44,7 @@
                     @endforeach
                 </select>
             </div>
+@endif
         </div>
 
         <div class="flex gap-3">

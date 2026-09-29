@@ -479,8 +479,10 @@
 
             <div style="margin-bottom:15px;">
                 <label style="display:block; font-weight:bold; margin-bottom:5px; color:#333;">Pago Recibido</label>
-                <input type="number" id="pagoRecibido" step="0.01" min="0" value="{{ $notaVenta->total }}"
+                <input type="text" inputmode="decimal" id="pagoRecibido" value="{{ number_format((float) $notaVenta->total, 2, '.', ',') }}"
+                    onfocus="this.value = this.value.replace(/,/g, '')"
                     oninput="calcularCambio()"
+                    onblur="formatearMonto(this)"
                     style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:18px; text-align:right;">
             </div>
 
@@ -509,8 +511,20 @@
     <script>
         var totalNota = {{ (float) $notaVenta->total }};
 
+        function parseMonto(valor) {
+            return parseFloat(String(valor).replace(/,/g, '')) || 0;
+        }
+
+        function formatearMonto(input) {
+            if (input.value.trim() === '') return;
+            input.value = parseMonto(input.value).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
         function calcularCambio() {
-            var recibido = parseFloat(document.getElementById('pagoRecibido').value) || 0;
+            var recibido = parseMonto(document.getElementById('pagoRecibido').value);
             var cambio = recibido - totalNota;
             document.getElementById('pagoCambio').value = '$' + (cambio >= 0 ? cambio.toFixed(2) : '0.00');
 
@@ -525,14 +539,17 @@
             document.getElementById('pagoMetodo').addEventListener('change', function() {
                 calcularCambio();
                 if (this.value !== 'Efectivo') {
-                    document.getElementById('pagoRecibido').value = totalNota.toFixed(2);
+                    document.getElementById('pagoRecibido').value = totalNota.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    });
                     calcularCambio();
                 }
             });
         }
 
         function procesarPago() {
-            var recibido = parseFloat(document.getElementById('pagoRecibido').value) || 0;
+            var recibido = parseMonto(document.getElementById('pagoRecibido').value);
             var metodo = document.getElementById('pagoMetodo') ? document.getElementById('pagoMetodo').value : 'Efectivo';
 
             if (recibido < totalNota && metodo === 'Efectivo') {

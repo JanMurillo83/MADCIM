@@ -182,9 +182,10 @@ class IndicadoresDashboard extends StatsOverviewWidget
         $aplicarFiltroVencimiento($rentasPorVencerQuery, $now->toDateString(), $fechaFinPorVencer->toDateString());
         $rentasPorVencer = $rentasPorVencerQuery->count();
 
-        $valorInventario = Productos::query()
-            ->selectRaw('SUM(existencia * precio_venta) as total')
-            ->value('total') ?? 0;
+        $usuario = auth()->user();
+        $valorInventario = $usuario?->isAdmin()
+            ? (Productos::query()->selectRaw('SUM(existencia * precio_venta) as total')->value('total') ?? 0)
+            : null;
 
         return [
             Stat::make('Ventas', $this->formatCurrency($ventasDelMes))
@@ -235,8 +236,10 @@ class IndicadoresDashboard extends StatsOverviewWidget
                 ->description($this->descriptionWithLink('Productos proximos a vencer', ProductosRentaPorVencer::getUrl()))
                 ->icon('heroicon-o-clock')
                 ->color('warning'),
-            Stat::make('Valor inventario actual', $this->formatCurrency((float) $valorInventario))
-                ->description($this->descriptionWithLink('Existencia x precio de venta', '/productos'))
+            Stat::make('Valor inventario actual', $valorInventario === null ? 'N/D' : $this->formatCurrency((float) $valorInventario))
+                ->description($valorInventario === null
+                    ? 'El inventario aún no está segmentado por sucursal'
+                    : $this->descriptionWithLink('Existencia x precio de venta', '/productos'))
                 ->icon('heroicon-o-archive-box'),
         ];
     }

@@ -39,6 +39,7 @@ class DevolucionRentaController extends Controller
         try {
             $totalDevueltoAhora = 0;
             $itemsDevolucion = [];
+            $notaEnvioOrigenId = null;
 
             foreach ($request->items as $registroId => $item) {
                 $registro = RegistroRenta::with('producto')
@@ -66,6 +67,18 @@ class DevolucionRentaController extends Controller
                     continue;
                 }
 
+                $notaEnvioId = $registro->nota_envio_id
+                    ?? $registro->notaEnvioPartida?->notaEnvio?->id
+                    ?? null;
+
+                if ($notaEnvioId) {
+                    if ($notaEnvioOrigenId !== null && (int) $notaEnvioOrigenId !== (int) $notaEnvioId) {
+                        throw new \RuntimeException('Los productos seleccionados pertenecen a envíos distintos; procesa cada envío por separado.');
+                    }
+
+                    $notaEnvioOrigenId = (int) $notaEnvioId;
+                }
+
                 $nuevaCantidadDevuelta = $cantidadActual + $cantidadAhora;
                 $itemsDevolucion[] = [
                     'producto_id' => $registro->producto_id,
@@ -75,6 +88,7 @@ class DevolucionRentaController extends Controller
                     'cantidad_devuelta_ahora' => $cantidadAhora,
                     'cantidad_faltante' => max(0, (float) $registro->cantidad - $nuevaCantidadDevuelta),
                     'registro_renta_id' => $registro->id,
+                    'nota_envio_id' => $notaEnvioId,
                     'nota_envio_partida_id' => $registro->nota_envio_partida_id,
                     'observaciones' => $registro->observaciones,
                 ];
@@ -89,6 +103,7 @@ class DevolucionRentaController extends Controller
             $notaDevolucion = NotaDevolucionRenta::create([
                 'serie' => 'NDR',
                 'folio_interno' => $request->string('folio_interno')->trim()->toString(),
+                'nota_envio_id' => $notaEnvioOrigenId,
                 'nota_venta_renta_id' => $nota->id,
                 'cliente_id' => $nota->cliente_id,
                 'direccion_entrega_id' => $nota->direccion_entrega_id,

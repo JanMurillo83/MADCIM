@@ -12,6 +12,7 @@ use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class CotizacionesTable
 {
@@ -23,6 +24,11 @@ class CotizacionesTable
                     ->searchable(),
                 TextColumn::make('folio')
                     ->searchable(),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->searchable()

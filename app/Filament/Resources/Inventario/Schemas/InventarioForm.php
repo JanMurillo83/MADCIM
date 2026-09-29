@@ -77,7 +77,7 @@ class InventarioForm
                             ->label('Existencia Antes')
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0)
                             ->readOnly(),
@@ -85,7 +85,7 @@ class InventarioForm
                             ->label('Existencia Después')
                             ->numeric()
                             ->prefix('$')
-                            ->mask(RawJs::make("\$money(\$input, ',', '.')"))
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0)
                             ->readOnly(),

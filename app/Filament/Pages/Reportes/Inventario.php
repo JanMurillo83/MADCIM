@@ -21,6 +21,12 @@ class Inventario extends Page
 
     protected string $view = 'filament.pages.reportes.inventario';
 
+    public static function canAccess(): bool
+    {
+        return (auth()->user()?->isAdmin() ?? false)
+            && (auth()->user()?->canAccessPage(static::class) ?? false);
+    }
+
     public ?int $producto_id = null;
     public ?string $linea = null;
     public ?string $grupo = null;

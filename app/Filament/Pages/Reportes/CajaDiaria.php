@@ -4,7 +4,6 @@ namespace App\Filament\Pages\Reportes;
 
 use App\Models\Caja;
 use App\Models\CajaMovimiento;
-use App\Models\Sucursal;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -12,10 +11,12 @@ use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Filament\Concerns\RestringeSucursal;
 
 class CajaDiaria extends Page
 {
     use HasRolePageAccess;
+    use RestringeSucursal;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-currency-dollar';
     protected static ?string $navigationLabel = 'Caja Diaria';
     protected static ?string $title = 'Caja Diaria';
@@ -32,6 +33,7 @@ class CajaDiaria extends Page
 
     public function mount(): void
     {
+        $this->inicializarSucursalUsuario();
         $this->fecha_inicio = now()->startOfMonth()->toDateString();
         $this->fecha_fin = now()->toDateString();
     }
@@ -52,9 +54,7 @@ class CajaDiaria extends Page
 
     public function getSucursalesProperty(): Collection
     {
-        return Sucursal::orderBy('nombre')
-            ->get()
-            ->mapWithKeys(fn ($s) => [$s->id => $s->nombre]);
+        return $this->sucursalesDisponibles();
     }
 
     #[Computed]
@@ -64,7 +64,7 @@ class CajaDiaria extends Page
             ->with(['caja', 'user'])
             ->when($this->caja_id, fn ($q) => $q->where('caja_id', $this->caja_id))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
-            ->when($this->sucursal_id, fn ($q) => $q->whereHas('caja', fn ($q2) => $q2->where('sucursal_id', $this->sucursal_id)))
+            ->when($this->sucursalEfectiva(), fn ($q) => $q->whereHas('caja', fn ($q2) => $q2->where('sucursal_id', $this->sucursalEfectiva())))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha', '<=', $this->fecha_fin));
 

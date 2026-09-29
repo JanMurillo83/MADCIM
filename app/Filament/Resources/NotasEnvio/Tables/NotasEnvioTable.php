@@ -40,6 +40,11 @@ class NotasEnvioTable
                     ->label('Folio')
                     ->sortable()
                     ->searchable(),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('documento_origen')
                     ->label('Documento Origen')
                     ->getStateUsing(function (NotaEnvio $record) {
@@ -56,6 +61,10 @@ class NotasEnvioTable
                     ->searchable(),
                 TextColumn::make('fecha_emision')
                     ->label('Fecha')
+                    ->date('d/m/Y')
+                    ->sortable(),
+                TextColumn::make('inicio_vigencia')
+                    ->label('Inicio de Vigencia')
                     ->date('d/m/Y')
                     ->sortable(),
                 TextColumn::make('vencimientos_renta')
@@ -470,6 +479,7 @@ class NotasEnvioTable
                         $nota = $record->notaVentaRenta;
                         if (!$nota) return;
                         $deposito = (float)$nota->deposito;
+                        $fechaInicioVigencia = Carbon::today();
 
                         // 1. Marcar registros de renta originales como Devueltos
                         RegistroRenta::where('nota_venta_renta_id', $nota->id)
@@ -488,7 +498,7 @@ class NotasEnvioTable
                             'folio' => $nuevoFolio,
                             'fecha_emision' => now(),
                             'dias_renta' => $nota->dias_renta,
-                            'fecha_vencimiento' => now()->addDays($nota->dias_renta ?? 30),
+                            'fecha_vencimiento' => $fechaInicioVigencia->copy()->addDays(max(1, (int) ($nota->dias_renta ?? 30))),
                             'moneda' => $nota->moneda ?? 'MXN',
                             'tipo_cambio' => $nota->tipo_cambio ?? 1,
                             'deposito' => $nota->deposito,
@@ -517,9 +527,8 @@ class NotasEnvioTable
                                 'tipo_renta' => $partida->tipo_renta,
                                 'duracion_renta' => $partida->duracion_renta,
                                 'dias_renta' => $partida->dias_renta,
-                                'fecha_vencimiento' => $partida->fecha_vencimiento
-                                    ? now()->addDays($partida->fecha_vencimiento->diffInDays($nota->fecha_emision))
-                                    : null,
+                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
+                                    ->addDays(max(1, (int) ($partida->dias_renta ?? $nota->dias_renta ?? 1))),
                                 'metros_m2' => $partida->metros_m2,
                                 'descripcion' => $partida->descripcion,
                                 'valor_unitario' => $partida->valor_unitario,
@@ -545,10 +554,9 @@ class NotasEnvioTable
                                 'producto_id' => $reg->producto_id,
                                 'cantidad' => $reg->cantidad,
                                 'dias_renta' => $reg->dias_renta,
-                                'fecha_renta' => now(),
-                                'fecha_vencimiento' => $reg->fecha_vencimiento
-                                    ? now()->addDays($reg->fecha_vencimiento->diffInDays($nota->fecha_emision))
-                                    : now()->addDays($reg->dias_renta ?? 30),
+                                'fecha_renta' => $fechaInicioVigencia->toDateString(),
+                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
+                                    ->addDays(max(1, (int) ($reg->dias_renta ?? 30))),
                                 'importe_renta' => $reg->importe_renta,
                                 'importe_deposito' => $reg->importe_deposito,
                                 'estado' => 'Activo',
@@ -565,6 +573,7 @@ class NotasEnvioTable
                             'cliente_id' => $record->cliente_id,
                             'direccion_entrega_id' => $record->direccion_entrega_id,
                             'fecha_emision' => now(),
+                            'inicio_vigencia' => $fechaInicioVigencia->toDateString(),
                             'observaciones' => $record->observaciones,
                             'estatus' => 'Pendiente',
                             'user_id' => Auth::id(),
@@ -579,7 +588,9 @@ class NotasEnvioTable
                                 'descripcion' => $partida->descripcion,
                                 'cantidad' => $partida->cantidad,
                                 'dias_renta' => $partida->dias_renta,
-                                'fecha_vencimiento' => $partida->fecha_vencimiento,
+                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
+                                    ->addDays(max(1, (int) ($partida->dias_renta ?? 1)))
+                                    ->toDateString(),
                                 'observaciones' => $partida->observaciones,
                             ]);
                         }

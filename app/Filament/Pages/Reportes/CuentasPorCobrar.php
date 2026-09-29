@@ -6,7 +6,6 @@ use App\Models\Clientes;
 use App\Models\FacturasCfdi;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
-use App\Models\Sucursal;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -14,10 +13,12 @@ use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Filament\Concerns\RestringeSucursal;
 
 class CuentasPorCobrar extends Page
 {
     use HasRolePageAccess;
+    use RestringeSucursal;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $navigationLabel = 'Cuentas por Cobrar';
     protected static ?string $title = 'Cuentas por Cobrar';
@@ -36,6 +37,7 @@ class CuentasPorCobrar extends Page
 
     public function mount(): void
     {
+        $this->inicializarSucursalUsuario();
         $this->fecha_inicio = now()->startOfMonth()->toDateString();
         $this->fecha_fin = now()->toDateString();
     }
@@ -68,9 +70,7 @@ class CuentasPorCobrar extends Page
 
     public function getSucursalesProperty(): Collection
     {
-        return Sucursal::orderBy('nombre')
-            ->get()
-            ->mapWithKeys(fn ($s) => [$s->id => $s->nombre]);
+        return $this->sucursalesDisponibles();
     }
 
     public function getUsuariosProperty(): Collection
@@ -91,7 +91,7 @@ class CuentasPorCobrar extends Page
                 ->with('cliente')
                 ->where('saldo_pendiente', '>', 0)
                 ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
-                ->when($this->sucursal_id, fn ($q) => $q->where('sucursal_id', $this->sucursal_id))
+                ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
                 ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
                 ->when($this->estatus, fn ($q) => $q->where('estatus', $this->estatus))
                 ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
@@ -124,7 +124,7 @@ class CuentasPorCobrar extends Page
                 ->with('cliente')
                 ->where('saldo_pendiente', '>', 0)
                 ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
-                ->when($this->sucursal_id, fn ($q) => $q->where('sucursal_id', $this->sucursal_id))
+                ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
                 ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
                 ->when($this->estatus, fn ($q) => $q->where('estatus', $this->estatus))
                 ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
@@ -157,7 +157,7 @@ class CuentasPorCobrar extends Page
                 ->with('cliente')
                 ->where('saldo_pendiente', '>', 0)
                 ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
-                ->when($this->sucursal_id, fn ($q) => $q->where('sucursal_id', $this->sucursal_id))
+                ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
                 ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
                 ->when($this->estatus, fn ($q) => $q->where('estatus', $this->estatus))
                 ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))

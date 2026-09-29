@@ -4,7 +4,6 @@ namespace App\Filament\Pages\Reportes;
 
 use App\Models\Clientes;
 use App\Models\Productos;
-use App\Models\Sucursal;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -13,10 +12,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Filament\Concerns\RestringeSucursal;
 
 class VentasPorLinea extends Page
 {
     use HasRolePageAccess;
+    use RestringeSucursal;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar';
     protected static ?string $navigationLabel = 'Ventas por Linea';
     protected static ?string $title = 'Ventas por Linea';
@@ -35,6 +36,7 @@ class VentasPorLinea extends Page
 
     public function mount(): void
     {
+        $this->inicializarSucursalUsuario();
         $this->fecha_inicio = now()->startOfMonth()->toDateString();
         $this->fecha_fin = now()->toDateString();
     }
@@ -67,9 +69,7 @@ class VentasPorLinea extends Page
 
     public function getSucursalesProperty(): Collection
     {
-        return Sucursal::orderBy('nombre')
-            ->get()
-            ->mapWithKeys(fn ($s) => [$s->id => $s->nombre]);
+        return $this->sucursalesDisponibles();
     }
 
     public function getUsuariosProperty(): Collection
@@ -86,7 +86,7 @@ class VentasPorLinea extends Page
             ->join('notas_venta_venta as n', 'n.id', '=', 'p.nota_venta_venta_id')
             ->leftJoin('productos as prod', 'prod.id', '=', 'p.item')
             ->when($this->cliente_id, fn ($q) => $q->where('n.cliente_id', $this->cliente_id))
-            ->when($this->sucursal_id, fn ($q) => $q->where('n.sucursal_id', $this->sucursal_id))
+            ->when($this->sucursalEfectiva(), fn ($q) => $q->where('n.sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('n.user_id', $this->usuario_id))
             ->when($this->estatus, fn ($q) => $q->where('n.estatus', $this->estatus))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('n.fecha_emision', '>=', $this->fecha_inicio))
@@ -103,7 +103,7 @@ class VentasPorLinea extends Page
             ->join('facturas_cfdi as f', 'f.id', '=', 'p.factura_cfdi_id')
             ->leftJoin('productos as prod', 'prod.id', '=', 'p.item')
             ->when($this->cliente_id, fn ($q) => $q->where('f.cliente_id', $this->cliente_id))
-            ->when($this->sucursal_id, fn ($q) => $q->where('f.sucursal_id', $this->sucursal_id))
+            ->when($this->sucursalEfectiva(), fn ($q) => $q->where('f.sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('f.user_id', $this->usuario_id))
             ->when($this->estatus, fn ($q) => $q->where('f.estatus', $this->estatus))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('f.fecha_emision', '>=', $this->fecha_inicio))

@@ -17,11 +17,14 @@ class CajasForm
             TextInput::make('nombre')->label('Nombre')->maxLength(255),
             Select::make('sucursal_id')
                 ->label('Sucursal')
-                ->options(fn () => Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
+                ->options(fn () => auth()->user()?->isAdmin()
+                    ? Sucursal::orderBy('nombre')->pluck('nombre', 'id')
+                    : Sucursal::query()->whereKey(auth()->user()?->sucursal_id)->pluck('nombre', 'id'))
                 ->searchable()
                 ->preload()
                 ->default(fn () => auth()->user()?->sucursal_id)
-                ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false)),
+                ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false))
+                ->dehydrated(),
             TextInput::make('saldo_inicial_cash')->label('Saldo inicial (efectivo)')->numeric()->minValue(0)->step(0.01),
             Select::make('estatus')->options([
                 'Abierta' => 'Abierta',

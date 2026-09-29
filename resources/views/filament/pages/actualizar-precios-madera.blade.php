@@ -26,11 +26,11 @@
                         <div class="mt-4 grid grid-cols-2 gap-3">
                             <label class="block">
                                 <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Renta diaria</span>
-                                <input type="number" min="0" step="0.01" wire:model.live="precios.{{ $index }}.renta" class="mt-1 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                                <input type="text" inputmode="decimal" value="{{ number_format((float) $precio['renta'], 2, '.', ',') }}" wire:model.live="precios.{{ $index }}.renta" x-init="$nextTick(() => { if ($el.value) $el.value = Number($el.value.replaceAll(',', '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })" x-on:focus="$el.value = $el.value.replaceAll(',', '')" x-on:input="$el.value = $el.value.replaceAll(',', '')" x-on:blur="if ($el.value !== '') $el.value = Number($el.value.replaceAll(',', '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })" class="mt-1 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white">
                             </label>
                             <label class="block">
                                 <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Precio de venta</span>
-                                <input type="number" min="0" step="0.01" wire:model.live="precios.{{ $index }}.venta" class="mt-1 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                                <input type="text" inputmode="decimal" value="{{ number_format((float) $precio['venta'], 2, '.', ',') }}" wire:model.live="precios.{{ $index }}.venta" x-init="$nextTick(() => { if ($el.value) $el.value = Number($el.value.replaceAll(',', '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })" x-on:focus="$el.value = $el.value.replaceAll(',', '')" x-on:input="$el.value = $el.value.replaceAll(',', '')" x-on:blur="if ($el.value !== '') $el.value = Number($el.value.replaceAll(',', '')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })" class="mt-1 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white">
                             </label>
                         </div>
                     </div>

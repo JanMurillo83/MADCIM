@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSucursalScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RegistroRenta extends Model
 {
+    use BelongsToSucursalScope;
+
     protected $fillable = [
         'nota_venta_renta_id',
         'nota_envio_partida_id',

@@ -36,6 +36,29 @@ class CreateNotasEnvio extends CreateRecord
             ->all();
 
         $nota = NotasVentaRenta::with(['partidas', 'desgloseM2'])->find($data['nota_venta_renta_id'] ?? null);
+        if (!$nota) {
+            throw ValidationException::withMessages([
+                'nota_venta_renta_id' => 'Seleccione una Nota de Venta Renta válida.',
+            ]);
+        }
+
+        if (blank($data['inicio_vigencia'] ?? null) || !$nota->fecha_emision) {
+            throw ValidationException::withMessages([
+                'inicio_vigencia' => 'Capture el Inicio de Vigencia y asegúrese de que la nota origen tenga fecha de emisión.',
+            ]);
+        }
+
+        $fechaEmisionOrigen = Carbon::parse($nota->fecha_emision)->startOfDay();
+        $fechaInicioVigencia = Carbon::parse($data['inicio_vigencia'])->startOfDay();
+
+        if ($fechaInicioVigencia->lt($fechaEmisionOrigen) || $fechaInicioVigencia->gt($fechaEmisionOrigen->copy()->addDays(4))) {
+            throw ValidationException::withMessages([
+                'inicio_vigencia' => 'El Inicio de Vigencia debe estar entre la fecha de emisión de la nota origen y los 4 días posteriores.',
+            ]);
+        }
+
+        $data['inicio_vigencia'] = $fechaInicioVigencia->toDateString();
+
         if ($nota) {
             $enviadosPorPartida = NotaEnvioPartida::query()
                 ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
@@ -44,7 +67,7 @@ class CreateNotasEnvio extends CreateRecord
                 ->map(fn ($partidas): float => $partidas->sum(fn ($partida): float => (float) $partida->cantidad));
 
             $data['partidas'] = collect($data['partidas'] ?? [])
-                ->map(function (array $partida) use ($nota, $enviadosPorPartida): array {
+                ->map(function (array $partida) use ($nota, $enviadosPorPartida, $fechaInicioVigencia): array {
                     $origen = $nota->partidas->firstWhere('id', (int) ($partida['nota_venta_renta_partida_id'] ?? 0));
                     if (!$origen) {
                         return $partida;
@@ -55,8 +78,9 @@ class CreateNotasEnvio extends CreateRecord
                     $cantidadEnviada = (float) ($enviadosPorPartida->get($origen->id) ?? 0);
                     $pendiente = max(0, (float) $origen->cantidad - $cantidadEnviada);
                     $partida['dias_renta'] = max(1, (int) ($origen->dias_renta ?? $nota->dias_renta ?? 1));
-                    $partida['fecha_vencimiento'] = $origen->fecha_vencimiento?->toDateString()
-                        ?? Carbon::parse($nota->fecha_emision)->addDays($partida['dias_renta'])->toDateString();
+                    $partida['fecha_vencimiento'] = $fechaInicioVigencia->copy()
+                        ->addDays($partida['dias_renta'])
+                        ->toDateString();
 
                     if ($tipo === \App\Enums\TipoNotaRenta::Equipo) {
                         $partida['producto_id'] = $origen->item;
@@ -74,6 +98,18 @@ class CreateNotasEnvio extends CreateRecord
                 })
                 ->all();
         }
+
+        $data['partidas'] = collect($data['partidas'] ?? [])
+            ->map(function (array $partida) use ($fechaInicioVigencia): array {
+                $diasRenta = max(1, (int) ($partida['dias_renta'] ?? 1));
+                $partida['dias_renta'] = $diasRenta;
+                $partida['fecha_vencimiento'] = $fechaInicioVigencia->copy()
+                    ->addDays($diasRenta)
+                    ->toDateString();
+
+                return $partida;
+            })
+            ->all();
 
         foreach ($data['partidas'] as $indice => $partida) {
             if ((int) ($partida['dias_renta'] ?? 0) < 1) {
@@ -161,7 +197,7 @@ class CreateNotasEnvio extends CreateRecord
         try {
             DB::transaction(function () use ($record, $nota): void {
                 $cliente = $nota->cliente;
-                $fechaEmision = Carbon::parse($nota->fecha_emision);
+                $fechaInicioVigencia = Carbon::parse($record->inicio_vigencia);
 
                 $referencia = $record->serie . $record->folio;
 
@@ -198,7 +234,7 @@ class CreateNotasEnvio extends CreateRecord
                         'producto_id' => $partida->producto_id,
                         'cantidad' => $partida->cantidad,
                         'dias_renta' => $diasRenta,
-                        'fecha_renta' => $fechaEmision->toDateString(),
+                        'fecha_renta' => $fechaInicioVigencia->toDateString(),
                         'fecha_vencimiento' => $fechaVencimiento,
                         'importe_renta' => 0,
                         'importe_deposito' => $nota->deposito ?? 0,

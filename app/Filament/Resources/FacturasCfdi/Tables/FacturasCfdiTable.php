@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FacturasCfdi\Tables;
 
+use App\Enums\TipoNotaRenta;
 use App\Models\FacturaCfdiPartidas;
 use App\Models\FacturasCfdi;
 use App\Models\NotasVentaRenta;
@@ -9,7 +10,6 @@ use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Models\Productos;
 use Filament\Actions\Action;
-use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Forms\Components\Select;
@@ -18,6 +18,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Filament\Resources\FacturasCfdi\FacturasCfdiResource;
 
 class FacturasCfdiTable
 {
@@ -29,6 +31,11 @@ class FacturasCfdiTable
                     ->searchable(),
                 TextColumn::make('folio')
                     ->searchable(),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                 TextColumn::make('fecha_emision')
                     ->dateTime()
                     ->sortable(),
@@ -108,6 +115,7 @@ class FacturasCfdiTable
 
                                 return NotasVentaVenta::query()
                                     ->where('cliente_id', $record->cliente_id)
+                                    ->where('sucursal_id', $record->sucursal_id)
                                     ->where('estatus', '!=', 'Cancelada')
                                     ->orderByDesc('fecha_emision')
                                     ->get()
@@ -132,6 +140,7 @@ class FacturasCfdiTable
 
                                 return NotasVentaRenta::query()
                                     ->where('cliente_id', $record->cliente_id)
+                                    ->where('sucursal_id', $record->sucursal_id)
                                     ->where('estatus', '!=', 'Cancelada')
                                     ->orderByDesc('fecha_emision')
                                     ->get()
@@ -150,6 +159,16 @@ class FacturasCfdiTable
                             Notification::make()
                                 ->title('No se puede importar')
                                 ->body('La factura no tiene cliente asignado.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        if (!$record->sucursal_id) {
+                            Notification::make()
+                                ->title('Falta la sucursal de la factura')
+                                ->body('Asigna una sucursal a la factura antes de importar notas.')
                                 ->danger()
                                 ->send();
 
@@ -199,6 +218,7 @@ class FacturasCfdiTable
                             $notasVenta = NotasVentaVenta::query()
                                 ->with('partidas')
                                 ->where('cliente_id', $record->cliente_id)
+                                ->where('sucursal_id', $record->sucursal_id)
                                 ->where('estatus', '!=', 'Cancelada')
                                 ->whereIn('id', $notasVentaIds)
                                 ->get();
@@ -213,10 +233,13 @@ class FacturasCfdiTable
                                     }
 
                                     $producto = $resolverProducto($partida->item);
+                                    $cantidad = (float) $partida->cantidad;
+                                    $subtotalPartida = (float) $partida->subtotal;
+                                    $impuestosPartida = (float) $partida->impuestos;
 
                                     FacturaCfdiPartidas::create([
                                         'factura_cfdi_id' => $record->id,
-                                        'cantidad' => (float) $partida->cantidad,
+                                        'cantidad' => $cantidad,
                                         'item' => (string) $partida->item,
                                         'clave_prod_serv' => $producto?->clave_prod_serv,
                                         'no_identificacion' => $identificador,
@@ -228,7 +251,7 @@ class FacturasCfdiTable
                                         'subtotal' => (float) $partida->subtotal,
                                         'descuento' => 0,
                                         'impuestos' => (float) $partida->impuestos,
-                                        'total' => (float) $partida->total,
+                                        'total' => $subtotalPartida + $impuestosPartida,
                                     ]);
 
                                     $identificadoresExistentes[$identificador] = true;
@@ -239,6 +262,7 @@ class FacturasCfdiTable
                             $notasRenta = NotasVentaRenta::query()
                                 ->with('partidas')
                                 ->where('cliente_id', $record->cliente_id)
+                                ->where('sucursal_id', $record->sucursal_id)
                                 ->where('estatus', '!=', 'Cancelada')
                                 ->whereIn('id', $notasRentaIds)
                                 ->get();
@@ -253,10 +277,17 @@ class FacturasCfdiTable
                                     }
 
                                     $producto = $resolverProducto($partida->item);
+                                    $tipoRenta = TipoNotaRenta::tryFrom((string) $partida->tipo_nota_renta);
+                                    $cantidad = $tipoRenta?->esMaderaM2()
+                                        ? (float) $partida->metros_m2
+                                        : (float) $partida->cantidad;
+                                    $cantidad = $cantidad > 0 ? $cantidad : 1;
+                                    $subtotalPartida = (float) $partida->subtotal;
+                                    $impuestosPartida = (float) $partida->impuestos;
 
                                     FacturaCfdiPartidas::create([
                                         'factura_cfdi_id' => $record->id,
-                                        'cantidad' => (float) $partida->cantidad,
+                                        'cantidad' => $cantidad,
                                         'item' => (string) $partida->item,
                                         'clave_prod_serv' => $producto?->clave_prod_serv,
                                         'no_identificacion' => $identificador,
@@ -264,11 +295,12 @@ class FacturasCfdiTable
                                         'unidad' => $producto?->unidad_sat,
                                         'descripcion' => $partida->descripcion,
                                         'objeto_imp' => $producto?->objeto_imp,
-                                        'valor_unitario' => (float) $partida->valor_unitario,
-                                        'subtotal' => (float) $partida->subtotal,
+                                        'valor_unitario' => $subtotalPartida / $cantidad,
+                                        'subtotal' => $subtotalPartida,
                                         'descuento' => 0,
-                                        'impuestos' => (float) $partida->impuestos,
-                                        'total' => (float) $partida->total,
+                                        'impuestos' => $impuestosPartida,
+                                        // El depósito de la nota de renta no es ingreso facturable.
+                                        'total' => $subtotalPartida + $impuestosPartida,
                                     ]);
 
                                     $identificadoresExistentes[$identificador] = true;
@@ -300,24 +332,10 @@ class FacturasCfdiTable
                     }),
             ], RecordActionsPosition::BeforeColumns)
             ->headerActions([
-                CreateAction::make()
-                    ->createAnother(false)
+                Action::make('nuevo')
                     ->label('Nuevo')
                     ->icon('fas-circle-plus')
-                    ->modalWidth('full')
-                    ->modalSubmitAction(function ($action) {
-                        $action->icon('fas-floppy-disk');
-                        $action->label('Guardar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('success');
-                        return $action;
-                    })->modalCancelAction(function ($action) {
-                        $action->icon('fas-ban');
-                        $action->label('Cancelar');
-                        $action->extraAttributes(['style' => 'width: 150px !important;']);
-                        $action->color('danger');
-                        return $action;
-                    }),
+                    ->url(fn (): string => FacturasCfdiResource::getUrl('create')),
             ], HeaderActionsPosition::Bottom);
     }
 }

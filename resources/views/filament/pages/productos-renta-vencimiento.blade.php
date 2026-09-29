@@ -17,7 +17,8 @@
                     @endforeach
                 </select>
             </div>
-            <div>
+            @if(auth()->user()?->isAdmin())
+<div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Sucursal</label>
                 <select wire:model.live="sucursal_id" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">Todas las sucursales</option>
@@ -26,6 +27,7 @@
                     @endforeach
                 </select>
             </div>
+@endif
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">

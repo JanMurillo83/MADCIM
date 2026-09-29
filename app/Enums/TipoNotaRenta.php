@@ -31,6 +31,11 @@ enum TipoNotaRenta: string
         return $this === self::Equipo;
     }
 
+    public function esMaderaPieza(): bool
+    {
+        return $this === self::MaderaPieza;
+    }
+
     public function esMaderaM2(): bool
     {
         return in_array($this, [self::MaderaM2Tabla, self::MaderaM2Triplay15, self::MaderaM2Triplay18], true);

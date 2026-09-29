@@ -9,7 +9,9 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\DB;
 
 
 class ProductosForm
@@ -24,6 +26,64 @@ class ProductosForm
                     ->columnSpan(2),
                 TextInput::make('descripcion')
                     ->required()->columnSpanFull(),
+                Select::make('clave_prod_serv')
+                    ->label('Clave SAT de producto o servicio')
+                    ->searchable()
+                    ->getSearchResultsUsing(fn (string $search): array => DB::table('sat_clave_prod_serv')
+                        ->where(function ($query) use ($search): void {
+                            $query->where('clave', 'like', "%{$search}%")
+                                ->orWhere('descripcion', 'like', "%{$search}%")
+                                ->orWhere('palabras_similares', 'like', "%{$search}%");
+                        })
+                        ->orderBy('clave')
+                        ->limit(50)
+                        ->get(['clave', 'descripcion'])
+                        ->mapWithKeys(fn ($catalogo): array => [
+                            $catalogo->clave => $catalogo->clave . ' - ' . $catalogo->descripcion,
+                        ])
+                        ->all())
+                    ->getOptionLabelUsing(function ($value): ?string {
+                        if (!$value) {
+                            return null;
+                        }
+
+                        $descripcion = DB::table('sat_clave_prod_serv')->where('clave', $value)->value('descripcion');
+
+                        return $descripcion ? $value . ' - ' . $descripcion : $value;
+                    }),
+                Hidden::make('unidad_sat'),
+                Select::make('clave_unidad')
+                    ->label('Unidad SAT')
+                    ->searchable()
+                    ->getSearchResultsUsing(fn (string $search): array => DB::table('sat_clave_unidad')
+                        ->where(function ($query) use ($search): void {
+                            $query->where('clave', 'like', "%{$search}%")
+                                ->orWhere('nombre', 'like', "%{$search}%")
+                                ->orWhere('descripcion', 'like', "%{$search}%")
+                                ->orWhere('simbolo', 'like', "%{$search}%");
+                        })
+                        ->orderBy('clave')
+                        ->limit(50)
+                        ->get(['clave', 'nombre', 'simbolo'])
+                        ->mapWithKeys(fn ($catalogo): array => [
+                            $catalogo->clave => trim($catalogo->clave . ' - ' . $catalogo->nombre . ($catalogo->simbolo ? ' (' . $catalogo->simbolo . ')' : '')),
+                        ])
+                        ->all())
+                    ->getOptionLabelUsing(function ($value): ?string {
+                        if (!$value) {
+                            return null;
+                        }
+
+                        $catalogo = DB::table('sat_clave_unidad')->where('clave', $value)->first(['nombre', 'simbolo']);
+
+                        return $catalogo
+                            ? trim($value . ' - ' . $catalogo->nombre . ($catalogo->simbolo ? ' (' . $catalogo->simbolo . ')' : ''))
+                            : $value;
+                    })
+                    ->afterStateUpdated(function ($state, Set $set): void {
+                        $unidad = DB::table('sat_clave_unidad')->where('clave', $state)->first(['nombre', 'simbolo']);
+                        $set('unidad_sat', $unidad?->nombre ?: $unidad?->simbolo);
+                    }),
                 TextInput::make('m2_cubre')
                     ->required()
                     ->numeric()
@@ -67,7 +127,8 @@ class ProductosForm
                 TextInput::make('existencia')
                     ->required()
                     ->numeric()
-                    ->default(0.0),
+                    ->default(0.0)
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false),
                 Select::make('grupo')
                     ->options(Grupos::all()->pluck('nombre', 'nombre'))
                     ->required(),

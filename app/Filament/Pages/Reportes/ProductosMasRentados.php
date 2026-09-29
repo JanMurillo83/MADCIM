@@ -5,7 +5,6 @@ namespace App\Filament\Pages\Reportes;
 use App\Models\Clientes;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
-use App\Models\Sucursal;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -13,10 +12,12 @@ use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Filament\Concerns\RestringeSucursal;
 
 class ProductosMasRentados extends Page
 {
     use HasRolePageAccess;
+    use RestringeSucursal;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrow-trending-up';
     protected static ?string $navigationLabel = 'Productos Mas Rentados';
     protected static ?string $title = 'Productos Mas Rentados';
@@ -34,6 +35,7 @@ class ProductosMasRentados extends Page
 
     public function mount(): void
     {
+        $this->inicializarSucursalUsuario();
         $this->fecha_inicio = now()->startOfMonth()->toDateString();
         $this->fecha_fin = now()->toDateString();
     }
@@ -54,9 +56,7 @@ class ProductosMasRentados extends Page
 
     public function getSucursalesProperty(): Collection
     {
-        return Sucursal::orderBy('nombre')
-            ->get()
-            ->mapWithKeys(fn ($s) => [$s->id => $s->nombre]);
+        return $this->sucursalesDisponibles();
     }
 
     public function getUsuariosProperty(): Collection
@@ -73,7 +73,7 @@ class ProductosMasRentados extends Page
             ->with(['producto', 'cliente'])
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->producto_id, fn ($q) => $q->where('producto_id', $this->producto_id))
-            ->when($this->sucursal_id, fn ($q) => $q->whereHas('notaVentaRenta', fn ($q2) => $q2->where('sucursal_id', $this->sucursal_id)))
+            ->when($this->sucursalEfectiva(), fn ($q) => $q->whereHas('notaVentaRenta', fn ($q2) => $q2->where('sucursal_id', $this->sucursalEfectiva())))
             ->when($this->usuario_id, fn ($q) => $q->whereHas('notaVentaRenta', fn ($q2) => $q2->where('user_id', $this->usuario_id)))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_renta', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_renta', '<=', $this->fecha_fin))
