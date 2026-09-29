@@ -156,7 +156,6 @@ class NotaVentaRentaPdfController extends Controller
     public function registrarPago(Request $request, $id)
     {
         $request->validate([
-            'importe' => 'required|numeric|min:0.01',
             'metodo_pago' => 'required|string',
             'importe_recibido' => 'nullable|numeric|min:0',
         ]);
@@ -174,7 +173,18 @@ class NotaVentaRentaPdfController extends Controller
             'Tarjeta Débito' => '28',
             default => $metodoPago,
         };
-        $importe = (float) $request->input('importe');
+        // Este flujo liquida el saldo vigente de la nota. No confiar en el importe
+        // enviado por el navegador: el campo con formato de moneda puede llegar
+        // con los separadores interpretados como centavos (p. ej. 5.10 en vez de 5100).
+        $importe = round((float) $notaVenta->saldo_pendiente, 2);
+
+        if ($importe <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La nota ya no tiene saldo pendiente de pago.',
+            ], 422);
+        }
+
         $importeRecibido = $formaPago === '01'
             ? (float) $request->input('importe_recibido', $importe)
             : $importe;
