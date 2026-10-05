@@ -192,7 +192,7 @@ class ResetCompleteSystemTest extends TestCase
 
     public function test_full_reset_uses_repository_catalog_when_no_path_is_given(): void
     {
-        $this->artisan('sistema:reiniciar-completo', ['--force' => true])
+        $this->artisan('sistema:reiniciar-completo', ['--no-interaction' => true])
             ->expectsOutputToContain('Productos cargados: 206.')
             ->assertExitCode(0);
 

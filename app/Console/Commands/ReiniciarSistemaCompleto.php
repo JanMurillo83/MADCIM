@@ -28,12 +28,24 @@ class ReiniciarSistemaCompleto extends Command
             return self::FAILURE;
         }
 
-        if (! $this->option('force') && ! $this->confirm(
-            'Se eliminaran datos operativos, saldos y el catalogo actual; tambien se reiniciaran folios y cajas. ¿Continuar?'
-        )) {
-            $this->info('Reinicio cancelado.');
+        if (! $this->option('force')) {
+            $canPrompt = $this->input->isInteractive()
+                && ! $this->option('no-interaction')
+                && defined('STDIN')
+                && stream_isatty(STDIN);
 
-            return self::SUCCESS;
+            if ($canPrompt && ! $this->confirm(
+                'Se eliminaran datos operativos, saldos y el catalogo actual; tambien se reiniciaran folios y cajas. ¿Continuar?',
+                true,
+            )) {
+                $this->info('Reinicio cancelado.');
+
+                return self::SUCCESS;
+            }
+
+            if (! $canPrompt) {
+                $this->info('Confirmacion automatica: se acepto el reinicio por no haber una terminal interactiva.');
+            }
         }
 
         try {
