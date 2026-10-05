@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Productos;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ProductosImportService
@@ -32,6 +33,15 @@ class ProductosImportService
         'linea',
     ];
 
+    private const HEADER_ALIASES = [
+        'descripcion' => ['producto'],
+        'm2_cubre' => ['m2quecubre'],
+        'precio_renta_dia' => ['preciorentaxdiapiezaom2'],
+        'precio_renta_semana' => ['rentaequipoxsemana'],
+        'precio_renta_mes' => ['rentaequipoxmes'],
+        'existencia' => ['inventarioinicial', 'invetarioinicial'],
+    ];
+
     private const NUMERIC_DEFAULTS = [
         'm2_cubre' => 0,
         'costo' => 0,
@@ -47,26 +57,39 @@ class ProductosImportService
 
     public function importFromPath(string $path): array
     {
+        return $this->importPreparedRows($this->prepareRowsFromPath($path));
+    }
+
+    public function prepareRowsFromPath(string $path): array
+    {
         $rows = $this->readRows($path);
 
-        if (count($rows) === 0) {
-            return [0, 0];
+        if ($rows === []) {
+            return [];
         }
 
         $headers = array_shift($rows);
         $map = $this->mapHeaders($headers);
+        $products = [];
 
+        foreach ($rows as $index => $row) {
+            if ($this->isEmptyRow($row)) {
+                continue;
+            }
+
+            $products[] = $this->buildData($row, $map, $index + 2);
+        }
+
+        return $products;
+    }
+
+    public function importPreparedRows(array $products): array
+    {
         $insertados = 0;
         $actualizados = 0;
 
-        DB::transaction(function () use ($rows, $map, &$insertados, &$actualizados) {
-            foreach ($rows as $index => $row) {
-                if ($this->isEmptyRow($row)) {
-                    continue;
-                }
-
-                $data = $this->buildData($row, $map, $index + 2);
-
+        DB::transaction(function () use ($products, &$insertados, &$actualizados) {
+            foreach ($products as $data) {
                 $producto = Productos::updateOrCreate(
                     ['clave' => $data['clave']],
                     $data,
@@ -91,18 +114,18 @@ class ProductosImportService
             return $this->readCsv($path);
         }
 
-        if (!in_array($extension, ['xlsx', 'xls'], true)) {
+        if (! in_array($extension, ['xlsx', 'xls'], true)) {
             throw new \RuntimeException('Formato no soportado. Usa .xlsx, .xls o .csv.');
         }
 
-        if (!class_exists(IOFactory::class)) {
+        if (! class_exists(IOFactory::class)) {
             throw new \RuntimeException('Falta instalar phpoffice/phpspreadsheet para leer Excel.');
         }
 
         $spreadsheet = IOFactory::load($path);
         $sheet = $spreadsheet->getActiveSheet();
 
-        return $sheet->toArray();
+        return $sheet->toArray(null, true, false, false);
     }
 
     private function readCsv(string $path): array
@@ -135,16 +158,25 @@ class ProductosImportService
             }
         }
 
-        $missing = array_diff(self::HEADERS, array_keys($normalized));
+        $map = [];
+        foreach (self::HEADERS as $header) {
+            $candidates = array_merge(
+                [$this->normalizeHeader($header)],
+                self::HEADER_ALIASES[$header] ?? [],
+            );
 
-        if (!empty($missing)) {
-            throw new \RuntimeException('Faltan columnas: ' . implode(', ', $missing));
+            foreach ($candidates as $candidate) {
+                if (array_key_exists($candidate, $normalized)) {
+                    $map[$header] = $normalized[$candidate];
+                    break;
+                }
+            }
         }
 
-        $map = [];
+        $missing = array_diff(self::REQUIRED_FIELDS, array_keys($map));
 
-        foreach (self::HEADERS as $header) {
-            $map[$header] = $normalized[$header];
+        if (! empty($missing)) {
+            throw new \RuntimeException('Faltan columnas: '.implode(', ', $missing));
         }
 
         return $map;
@@ -152,13 +184,15 @@ class ProductosImportService
 
     private function normalizeHeader(mixed $header): string
     {
-        $header = strtolower(trim((string) $header));
+        $header = trim((string) $header);
 
         if (str_starts_with($header, "\xEF\xBB\xBF")) {
             $header = substr($header, 3);
         }
 
-        return str_replace(' ', '_', $header);
+        $header = Str::lower(Str::ascii(trim($header)));
+
+        return preg_replace('/[^a-z0-9]/', '', $header) ?? '';
     }
 
     private function buildData(array $row, array $map, int $line): array
@@ -166,7 +200,8 @@ class ProductosImportService
         $data = [];
 
         foreach (self::HEADERS as $header) {
-            $value = $row[$map[$header]] ?? null;
+            $index = $map[$header] ?? null;
+            $value = $index === null ? null : ($row[$index] ?? null);
 
             if (is_string($value)) {
                 $value = trim($value);
@@ -199,10 +234,15 @@ class ProductosImportService
     private function castNumeric(mixed $value, string $field, int $line): float
     {
         if (is_string($value)) {
-            $value = str_replace([',', ' '], '', $value);
+            $value = preg_replace('/[\s\p{Z}]+/u', '', $value);
+            if ($value === null) {
+                throw new \RuntimeException("Valor invalido para {$field} en la fila {$line}.");
+            }
+
+            $value = str_replace(',', '', $value);
         }
 
-        if (!is_numeric($value)) {
+        if (! is_numeric($value)) {
             throw new \RuntimeException("Valor invalido para {$field} en la fila {$line}.");
         }
 

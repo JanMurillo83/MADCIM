@@ -101,12 +101,12 @@ class AyudaPage extends Page implements HasActions
         $this->imp_tridie_dep = $conf->imp_tridie_dep;
         $this->imagen_madera = asset('images/LOGO.png');
         $this->imagen_quipo = asset('images/LOGO.png');
-        $this->sugeridos[] = ['id_real' => '11','desc_real'=>'POLIN USADO ENTERO','sugerido'=>'Polin Usado Entero','minimo' => '0','maximo' => '0'];
-        $this->sugeridos[] = ['id_real' => '12','desc_real'=>'POLIN USADO  DE 30 A 60 CMS TACONES','sugerido'=>'Polin usado  de 30 a 60 cms tacones','minimo' => '0','maximo' => '0'];
-        $this->sugeridos[] = ['id_real' => '32','desc_real'=>'BARROTE USADO DE 80 A 1.00 MTS CACHETERAS','sugerido'=>'Barrote usado de 80 a 1.00 mts cacheteras','minimo' => '0','maximo' => '0'];
-        $this->sugeridos2[] = ['id_real' => '47','desc_real'=>'TABLA DE 30 USADA ENTERA','sugerido'=>'Tabla de 30 usada entera','tablas' => '0','metros' => '0','porcentaje' => '20'];
-        $this->sugeridos2[] = ['id_real' => '65','desc_real'=>'TABLA DE 25 USADA ENTERA','sugerido'=>'Tabla de 25 usada enteras','tablas' => '0','metros' => '0','porcentaje' => '40'];
-        $this->sugeridos2[] = ['id_real' => '83','desc_real'=>'TABLA DE 20 USADA ENTERA','sugerido'=>'Tabla de 20 usada entera','tablas' => '0','metros' => '0','porcentaje' => '40'];
+        $this->sugeridos[] = ['producto_clave' => 'POLINENTERO','desc_real'=>'POLIN USADO ENTERO','sugerido'=>'Polin Usado Entero','minimo' => '0','maximo' => '0'];
+        $this->sugeridos[] = ['producto_clave' => 'POLIN-3060','desc_real'=>'POLIN USADO  DE 30 A 60 CMS TACONES','sugerido'=>'Polin usado  de 30 a 60 cms tacones','minimo' => '0','maximo' => '0'];
+        $this->sugeridos[] = ['producto_clave' => 'BARROTE-80100','desc_real'=>'BARROTE USADO DE 80 A 1.00 MTS CACHETERAS','sugerido'=>'Barrote usado de 80 a 1.00 mts cacheteras','minimo' => '0','maximo' => '0'];
+        $this->sugeridos2[] = ['producto_clave' => 'TABLA30-ENTERA','desc_real'=>'TABLA DE 30 USADA ENTERA','sugerido'=>'Tabla de 30 usada entera','tablas' => '0','metros' => '0','porcentaje' => '20'];
+        $this->sugeridos2[] = ['producto_clave' => 'TABLA25-ENTERA','desc_real'=>'TABLA DE 25 USADA ENTERA','sugerido'=>'Tabla de 25 usada enteras','tablas' => '0','metros' => '0','porcentaje' => '40'];
+        $this->sugeridos2[] = ['producto_clave' => 'TABLA20-ENTERA','desc_real'=>'TABLA DE 20 USADA ENTERA','sugerido'=>'Tabla de 20 usada entera','tablas' => '0','metros' => '0','porcentaje' => '40'];
     }
 
     public function onboardingAction(): Action
@@ -498,7 +498,7 @@ class AyudaPage extends Page implements HasActions
                                 ->compact()
                                 ->columnSpanFull()
                                 ->schema([
-                                    Hidden::make('id_real'),
+                                    Hidden::make('producto_clave'),
                                     Hidden::make('desc_real'),
                                     TextInput::make('sugerido')->readOnly(),
                                     TextInput::make('minimo')->readOnly(),
@@ -517,7 +517,7 @@ class AyudaPage extends Page implements HasActions
                                 ->deletable(false)
                                 ->columnSpanFull()
                                 ->schema([
-                                    Hidden::make('id_real'),
+                                    Hidden::make('producto_clave'),
                                     Hidden::make('desc_real'),
                                     TextInput::make('sugerido')->readOnly(),
                                     TextInput::make('tablas')->readOnly(),
@@ -908,9 +908,9 @@ class AyudaPage extends Page implements HasActions
         $suge_1_1 = $metros * 2;
         $suge_2_1 = $metros * 1;
         $suge_3_1 = $metros * 2;
-        $suge[] = ['id_real' => '11','desc_real'=>'POLIN USADO ENTERO','sugerido'=>'Polín Usado Entero','minimo' => round($suge_1,0),'maximo' => round($suge_1_1,0)];
-        $suge[] = ['id_real' => '12','desc_real'=>'POLIN USADO  DE 30 A 60 CMS TACONES','sugerido'=>'Polín usado  de 30 a 60 cms tacones','minimo' => round($suge_2,0),'maximo' => round($suge_2_1,0)];
-        $suge[] = ['id_real' => '32','desc_real'=>'BARROTE USADO DE 80 A 1.00 MTS CACHETERAS','sugerido'=>'Barrote usado de 80 a 1.00 mts cacheteras','minimo' => round($suge_3,0),'maximo' => round($suge_3_1,0)];
+        $suge[] = ['producto_clave' => 'POLINENTERO','desc_real'=>'POLIN USADO ENTERO','sugerido'=>'Polín Usado Entero','minimo' => round($suge_1,0),'maximo' => round($suge_1_1,0)];
+        $suge[] = ['producto_clave' => 'POLIN-3060','desc_real'=>'POLIN USADO  DE 30 A 60 CMS TACONES','sugerido'=>'Polín usado  de 30 a 60 cms tacones','minimo' => round($suge_2,0),'maximo' => round($suge_2_1,0)];
+        $suge[] = ['producto_clave' => 'BARROTE-80100','desc_real'=>'BARROTE USADO DE 80 A 1.00 MTS CACHETERAS','sugerido'=>'Barrote usado de 80 a 1.00 mts cacheteras','minimo' => round($suge_3,0),'maximo' => round($suge_3_1,0)];
         $set('Sugeridos',$suge);
 
         $var_p = ($por_1 * 0.01);
@@ -933,9 +933,9 @@ class AyudaPage extends Page implements HasActions
 
         $suge2 = $get('Sugerido Tablas');
         $suge2 = [];
-        $suge2[] = ['id_real' => '47','desc_real'=>'TABLA DE 30 USADA ENTERA','sugerido'=>'Tabla de 30 usada entera','tablas' => round($var_1_1,0),'metros' => round($var_1_3,0),'porcentaje' => '20'];
-        $suge2[] = ['id_real' => '65','desc_real'=>'TABLA DE 25 USADA ENTERA','sugerido'=>'Tabla de 25 usada enteras','tablas' => round($var_2_1,0),'metros' => round($var_2_3,0),'porcentaje' => '40'];
-        $suge2[] = ['id_real' => '83','desc_real'=>'TABLA DE 20 USADA ENTERA','sugerido'=>'Tabla de 20 usada entera','tablas' => round($var_3_1,0),'metros' => round($var_3_3,0),'porcentaje' => '40'];
+        $suge2[] = ['producto_clave' => 'TABLA30-ENTERA','desc_real'=>'TABLA DE 30 USADA ENTERA','sugerido'=>'Tabla de 30 usada entera','tablas' => round($var_1_1,0),'metros' => round($var_1_3,0),'porcentaje' => '20'];
+        $suge2[] = ['producto_clave' => 'TABLA25-ENTERA','desc_real'=>'TABLA DE 25 USADA ENTERA','sugerido'=>'Tabla de 25 usada enteras','tablas' => round($var_2_1,0),'metros' => round($var_2_3,0),'porcentaje' => '40'];
+        $suge2[] = ['producto_clave' => 'TABLA20-ENTERA','desc_real'=>'TABLA DE 20 USADA ENTERA','sugerido'=>'Tabla de 20 usada entera','tablas' => round($var_3_1,0),'metros' => round($var_3_3,0),'porcentaje' => '40'];
         $set('Sugerido Tablas',$suge2);
 
     }
@@ -983,7 +983,7 @@ class AyudaPage extends Page implements HasActions
             $ivaRenta = $importeRenta * 0.16;
             $cotizacion->partidas()->create([
                 'cantidad' => 1,
-                'item' => 143,
+                'item' => Productos::query()->where('clave', 'SRENTA-M2')->firstOrFail()->id,
                 'descripcion' => 'RENTA DE MADERA x M2',
                 'valor_unitario' => $importeRenta,
                 'subtotal' => $importeRenta,
@@ -995,7 +995,7 @@ class AyudaPage extends Page implements HasActions
             $ivaDeposito = $importeDeposito * 0.16;
             $cotizacion->partidas()->create([
                 'cantidad' => 1,
-                'item' => 142,
+                'item' => Productos::query()->where('clave', 'DEPOGARANTIA')->firstOrFail()->id,
                 'descripcion' => 'DEPOSITO EN GARANTIA',
                 'valor_unitario' => $importeDeposito,
                 'subtotal' => $importeDeposito,
@@ -1091,7 +1091,7 @@ class AyudaPage extends Page implements HasActions
         // Crear partida para RENTA (sin incluir depósito)
         $notaVenta->partidas()->create([
             'cantidad' => 1,
-            'item' => 143,
+            'item' => Productos::query()->where('clave', 'SRENTA-M2')->firstOrFail()->id,
             'descripcion' => 'RENTA DE MADERA x M2',
             'valor_unitario' => $importeRenta,
             'subtotal' => $importeRenta,
@@ -1104,10 +1104,10 @@ class AyudaPage extends Page implements HasActions
                 $descripcion = $sugerido['sugerido'] ?? '';
                 $cantidad = max((int)($sugerido['minimo'] ?? 0), (int)($sugerido['maximo'] ?? 0));
                 if ($cantidad > 0 && !empty($descripcion)) {
-                    $clave = $sugerido['id_real'] ?? null;
+                    $clave = $sugerido['producto_clave'] ?? null;
                     if ($clave) {
                         // Buscar el producto por clave
-                        $producto = Productos::where('id', $clave)->first();
+                        $producto = Productos::where('clave', $clave)->first();
                         $reg_1 = RegistroRenta::create([
                             'nota_venta_renta_id' => $notaVenta->id,
                             'cliente_id' => $clienteId,
@@ -1136,10 +1136,10 @@ class AyudaPage extends Page implements HasActions
                 $cantidad = (int)($tabla['tablas'] ?? 0);
 
                 if ($cantidad > 0 && !empty($descripcion)) {
-                    $clave = $tabla['id_real'] ?? null;
+                    $clave = $tabla['producto_clave'] ?? null;
                     if ($clave) {
                         // Buscar el producto por clave
-                        $producto = Productos::where('id', $clave)->first();
+                        $producto = Productos::where('clave', $clave)->first();
 
                         $reg_2 = RegistroRenta::create([
                             'nota_venta_renta_id' => $notaVenta->id,

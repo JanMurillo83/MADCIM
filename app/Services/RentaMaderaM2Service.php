@@ -4,12 +4,13 @@ namespace App\Services;
 
 use App\Enums\TipoNotaRenta;
 use App\Models\Configuracion;
+use App\Models\Productos;
 
 class RentaMaderaM2Service
 {
     /**
      * Precios de renta y depósito por M2 según tipo de madera.
-    * Los precios provienen de Configuracion y ya incluyen IVA.
+     * Los precios provienen de Configuracion y ya incluyen IVA.
      *
      * @return array<string, array{renta: float, deposito: float}>
      */
@@ -85,10 +86,12 @@ class RentaMaderaM2Service
 
     public static function productoRentaM2Id(TipoNotaRenta $tipo): int
     {
-        return match ($tipo) {
-            TipoNotaRenta::MaderaM2Triplay15 => 146, // SRENTATRI15-M2
-            TipoNotaRenta::MaderaM2Triplay18 => 145, // SRENTATRI18-M2
-            default => 143, // SRENTA-M2
+        $clave = match ($tipo) {
+            TipoNotaRenta::MaderaM2Triplay15 => 'SRENTATRI15-M2',
+            TipoNotaRenta::MaderaM2Triplay18 => 'SRENTATRI18-M2',
+            default => 'SRENTA-M2',
         };
+
+        return (int) Productos::query()->where('clave', $clave)->firstOrFail()->getKey();
     }
 }

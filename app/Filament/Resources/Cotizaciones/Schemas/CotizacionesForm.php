@@ -38,7 +38,7 @@ class CotizacionesForm
         // Agregar producto SRENTA-M2
         $partidas[] = [
             'cantidad' => 1,
-            'item' => 143,
+            'item' => $productoRenta->id,
             'descripcion' => 'RENTA DE MADERA x M2',
             'valor_unitario' => $productoRenta->precio_venta,
             'subtotal' => $productoRenta->precio_venta,
@@ -49,7 +49,7 @@ class CotizacionesForm
         // Agregar producto DEPOGARANTIA
         $partidas[] = [
             'cantidad' => 1,
-            'item' => 142,
+            'item' => $productoDeposito->id,
             'descripcion' => 'DEPOSITO EN GARANTIA',
             'valor_unitario' => $productoDeposito->precio_venta,
             'subtotal' => $productoDeposito->precio_venta,
