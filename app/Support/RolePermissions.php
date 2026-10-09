@@ -28,6 +28,7 @@ class RolePermissions
         'App\\Filament\\Resources\\CajaMovimientos\\CajaMovimientosResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_CAJERO],
 
         'App\\Filament\\Resources\\Productos\\ProductosResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN],
+        'App\\Filament\\Resources\\Inventario\\InventarioResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Resources\\Embarques\\EmbarquesResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Resources\\NotasEnvio\\NotasEnvioResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Resources\\NotasDevolucionRenta\\NotasDevolucionRentaResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
