@@ -43,6 +43,7 @@ class ResetOperationalDataService
         'cfdi_partida_impuestos',
         'cfdi_relacionados',
         'cierres_devolucion_renta',
+        'cliente_direcciones_entrega',
         'historial_precios_madera',
         'movimientos_inventario',
         'nota_venta_renta_m2_desglose',
@@ -74,6 +75,8 @@ class ResetOperationalDataService
         'notas_venta_venta',
         'cotizacion_partidas',
         'cotizaciones',
+        'clientes',
+        'proveedores',
     ];
 
     public function reset(): int
@@ -184,6 +187,7 @@ class ResetOperationalDataService
                     DB::table($table)->delete();
                 }
 
+                $this->resetProductExistences();
                 $this->resetCustomerBalances();
                 $this->resetSupplierBalances();
 
@@ -248,6 +252,20 @@ class ResetOperationalDataService
                 ->where('estatus_cliente', 'Moroso')
                 ->update($statusUpdates);
         }
+    }
+
+    private function resetProductExistences(): void
+    {
+        if (! Schema::hasTable('productos') || ! Schema::hasColumn('productos', 'existencia')) {
+            return;
+        }
+
+        $updates = ['existencia' => 0];
+        if (Schema::hasColumn('productos', 'updated_at')) {
+            $updates['updated_at'] = now();
+        }
+
+        DB::table('productos')->update($updates);
     }
 
     private function resetSupplierBalances(): void

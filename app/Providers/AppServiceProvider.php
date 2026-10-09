@@ -5,6 +5,7 @@ namespace App\Providers;
 use Filament\Tables\Table;
 use Filament\Forms\Components\TextInput;
 use Filament\Support\RawJs;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Relation::morphMap([
+            'notas_venta_renta' => \App\Models\NotasVentaRenta::class,
+            'notas_venta_venta' => \App\Models\NotasVentaVenta::class,
+            'facturas_cfdi' => \App\Models\FacturasCfdi::class,
+        ]);
+
         Number::useLocale(config('app.number_locale', 'en_US'));
 
         Table::configureUsing(

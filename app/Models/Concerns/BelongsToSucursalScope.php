@@ -107,7 +107,7 @@ trait BelongsToSucursalScope
             if (in_array('sucursal_id', $model->getFillable(), true)) {
                 $model->sucursal_id = $user->sucursal_id;
             } elseif (method_exists($model, 'caja') && method_exists($model, 'documento')) {
-                $tipoDocumento = $model->documento_type;
+                $tipoDocumento = $model->getAttribute('documento_type') ?? $model->getAttribute('documento_tipo');
                 $documentoId = $model->documento_id;
                 if ($tipoDocumento && $documentoId) {
                     $documento = in_array($tipoDocumento, [
@@ -154,7 +154,7 @@ trait BelongsToSucursalScope
 
                 $model->sucursal_id = $user->sucursal_id;
             } elseif (method_exists($model, 'caja') && method_exists($model, 'documento')) {
-                $tipoDocumento = $model->documento_type;
+                $tipoDocumento = $model->getAttribute('documento_type') ?? $model->getAttribute('documento_tipo');
                 $documentoId = $model->documento_id;
                 $documento = $tipoDocumento && $documentoId && in_array($tipoDocumento, [
                     \App\Models\NotasVentaRenta::class,
@@ -225,8 +225,9 @@ trait BelongsToSucursalScope
             }
         }
 
-        if (method_exists($model, 'documento') && $model->documento() instanceof MorphTo && $model->documento_type && $model->documento_id) {
-            $type = $model->documento_type;
+        $tipoDocumento = $model->getAttribute('documento_type') ?? $model->getAttribute('documento_tipo');
+        if (method_exists($model, 'documento') && $model->documento() instanceof MorphTo && $tipoDocumento && $model->documento_id) {
+            $type = $tipoDocumento;
             $allowedTypes = [
                 \App\Models\NotasVentaRenta::class,
                 \App\Models\NotasVentaVenta::class,

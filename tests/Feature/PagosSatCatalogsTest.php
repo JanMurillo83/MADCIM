@@ -63,5 +63,6 @@ class PagosSatCatalogsTest extends TestCase
             'exportacion' => '01',
             'uso_cfdi' => 'CP01',
         ]);
+        $this->assertSame('documento_tipo', $pago->documento()->getMorphType());
     }
 }

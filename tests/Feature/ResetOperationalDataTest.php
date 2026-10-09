@@ -30,7 +30,7 @@ class ResetOperationalDataTest extends TestCase
         app(ResetOperationalDataService::class)->reset();
     }
 
-    public function test_reinicia_datos_operativos_y_conserva_los_datos_maestros(): void
+    public function test_reinicia_datos_operativos_y_elimina_clientes_y_proveedores(): void
     {
         /** @var User $admin */
         $admin = User::factory()->create([
@@ -41,7 +41,7 @@ class ResetOperationalDataTest extends TestCase
         $authenticatableAdmin = $admin;
         $this->actingAs($authenticatableAdmin);
 
-        DB::table('clientes')->insert([
+        $clientId = DB::table('clientes')->insertGetId([
             'clave' => 'CLI-RESET',
             'nombre' => 'Cliente de prueba',
             'rfc' => 'XAXX010101000',
@@ -57,6 +57,17 @@ class ResetOperationalDataTest extends TestCase
             'telefono' => '5555555555',
             'correo' => 'cliente@example.com',
             'contacto' => 'Contacto',
+        ]);
+        DB::table('cliente_direcciones_entrega')->insert([
+            'cliente_id' => $clientId,
+            'nombre_direccion' => 'Entrega principal',
+            'calle' => 'Calle',
+            'numero_exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Mexico',
+            'estado' => 'CDMX',
+            'codigo_postal' => '01000',
+            'pais' => 'Mexico',
         ]);
 
         DB::table('proveedores')->insert([
@@ -77,11 +88,21 @@ class ResetOperationalDataTest extends TestCase
             'contacto' => 'Contacto',
         ]);
 
-        DB::table('productos')->insert([
+        $productId = DB::table('productos')->insertGetId([
             'clave' => 'PROD-RESET',
             'descripcion' => 'Producto de prueba',
             'grupo' => 'Grupo',
             'linea' => 'Linea',
+            'existencia' => 12,
+        ]);
+        DB::table('movimientos_inventario')->insert([
+            'producto_id' => $productId,
+            'tipo' => 'entrada',
+            'cantidad' => 12,
+            'existencia_antes' => 0,
+            'existencia_despues' => 12,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         DB::table('lineas')->insert([
@@ -103,9 +124,11 @@ class ResetOperationalDataTest extends TestCase
         $tablesReset = app(ResetOperationalDataService::class)->reset();
 
         $this->assertGreaterThan(0, $tablesReset);
-        $this->assertDatabaseHas('clientes', ['clave' => 'CLI-RESET']);
-        $this->assertDatabaseHas('proveedores', ['clave' => 'PROV-RESET']);
-        $this->assertDatabaseHas('productos', ['clave' => 'PROD-RESET']);
+        $this->assertDatabaseMissing('clientes', ['clave' => 'CLI-RESET']);
+        $this->assertDatabaseMissing('cliente_direcciones_entrega', ['cliente_id' => $clientId]);
+        $this->assertDatabaseMissing('proveedores', ['clave' => 'PROV-RESET']);
+        $this->assertDatabaseHas('productos', ['clave' => 'PROD-RESET', 'existencia' => 0]);
+        $this->assertDatabaseCount('movimientos_inventario', 0);
         $this->assertSame($configurationCount, DB::table('configuracion')->count());
         $this->assertDatabaseHas('users', ['id' => $admin->id]);
         $this->assertDatabaseHas('lineas', ['nombre' => 'Linea temporal']);
@@ -135,7 +158,7 @@ class ResetOperationalDataTest extends TestCase
             'ultimo_folio' => 0,
         ]);
 
-        $this->artisan('sistema:reiniciar-datos', ['--force' => true])
+        $this->artisan('sistema:reiniciar-datos', ['--no-interaction' => true])
             ->expectsOutputToContain('Reinicio completado.')
             ->assertExitCode(0);
 

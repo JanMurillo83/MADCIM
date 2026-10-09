@@ -14,17 +14,28 @@ class ReiniciarDatosOperativos extends Command
 
     public function handle(ResetOperationalDataService $service): int
     {
-        if (! $this->option('force') && ! $this->confirm(
-            'Esta accion eliminara todos los datos operativos. ¿Desea continuar?'
+        $canPrompt = $this->input->isInteractive()
+            && ! $this->option('force')
+            && ! $this->option('no-interaction')
+            && defined('STDIN')
+            && stream_isatty(STDIN);
+
+        if ($canPrompt && ! $this->confirm(
+            'Esta accion eliminara clientes, proveedores y todos los datos operativos. ¿Desea continuar?',
+            true,
         )) {
             $this->info('Reinicio cancelado.');
 
             return self::SUCCESS;
         }
 
+        if (! $canPrompt && ! $this->option('force')) {
+            $this->info('Confirmacion automatica: se acepto el reinicio por no haber una terminal interactiva.');
+        }
+
         $tablesReset = $service->resetFromCommand();
 
-        $this->info("Reinicio completado. Tablas limpiadas: {$tablesReset}.");
+        $this->info("Reinicio completado. Tablas limpiadas: {$tablesReset}. Usuarios, cajas, series y catalogos maestros conservados.");
 
         return self::SUCCESS;
     }

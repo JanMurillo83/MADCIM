@@ -211,7 +211,7 @@ class Pagos extends Model
 
     public function documento(): MorphTo
     {
-        return $this->morphTo();
+        return $this->morphTo(__FUNCTION__, 'documento_tipo', 'documento_id');
     }
 
     public function cfdiDoctos()

@@ -125,17 +125,9 @@ class ResetCompleteSystemTest extends TestCase
             RentaMaderaM2Service::productoRentaM2Id(TipoNotaRenta::MaderaM2Tabla),
         );
 
-        $this->assertDatabaseHas('clientes', [
-            'id' => $clientId,
-            'saldo' => 0,
-            'estatus_cliente' => 'Activo',
-        ]);
-        $this->assertDatabaseHas('clientes', [
-            'id' => $blockedClientId,
-            'saldo' => 0,
-            'estatus_cliente' => 'Bloqueado',
-        ]);
-        $this->assertDatabaseHas('proveedores', ['id' => $supplierId, 'saldo' => 0]);
+        $this->assertDatabaseMissing('clientes', ['id' => $clientId]);
+        $this->assertDatabaseMissing('clientes', ['id' => $blockedClientId]);
+        $this->assertDatabaseMissing('proveedores', ['id' => $supplierId]);
         $this->assertDatabaseCount('notas_venta_renta', 0);
         $this->assertDatabaseCount('cuentas_por_pagar', 0);
         $this->assertDatabaseCount('recepciones_compra', 0);
