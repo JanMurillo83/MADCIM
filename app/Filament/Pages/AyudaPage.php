@@ -859,10 +859,14 @@ class AyudaPage extends Page implements HasActions
         $m2_cubiertos = 0;
         if($cotiza == null) return;
         foreach($cotiza as $c){
-            $total_renta += $c['importe'];
-            $deposito += $c['importe'] / 2;
-            $importe_venta_total += $c['importe_venta'];
-            $m2_cubiertos += $c['total_m2'];
+            $importe = $this->numericState($c['importe'] ?? 0);
+            $importeVenta = $this->numericState($c['importe_venta'] ?? 0);
+            $totalM2 = $this->numericState($c['total_m2'] ?? 0);
+
+            $total_renta += $importe;
+            $deposito += $importe / 2;
+            $importe_venta_total += $importeVenta;
+            $m2_cubiertos += $totalM2;
         }
         $set('../../total_renta',$total_renta);
         $set('../../deposito',$deposito);
@@ -873,9 +877,9 @@ class AyudaPage extends Page implements HasActions
     public function calcula(Get $get,Set $set): void
     {
         $precioM2ConIva = 130.0;
-        $metros = $get('metros');
-        $por_1 = $get('por_1');
-        $por_2 = $get('por_2');
+        $metros = $this->numericState($get('metros'));
+        $por_1 = $this->numericState($get('por_1'));
+        $por_2 = $this->numericState($get('por_2'));
         $m_cober1 = $metros*($por_1 * 0.01);
         $m_cober2 = $metros*($por_2 * 0.01);
         $set('m_cober1',$m_cober1);
@@ -1260,6 +1264,17 @@ class AyudaPage extends Page implements HasActions
         }
 
         return $serie->serie;
+    }
+
+    private function numericState(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        $normalized = str_replace(',', '', (string) $value);
+
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
 }
