@@ -124,6 +124,12 @@ class NotasVentaRentaForm
 
     private static function recalculatePartidaTotales(Get $get, Set $set): void
     {
+        if (self::esMaderaM2($get)) {
+            self::recalcularM2Partida($get, $set);
+
+            return;
+        }
+
         $cantidad = (float) $get('cantidad');
         $valorUnitario = (float) $get('valor_unitario');
         $factorDuracion = self::esEquipo($get) ? self::resolverDuracionRenta($get) : 1;
