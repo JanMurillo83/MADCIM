@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\NotasVentaRenta\Schemas;
 
 use App\Enums\TipoNotaRenta;
+use App\Filament\Resources\Clientes\Schemas\ClientesForm;
 use App\Services\RentaMaderaM2Service;
 use App\Support\Impuestos;
 use App\Support\Numero;
@@ -353,6 +354,16 @@ class NotasVentaRentaForm
                             ->relationship('cliente', 'nombre')
                             ->searchable()
                             ->preload()
+                            ->createOptionForm(fn (Schema $schema) => ClientesForm::configure($schema))
+                            ->createOptionUsing(function (array $data): int {
+                                return Clientes::create($data)->id;
+                            })
+                            ->createOptionAction(function ($action) {
+                                $action->modalHeading('Nuevo cliente');
+                                $action->modalWidth('7xl');
+
+                                return $action;
+                            })
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 // Reset dirección de entrega cuando cambia el cliente

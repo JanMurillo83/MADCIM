@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\NotasVentaVenta\Schemas;
 
+use App\Filament\Resources\Clientes\Schemas\ClientesForm;
 use App\Support\Impuestos;
 use App\Support\Numero;
 use App\Models\Clientes;
@@ -136,7 +137,17 @@ class NotasVentaVentaForm
                             ->required()
                             ->relationship('cliente', 'nombre')
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->createOptionForm(fn (Schema $schema) => ClientesForm::configure($schema))
+                            ->createOptionUsing(function (array $data): int {
+                                return Clientes::create($data)->id;
+                            })
+                            ->createOptionAction(function ($action) {
+                                $action->modalHeading('Nuevo cliente');
+                                $action->modalWidth('7xl');
+
+                                return $action;
+                            }),
                         Select::make('sucursal_id')
                             ->label('Sucursal')
                             ->options(fn () => Auth::user()?->isAdmin()
