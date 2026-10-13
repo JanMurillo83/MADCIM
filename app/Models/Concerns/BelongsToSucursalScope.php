@@ -110,11 +110,10 @@ trait BelongsToSucursalScope
                 $tipoDocumento = $model->getAttribute('documento_type') ?? $model->getAttribute('documento_tipo');
                 $documentoId = $model->documento_id;
                 if ($tipoDocumento && $documentoId) {
-                    $documento = in_array($tipoDocumento, [
-                        \App\Models\NotasVentaRenta::class,
-                        \App\Models\NotasVentaVenta::class,
-                        \App\Models\FacturasCfdi::class,
-                    ], true) ? $tipoDocumento::query()->find($documentoId) : null;
+                    $claseDocumento = $model->claseDocumentoSucursal($tipoDocumento);
+                    $documento = $claseDocumento
+                        ? $claseDocumento::query()->find($documentoId)
+                        : null;
                     if ($documento && (int) $documento->sucursal_id !== (int) $user->sucursal_id) {
                         throw ValidationException::withMessages([
                             'documento_id' => 'No puedes registrar pagos en documentos de otra sucursal.',
@@ -179,6 +178,19 @@ trait BelongsToSucursalScope
         });
     }
 
+    protected function claseDocumentoSucursal(?string $tipoDocumento): ?string
+    {
+        return match ($tipoDocumento) {
+            'notas_venta_renta' => \App\Models\NotasVentaRenta::class,
+            'notas_venta_venta' => \App\Models\NotasVentaVenta::class,
+            'facturas_cfdi' => \App\Models\FacturasCfdi::class,
+            \App\Models\NotasVentaRenta::class,
+            \App\Models\NotasVentaVenta::class,
+            \App\Models\FacturasCfdi::class => $tipoDocumento,
+            default => null,
+        };
+    }
+
     protected function validarRelacionesSucursal(Model $model, int $sucursalId): void
     {
         foreach (['notaVentaRenta', 'notaVentaVenta', 'notaEnvio', 'notaOrigen', 'documento'] as $relacion) {
@@ -227,15 +239,9 @@ trait BelongsToSucursalScope
 
         $tipoDocumento = $model->getAttribute('documento_type') ?? $model->getAttribute('documento_tipo');
         if (method_exists($model, 'documento') && $model->documento() instanceof MorphTo && $tipoDocumento && $model->documento_id) {
-            $type = $tipoDocumento;
-            $allowedTypes = [
-                \App\Models\NotasVentaRenta::class,
-                \App\Models\NotasVentaVenta::class,
-                \App\Models\FacturasCfdi::class,
-            ];
-
-            $documento = in_array($type, $allowedTypes, true)
-                ? $type::withoutGlobalScope('sucursal')->find($model->documento_id)
+            $claseDocumento = $model->claseDocumentoSucursal($tipoDocumento);
+            $documento = $claseDocumento
+                ? $claseDocumento::withoutGlobalScope('sucursal')->find($model->documento_id)
                 : null;
 
             if (!$documento || (int) $documento->sucursal_id !== $sucursalId) {
