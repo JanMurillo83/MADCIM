@@ -67,7 +67,8 @@ class CreateNotasVentaRenta extends CreateRecord
 
     public function cancelarCaptura(): void
     {
-        $this->redirect($this->getResource()::getUrl('index'));
+        $this->unmountAction(true);
+        $this->redirect($this->getResource()::getUrl('index'), navigate: false);
     }
 
     public function notaGuardadaAction(): Action
