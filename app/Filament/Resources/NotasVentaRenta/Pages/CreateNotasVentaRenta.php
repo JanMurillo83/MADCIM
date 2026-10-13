@@ -316,7 +316,7 @@ class CreateNotasVentaRenta extends CreateRecord
         ])->saveQuietly();
 
         $this->notaGuardadaFolio = trim(($record->serie ?? '') . '-' . ($record->folio ?? $record->id), '-');
-        $this->unmountAction(canCancelParentActions: false);
+        $this->unmountAction(cancelParentActions: false);
         $this->mountAction('notaGuardada');
         $this->halt();
     }

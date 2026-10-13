@@ -142,7 +142,7 @@ class CreateNotasVentaVenta extends CreateRecord
             'total' => (float) $record->total,
             'condicion_pago' => $record->condicion_pago === 'credito' ? 'Crédito' : 'Contado',
         ];
-        $this->unmountAction(canCancelParentActions: false);
+        $this->unmountAction(cancelParentActions: false);
         $this->mountAction('notaGuardada');
         $this->halt();
     }
