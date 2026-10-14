@@ -3,10 +3,10 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Pages\CobrosPendientes;
+use App\Filament\Pages\ConsultaDevoluciones;
 use App\Filament\Pages\ProductosRentaVencidos;
 use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Resources\CajaMovimientos\CajaMovimientosResource;
-use App\Filament\Resources\DevolucionesRenta\DevolucionesRentaResource;
 use App\Models\CajaMovimiento;
 use App\Models\CierreDevolucionRenta;
 use App\Models\DevolucionesRenta;
@@ -100,7 +100,7 @@ class IndicadoresDashboard extends Widget
             'comparativo' => collect($metrics)->map(fn ($m) => ['label' => $m['label'], 'branches' => $m['branches'], 'value' => $m['value']])->values(),
             'alerts' => $this->alerts($inicio, $fin), 'porVencer' => $this->rentasActivas()->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->copy()->addDays(7)->toDateString()])->count(),
             'cash' => $this->cashSummary(), 'annualMetrics' => $this->annualMetrics($sucursales), 'movimientos' => $this->movimientosRecientes(),
-            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'cobros' => CobrosPendientes::getUrl(), 'devoluciones' => DevolucionesRentaResource::getUrl('index'), 'movimientos' => CajaMovimientosResource::getUrl('index')],
+            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'cobros' => CobrosPendientes::getUrl(), 'devoluciones' => ConsultaDevoluciones::getUrl(), 'movimientos' => CajaMovimientosResource::getUrl('index')],
         ];
     }
 
