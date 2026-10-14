@@ -11,6 +11,12 @@ class RolePermissions
     public const ROLE_ALMACEN = 'Almacen';
     public const ROLE_ENTREGAS = 'Entregas';
 
+    public const ADMIN_ONLY_RESOURCES = [
+        'App\\Filament\\Resources\\Usuarios\\UsuariosResource',
+        'App\\Filament\\Resources\\Sucursales\\SucursalesResource',
+        'App\\Filament\\Resources\\Configuracion\\ConfiguracionResource',
+    ];
+
     public const RESOURCES = [
         'App\\Filament\\Resources\\Usuarios\\UsuariosResource' => [self::ROLE_ADMIN],
         'App\\Filament\\Resources\\Sucursales\\SucursalesResource' => [self::ROLE_ADMIN],
@@ -75,6 +81,10 @@ class RolePermissions
             return true;
         }
 
+        if ($role === self::ROLE_SUPERVISOR) {
+            return !in_array($class, self::ADMIN_ONLY_RESOURCES, true);
+        }
+
         $allowed = self::RESOURCES[$class] ?? null;
         if ($allowed === null) {
             return false;
@@ -86,6 +96,10 @@ class RolePermissions
     public static function canAccessPage(string $class, ?string $role): bool
     {
         if ($role === self::ROLE_ADMIN) {
+            return true;
+        }
+
+        if ($role === self::ROLE_SUPERVISOR) {
             return true;
         }
 
