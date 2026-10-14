@@ -21,7 +21,7 @@ class InventarioMovimientoService
      *
      * @throws \InvalidArgumentException
      */
-    public static function registrar(int $productoId, string $tipo, float $cantidad, string $motivo, ?string $documentoReferencia = null): MovimientoInventario
+    public static function registrar(int $productoId, string $tipo, float $cantidad, string $motivo, ?string $documentoReferencia = null, ?int $sucursalId = null): MovimientoInventario
     {
         if (! in_array($tipo, ['entrada', 'salida', 'ajuste'])) {
             throw new \InvalidArgumentException('Tipo de movimiento no válido.');
@@ -31,9 +31,10 @@ class InventarioMovimientoService
             throw new \InvalidArgumentException('La cantidad debe ser mayor a cero.');
         }
 
-        return DB::transaction(function () use ($productoId, $tipo, $cantidad, $motivo, $documentoReferencia) {
+        return DB::transaction(function () use ($productoId, $tipo, $cantidad, $motivo, $documentoReferencia, $sucursalId) {
+            $sucursalId = ExistenciaSucursalService::sucursalActual($sucursalId);
             $producto = Productos::lockForUpdate()->findOrFail($productoId);
-            $existenciaAntes = (float) $producto->existencia;
+            $existenciaAntes = ExistenciaSucursalService::obtener($productoId, $sucursalId);
 
             $existenciaDespues = match ($tipo) {
                 'entrada' => $existenciaAntes + $cantidad,
@@ -47,6 +48,7 @@ class InventarioMovimientoService
 
             $movimiento = MovimientoInventario::create([
                 'producto_id' => $productoId,
+                'sucursal_id' => $sucursalId,
                 'user_id' => Auth::id(),
                 'tipo' => $tipo,
                 'cantidad' => $cantidad,
@@ -57,7 +59,10 @@ class InventarioMovimientoService
                 'fecha_movimiento' => now(),
             ]);
 
-            $producto->existencia = $existenciaDespues;
+            ExistenciaSucursalService::ajustar($productoId, $sucursalId, $existenciaDespues);
+            $producto->existencia = (float) \App\Models\ExistenciaSucursal::query()
+                ->where('producto_id', $productoId)
+                ->sum('existencia');
             $producto->save();
 
             return $movimiento;
@@ -67,9 +72,9 @@ class InventarioMovimientoService
     /**
      * Registra una salida de inventario.
      */
-    public static function salida(int $productoId, float $cantidad, string $motivo, ?string $documentoReferencia = null): MovimientoInventario
+    public static function salida(int $productoId, float $cantidad, string $motivo, ?string $documentoReferencia = null, ?int $sucursalId = null): MovimientoInventario
     {
-        return self::registrar($productoId, 'salida', $cantidad, $motivo, $documentoReferencia);
+        return self::registrar($productoId, 'salida', $cantidad, $motivo, $documentoReferencia, $sucursalId);
     }
 
     /**

@@ -66,43 +66,22 @@ class Inventario extends Page
             ->orderBy('descripcion')
             ->get()
             ->map(function ($row) {
-                $valor = (float) $row->existencia * (float) $row->costo;
                 return [
                     'clave' => $row->clave,
                     'descripcion' => $row->descripcion,
                     'linea' => $row->linea,
                     'grupo' => $row->grupo,
-                    'existencia' => (float) $row->existencia,
                     'costo' => (float) $row->costo,
                     'ultimo_costo' => (float) ($row->ultimo_costo ?? 0),
-                    'valor' => $valor,
                 ];
             });
-    }
-
-    #[Computed]
-    public function totalExistencia(): float
-    {
-        return (float) $this->items->sum('existencia');
-    }
-
-    #[Computed]
-    public function totalValor(): float
-    {
-        return (float) $this->items->sum('valor');
     }
 
     public function exportPdf()
     {
         $items = $this->items;
-        $totals = [
-            'existencia' => $this->totalExistencia,
-            'valor' => $this->totalValor,
-        ];
-
         $pdf = Pdf::loadView('exports.reportes.inventario-pdf', [
             'items' => $items,
-            'totals' => $totals,
         ])->setPaper('letter', 'landscape');
 
         return response()->streamDownload(function () use ($pdf) {
@@ -113,7 +92,7 @@ class Inventario extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Existencia', 'Costo promedio', 'Ultimo costo', 'Valor inventario'];
+        $rows[] = ['Clave', 'Producto', 'Linea', 'Grupo', 'Costo promedio', 'Ultimo costo'];
 
         foreach ($this->items as $row) {
             $rows[] = [
@@ -121,15 +100,12 @@ class Inventario extends Page
                 $row['descripcion'],
                 $row['linea'],
                 $row['grupo'],
-                number_format($row['existencia'], 2, '.', ''),
                 number_format($row['costo'], 2, '.', ''),
                 number_format($row['ultimo_costo'], 2, '.', ''),
-                number_format($row['valor'], 2, '.', ''),
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', '', 'TOTALES', number_format($this->totalExistencia, 2, '.', ''), '', '', number_format($this->totalValor, 2, '.', '')];
 
         $filename = 'inventario_' . now()->format('Ymd_His') . '.csv';
 

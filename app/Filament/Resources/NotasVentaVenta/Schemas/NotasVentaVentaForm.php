@@ -9,6 +9,7 @@ use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
 use App\Models\Sucursal;
+use App\Services\ExistenciaSucursalService;
 use App\Models\User;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
@@ -272,8 +273,8 @@ class NotasVentaVentaForm
                                     ->rules(fn () => [
                                         function (string $attribute, mixed $value, \Closure $fail): void {
                                             $producto = Productos::find($value);
-
-                                            if ($producto && (float) $producto->existencia < 1) {
+                                            $sucursalId = $get('../../sucursal_id') ?: Auth::user()?->sucursal_id;
+                                            if ($producto && ExistenciaSucursalService::obtener((int) $producto->id, $sucursalId) < 1) {
                                                 $fail('No se puede vender este producto porque no tiene existencia disponible.');
                                             }
                                         },
@@ -284,7 +285,7 @@ class NotasVentaVentaForm
                                             ->orderBy('clave')
                                             ->get()
                                             ->mapWithKeys(function (Productos $producto): array {
-                                                $existencia = Numero::formato($producto->existencia, 0);
+                                                $existencia = Numero::formato(ExistenciaSucursalService::obtener($producto->id, Auth::user()?->sucursal_id), 0);
 
                                                 return [
                                                     $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -299,7 +300,8 @@ class NotasVentaVentaForm
                                         if ($producto === null) {
                                             return;
                                         }
-                                        if ((float) $producto->existencia < 1) {
+                                        $sucursalId = $get('../../sucursal_id') ?: Auth::user()?->sucursal_id;
+                                        if (ExistenciaSucursalService::obtener((int) $producto->id, $sucursalId) < 1) {
                                             $set('item', null);
                                             $set('descripcion', null);
                                             $set('valor_unitario', 0.0);

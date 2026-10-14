@@ -10,6 +10,7 @@ use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Pages\Reportes\CuentasPorCobrar;
 use App\Filament\Pages\Reportes\DetallePorCliente;
 use App\Filament\Pages\Reportes\Inventario;
+use App\Filament\Pages\Reportes\ExistenciaPorSucursal;
 use App\Filament\Pages\Reportes\OrdenesCompraPorEstatus;
 use App\Filament\Pages\Reportes\ProductosMasRentados;
 use App\Filament\Pages\Reportes\RecepcionesPorProveedor;
@@ -94,8 +95,13 @@ class CentroReportes extends Page
             ],
             [
                 'titulo' => 'Inventario',
-                'descripcion' => 'Reporte de existencias y costos.',
+                'descripcion' => 'Reporte de costos de productos.',
                 'url' => Inventario::getUrl(),
+            ],
+            [
+                'titulo' => 'Existencia por sucursal',
+                'descripcion' => 'Consulta la existencia disponible de cada producto por sucursal.',
+                'url' => ExistenciaPorSucursal::getUrl(),
             ],
             [
                 'titulo' => 'Productos Mas Rentados',

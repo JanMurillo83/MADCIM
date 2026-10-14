@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Inventario\Schemas;
 
 use App\Models\Productos;
+use App\Models\Sucursal;
+use App\Services\ExistenciaSucursalService;
 use App\Support\Numero;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -32,7 +34,7 @@ class InventarioForm
                                     ->orderBy('clave')
                                     ->get()
                                     ->mapWithKeys(function (Productos $producto) {
-                                        $existencia = Numero::formato($producto->existencia, 2);
+                                        $existencia = Numero::formato(ExistenciaSucursalService::obtener($producto->id), 2);
 
                                         return [
                                             $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -47,6 +49,13 @@ class InventarioForm
                                 self::calcularExistenciaDespues($get, $set);
                             })
                             ->disabled(fn (?string $context) => $context === 'edit'),
+                        Select::make('sucursal_id')
+                            ->label('Sucursal')
+                            ->required()
+                            ->options(fn () => Sucursal::query()->orderBy('nombre')->pluck('nombre', 'id'))
+                            ->default(fn () => auth()->user()?->sucursal_id)
+                            ->disabled(fn () => ! auth()->user()?->isAdmin())
+                            ->dehydrated(),
                         Select::make('tipo')
                             ->label('Tipo de Movimiento')
                             ->required()

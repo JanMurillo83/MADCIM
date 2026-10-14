@@ -14,6 +14,7 @@ class MovimientoInventario extends Model
 
     protected $fillable = [
         'producto_id',
+        'sucursal_id',
         'user_id',
         'tipo',
         'cantidad',
@@ -34,6 +35,11 @@ class MovimientoInventario extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Productos::class, 'producto_id');
+    }
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
     public function user(): BelongsTo

@@ -19,6 +19,7 @@ class RecepcionCompraPartida extends Model
         'impuestos',
         'total',
         'existencia_antes',
+        'existencia_sucursal_antes',
         'costo_promedio_antes',
         'ultimo_costo_antes',
     ];

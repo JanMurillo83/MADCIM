@@ -7,6 +7,7 @@ use App\Models\CuentaPorPagar;
 use App\Models\Proveedores;
 use App\Models\RecepcionCompra;
 use App\Models\RecepcionCompraPartida;
+use App\Services\ExistenciaSucursalService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -128,8 +129,11 @@ class RecepcionCompraInventoryService
             return;
         }
 
+        $sucursalId = ExistenciaSucursalService::sucursalActual($partida->recepcion?->sucursal_id ?? null);
+        $existenciaAntes = ExistenciaSucursalService::obtener($producto->id, $sucursalId);
         $partida->update([
             'existencia_antes' => $producto->existencia,
+            'existencia_sucursal_antes' => $existenciaAntes,
             'costo_promedio_antes' => $producto->costo,
             'ultimo_costo_antes' => $producto->ultimo_costo,
         ]);
@@ -141,10 +145,13 @@ class RecepcionCompraInventoryService
         $nuevoCostoPromedio = $this->calcularCostoPromedio($existenciaActual, $costoPromedioActual, $cantidad, $costoNuevo);
 
         $producto->update([
-            'existencia' => $nuevaExistencia,
+            'existencia' => (float) \App\Models\ExistenciaSucursal::query()
+                ->where('producto_id', $producto->id)
+                ->sum('existencia') + $cantidad,
             'costo' => $nuevoCostoPromedio,
             'ultimo_costo' => $costoNuevo,
         ]);
+        ExistenciaSucursalService::ajustar($producto->id, $sucursalId, $nuevaExistencia);
     }
 
     private function revertirPartida(RecepcionCompraPartida $partida): void
@@ -160,7 +167,15 @@ class RecepcionCompraInventoryService
             return;
         }
 
+        $sucursalId = ExistenciaSucursalService::sucursalActual($partida->recepcion?->sucursal_id ?? null);
         if ($partida->existencia_antes !== null || $partida->costo_promedio_antes !== null || $partida->ultimo_costo_antes !== null) {
+            $existenciaSucursalAntes = $partida->existencia_sucursal_antes;
+            if ($existenciaSucursalAntes !== null) {
+                ExistenciaSucursalService::ajustar($producto->id, $sucursalId, max(0, (float) $existenciaSucursalAntes));
+            } else {
+                $existenciaSucursalActual = ExistenciaSucursalService::obtener($producto->id, $sucursalId);
+                ExistenciaSucursalService::ajustar($producto->id, $sucursalId, max(0, $existenciaSucursalActual - $cantidad));
+            }
             $updates = [];
             if ($partida->existencia_antes !== null) {
                 $updates['existencia'] = (float) $partida->existencia_antes;
@@ -182,7 +197,7 @@ class RecepcionCompraInventoryService
         $existenciaActual = (float) $producto->existencia;
         $costoPromedioActual = (float) $producto->costo;
         $costoPartida = (float) $partida->precio_unitario;
-        $existenciaAnterior = $existenciaActual - $cantidad;
+        $existenciaAnterior = max(0.0, $existenciaActual - $cantidad);
         if ($existenciaAnterior < 0) {
             $existenciaAnterior = 0.0;
         }
@@ -199,6 +214,8 @@ class RecepcionCompraInventoryService
             'existencia' => $existenciaAnterior,
             'costo' => $costoPromedioAnterior,
         ]);
+        $existenciaSucursalActual = ExistenciaSucursalService::obtener($producto->id, $sucursalId);
+        ExistenciaSucursalService::ajustar($producto->id, $sucursalId, max(0, $existenciaSucursalActual - $cantidad));
     }
 
     private function calcularCostoPromedio(float $existenciaActual, float $costoPromedioActual, float $cantidad, float $costoNuevo): float

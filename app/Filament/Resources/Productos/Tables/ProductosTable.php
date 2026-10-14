@@ -62,12 +62,6 @@ class ProductosTable
                     ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
                     ->alignRight()
                     ->sortable(),
-                TextColumn::make('existencia')
-                    ->label('Exist.')
-                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
-                    ->numeric(decimalPlaces: 2, decimalSeparator: '.', thousandsSeparator: ',')
-                    ->alignRight()
-                    ->sortable(),
                 TextColumn::make('grupo')
                     ->label('Gpo.')
                     ->searchable(),

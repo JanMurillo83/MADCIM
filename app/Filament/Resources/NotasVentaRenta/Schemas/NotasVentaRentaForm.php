@@ -12,6 +12,7 @@ use App\Models\Clientes;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
 use App\Models\Sucursal;
+use App\Services\ExistenciaSucursalService;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -626,7 +627,8 @@ class NotasVentaRentaForm
                                                 return;
                                             }
 
-                                            if ((float) $producto->existencia < 1) {
+                                            $sucursalId = $get('../../sucursal_id') ?: Auth::user()?->sucursal_id;
+                                            if (ExistenciaSucursalService::obtener((int) $producto->id, $sucursalId) < 1) {
                                                 $fail('No se puede rentar este producto porque no tiene existencia disponible.');
                                             }
                                         },
@@ -637,7 +639,7 @@ class NotasVentaRentaForm
                                             ->orderBy('clave')
                                             ->get()
                                             ->mapWithKeys(function (Productos $producto): array {
-                                                $existencia = Numero::formato($producto->existencia, 0);
+                                                $existencia = Numero::formato(ExistenciaSucursalService::obtener($producto->id, Auth::user()?->sucursal_id), 0);
 
                                                 return [
                                                     $producto->id => $producto->clave . ' - ' . $producto->descripcion . ' | Existencia: ' . $existencia,
@@ -655,7 +657,8 @@ class NotasVentaRentaForm
                                         $tipoNotaRenta = self::tipoNotaRentaActual($get);
                                         $esProductoConceptualM2 = in_array((int) $producto->id, self::PRODUCTOS_RENTA_M2_IDS, true);
 
-                                        if (!$esProductoConceptualM2 && !self::esMaderaM2($get) && (float) $producto->existencia < 1) {
+                                        $sucursalId = $get('../../sucursal_id') ?: Auth::user()?->sucursal_id;
+                                        if (!$esProductoConceptualM2 && !self::esMaderaM2($get) && ExistenciaSucursalService::obtener((int) $producto->id, $sucursalId) < 1) {
                                             $set('item', null);
                                             $set('descripcion', null);
                                             $set('valor_unitario', 0.0);

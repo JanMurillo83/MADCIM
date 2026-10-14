@@ -131,7 +131,8 @@ class CreateNotasVentaVenta extends CreateRecord
                 productoId: $producto->id,
                 cantidad: (float) $partida->cantidad,
                 motivo: "Venta generada en nota {$referencia}",
-                documentoReferencia: $referencia
+                documentoReferencia: $referencia,
+                sucursalId: $record->sucursal_id,
             );
         }
 

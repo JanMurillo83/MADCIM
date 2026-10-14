@@ -280,6 +280,7 @@ class CierreDevolucionRentaService
 
         $totales = $resultado['resumen']['totales'];
         $cierre = CierreDevolucionRenta::create([
+            'sucursal_id' => $nota->sucursal_id ?? auth()->user()?->sucursal_id,
             'cliente_id' => $clienteId,
             'direccion_entrega_id' => $direccionEntregaId,
             'nota_ids' => $notaIds,
@@ -436,6 +437,7 @@ class CierreDevolucionRentaService
                         'documento_tipo' => 'notas_venta_venta',
                         'documento_id' => $notaVentaVenta->id,
                         'cliente_id' => $nota->cliente_id,
+                        'sucursal_id' => $nota->sucursal_id ?? auth()->user()?->sucursal_id,
                         'fecha_pago' => now()->toDateString(),
                         'fecha_pago_hora' => now(),
                         'fecha_emision' => now(),
@@ -452,6 +454,7 @@ class CierreDevolucionRentaService
             }
 
             $devolucion = DevolucionesRenta::create([
+                'sucursal_id' => $nota->sucursal_id ?? auth()->user()?->sucursal_id,
                 'serie' => $this->resolverSerieDevolucion(),
                 'fecha_emision' => now(),
                 'moneda' => $nota->moneda ?? 'MXN',
@@ -479,14 +482,7 @@ class CierreDevolucionRentaService
             $cajaUsada = false;
             $cajaMovimientoId = null;
             if ((float) $resumen['totales']['deposito_devolver'] > 0) {
-                $cajaAbierta = Caja::query()
-                    ->where('estatus', 'Abierta')
-                    ->when($userId, fn ($q) => $q->where('usuario_apertura_id', $userId))
-                    ->first();
-
-                if (!$cajaAbierta) {
-                    $cajaAbierta = Caja::query()->where('estatus', 'Abierta')->first();
-                }
+                $cajaAbierta = $this->cajaAbiertaParaSucursal($nota->sucursal_id, $userId);
 
                 if ($cajaAbierta) {
                     $cajaMovimiento = CajaMovimiento::create([
@@ -646,6 +642,23 @@ class CierreDevolucionRentaService
         return 'DR';
     }
 
+    private function cajaAbiertaParaSucursal(?int $sucursalId, ?int $userId): ?Caja
+    {
+        if (!$sucursalId) {
+            return null;
+        }
+
+        return Caja::query()
+            ->where('estatus', 'Abierta')
+            ->where('sucursal_id', $sucursalId)
+            ->when($userId, fn ($query) => $query->where('usuario_apertura_id', $userId))
+            ->first()
+            ?? Caja::query()
+                ->where('estatus', 'Abierta')
+                ->where('sucursal_id', $sucursalId)
+                ->first();
+    }
+
     private function registrarDepositoPendiente(
         CierreDevolucionRenta $cierre,
         NotasVentaRenta $nota,
@@ -657,11 +670,7 @@ class CierreDevolucionRentaService
             return false;
         }
 
-        $cajaAbierta = Caja::query()
-            ->where('estatus', 'Abierta')
-            ->when($userId, fn ($query) => $query->where('usuario_apertura_id', $userId))
-            ->first()
-            ?? Caja::query()->where('estatus', 'Abierta')->first();
+        $cajaAbierta = $this->cajaAbiertaParaSucursal($nota->sucursal_id, $userId);
 
         if (!$cajaAbierta) {
             return false;

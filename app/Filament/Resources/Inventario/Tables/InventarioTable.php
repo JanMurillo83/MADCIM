@@ -28,6 +28,10 @@ class InventarioTable
                     ->searchable()
                     ->sortable()
                     ->wrap(),
+                TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable(),
                 TextColumn::make('tipo')
                     ->label('Tipo')
                     ->badge()

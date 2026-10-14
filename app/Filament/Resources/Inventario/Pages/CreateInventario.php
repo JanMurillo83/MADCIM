@@ -4,9 +4,9 @@ namespace App\Filament\Resources\Inventario\Pages;
 
 use App\Filament\Resources\Inventario\InventarioResource;
 use App\Models\Productos;
+use App\Services\ExistenciaSucursalService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class CreateInventario extends CreateRecord
 {
@@ -14,26 +14,21 @@ class CreateInventario extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $producto = Productos::lockForUpdate()->findOrFail($data['producto_id']);
-        $tipo = $data['tipo'];
+        $sucursalId = ExistenciaSucursalService::sucursalActual($data['sucursal_id'] ?? null);
+        $existenciaAntes = ExistenciaSucursalService::obtener((int) $data['producto_id'], $sucursalId);
         $cantidad = (float) ($data['cantidad'] ?? 0);
-
-        if ($cantidad <= 0) {
-            throw new \InvalidArgumentException('La cantidad debe ser mayor a cero.');
-        }
-
-        $existenciaAntes = (float) $producto->existencia;
-        $existenciaDespues = match ($tipo) {
+        $existenciaDespues = match ($data['tipo']) {
             'entrada' => $existenciaAntes + $cantidad,
             'salida' => $existenciaAntes - $cantidad,
             'ajuste' => $cantidad,
             default => $existenciaAntes,
         };
 
-        if ($tipo === 'salida' && $existenciaDespues < 0) {
-            throw new \InvalidArgumentException('No hay existencia suficiente para realizar la salida.');
+        if ($cantidad <= 0 || ($data['tipo'] === 'salida' && $existenciaDespues < 0)) {
+            throw new \InvalidArgumentException('La cantidad o existencia de la sucursal no es válida.');
         }
 
+        $data['sucursal_id'] = $sucursalId;
         $data['existencia_antes'] = $existenciaAntes;
         $data['existencia_despues'] = $existenciaDespues;
         $data['user_id'] = Auth::id();
@@ -43,12 +38,18 @@ class CreateInventario extends CreateRecord
 
     protected function afterCreate(): void
     {
-        DB::transaction(function () {
-            $movimiento = $this->record;
-            $producto = Productos::lockForUpdate()->findOrFail($movimiento->producto_id);
-            $producto->existencia = $movimiento->existencia_despues;
-            $producto->save();
-        });
+        $movimiento = $this->record;
+        ExistenciaSucursalService::ajustar(
+            (int) $movimiento->producto_id,
+            (int) $movimiento->sucursal_id,
+            (float) $movimiento->existencia_despues,
+        );
+        $producto = Productos::findOrFail($movimiento->producto_id);
+        $producto->update([
+            'existencia' => (float) \App\Models\ExistenciaSucursal::query()
+                ->where('producto_id', $producto->id)
+                ->sum('existencia'),
+        ]);
     }
 
     protected function getRedirectUrl(): string

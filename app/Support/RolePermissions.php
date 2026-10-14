@@ -64,6 +64,7 @@ class RolePermissions
         'App\\Filament\\Pages\\Reportes\\CuentasPorCobrar' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\DetallePorCliente' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\Inventario' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
+        'App\\Filament\\Pages\\Reportes\\ExistenciaPorSucursal' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\ProductosMasRentados' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\RentasActivasVencidas' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\VentasPorLinea' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],

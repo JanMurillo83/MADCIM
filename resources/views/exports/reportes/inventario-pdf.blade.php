@@ -28,10 +28,8 @@
                 <th>Producto</th>
                 <th>Linea</th>
                 <th>Grupo</th>
-                <th class="text-right">Existencia</th>
                 <th class="text-right">Costo promedio</th>
                 <th class="text-right">Ultimo costo</th>
-                <th class="text-right">Valor inventario</th>
             </tr>
         </thead>
         <tbody>
@@ -41,30 +39,12 @@
                     <td>{{ $row['descripcion'] }}</td>
                     <td>{{ $row['linea'] }}</td>
                     <td>{{ $row['grupo'] }}</td>
-                    <td class="text-right">{{ number_format($row['existencia'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['costo'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['ultimo_costo'], 2) }}</td>
-                    <td class="text-right">${{ number_format($row['valor'], 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
 
-    <div class="totales">
-        <table>
-            <tr>
-                <th>Concepto</th>
-                <th class="text-right">Importe</th>
-            </tr>
-            <tr>
-                <td>Total existencia</td>
-                <td class="text-right">{{ number_format($totals['existencia'], 2) }}</td>
-            </tr>
-            <tr>
-                <td>Valor inventario</td>
-                <td class="text-right">${{ number_format($totals['valor'], 2) }}</td>
-            </tr>
-        </table>
-    </div>
 </body>
 </html>

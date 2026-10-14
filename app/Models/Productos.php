@@ -21,4 +21,9 @@ class Productos extends Model
     {
         return $this->hasMany(self::class, 'producto_base_id');
     }
+
+    public function existenciasSucursal(): HasMany
+    {
+        return $this->hasMany(ExistenciaSucursal::class, 'producto_id');
+    }
 }

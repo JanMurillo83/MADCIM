@@ -53,7 +53,6 @@
                             <th class="px-4 py-2 text-left text-gray-600">Producto</th>
                             <th class="px-4 py-2 text-left text-gray-600">Linea</th>
                             <th class="px-4 py-2 text-left text-gray-600">Grupo</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Existencia</th>
                             <th class="px-4 py-2 text-right text-gray-600">Costo promedio</th>
                             <th class="px-4 py-2 text-right text-gray-600">Ultimo costo</th>
                             <th class="px-4 py-2 text-right text-gray-600">Valor inventario</th>
@@ -66,14 +65,13 @@
                                 <td class="px-4 py-2">{{ $row['descripcion'] }}</td>
                                 <td class="px-4 py-2">{{ $row['linea'] }}</td>
                                 <td class="px-4 py-2">{{ $row['grupo'] }}</td>
-                                <td class="px-4 py-2 text-right">{{ number_format($row['existencia'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['costo'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['ultimo_costo'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['valor'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="8">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="6">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -81,15 +79,5 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
-                <p class="text-sm text-gray-500">Total existencia</p>
-                <p class="text-2xl font-bold text-gray-800">{{ number_format($this->totalExistencia, 2) }}</p>
-            </div>
-            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
-                <p class="text-sm text-gray-500">Valor inventario</p>
-                <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalValor, 2) }}</p>
-            </div>
-        </div>
     </div>
 </x-filament-panels::page>
