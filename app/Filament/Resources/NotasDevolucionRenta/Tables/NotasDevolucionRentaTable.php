@@ -81,6 +81,23 @@ class NotasDevolucionRentaTable
                     ->icon('heroicon-o-printer')
                     ->url(fn ($record): string => route('notas-devolucion-renta.pdf.ticket', $record->id))
                     ->openUrlInNewTab(),
+                Action::make('aplicar')
+                    ->label('Aplicar devolución')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn ($record): bool => in_array($record->estatus, ['Pendiente', 'Parcial'], true))
+                    ->requiresConfirmation()
+                    ->modalHeading('Aplicar devolución')
+                    ->modalDescription('Se actualizarán las cantidades devueltas y la existencia de la sucursal.')
+                    ->action(function ($record): void {
+                        $record->aplicarCantidadesRecogidas();
+
+                        Notification::make()
+                            ->title('Devolución aplicada')
+                            ->body('Las cantidades y los movimientos de inventario fueron actualizados.')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('cancelar')
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')

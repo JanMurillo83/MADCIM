@@ -80,8 +80,8 @@ class InventarioMovimientoService
     /**
      * Registra una entrada de inventario.
      */
-    public static function entrada(int $productoId, float $cantidad, string $motivo, ?string $documentoReferencia = null): MovimientoInventario
+    public static function entrada(int $productoId, float $cantidad, string $motivo, ?string $documentoReferencia = null, ?int $sucursalId = null): MovimientoInventario
     {
-        return self::registrar($productoId, 'entrada', $cantidad, $motivo, $documentoReferencia);
+        return self::registrar($productoId, 'entrada', $cantidad, $motivo, $documentoReferencia, $sucursalId);
     }
 }

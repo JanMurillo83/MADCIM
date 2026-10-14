@@ -196,6 +196,7 @@ class NotaDevolucionRenta extends Model
                             cantidad: $cantidadMovida,
                             motivo: "Devolución de renta {$referencia}",
                             documentoReferencia: $referencia,
+                            sucursalId: $this->sucursal_id,
                         );
                     } else {
                         InventarioMovimientoService::salida(
@@ -203,6 +204,7 @@ class NotaDevolucionRenta extends Model
                             cantidad: $cantidadMovida,
                             motivo: "Cancelación de devolución de renta {$referencia}",
                             documentoReferencia: $referencia,
+                            sucursalId: $this->sucursal_id,
                         );
                     }
                 }
@@ -313,7 +315,8 @@ class NotaDevolucionRenta extends Model
                             productoId: $producto->id,
                             cantidad: $delta,
                             motivo: "Devolución de renta {$referencia}",
-                            documentoReferencia: $referencia
+                            documentoReferencia: $referencia,
+                            sucursalId: $this->sucursal_id,
                         );
                     }
                 } elseif ($delta < -0.00001) {
@@ -322,6 +325,7 @@ class NotaDevolucionRenta extends Model
                         cantidad: abs($delta),
                         motivo: "Cancelación de devolución de renta {$this->serie}{$this->folio}",
                         documentoReferencia: $this->serie . $this->folio,
+                        sucursalId: $this->sucursal_id,
                     );
                 }
             }
@@ -455,7 +459,8 @@ class NotaDevolucionRenta extends Model
                             productoId: $producto->id,
                             cantidad: $aplicada,
                             motivo: "Cancelación de devolución de renta {$referencia}",
-                            documentoReferencia: $referencia
+                            documentoReferencia: $referencia,
+                            sucursalId: $this->sucursal_id,
                         );
                     }
                 }

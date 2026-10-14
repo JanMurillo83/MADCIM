@@ -187,7 +187,17 @@ class CreateNotasDevolucionRenta extends CreateRecord
 
     protected function afterCreate(): void
     {
-        $this->record->aplicarCantidadesRecogidas();
+        $record = $this->record->fresh();
+        $record->aplicarCantidadesRecogidas();
+        $record->refresh();
+
+        if (! in_array($record->estatus, ['Aplicada', 'Parcial', 'Devuelta'], true)) {
+            throw new \RuntimeException(
+                'La devolución fue guardada, pero no se pudieron aplicar sus movimientos. Revise las partidas y vuelva a intentarlo.',
+            );
+        }
+
+        $this->record = $record;
 
         $url = route('notas-devolucion-renta.pdf.ticket', $this->record->id);
         $this->js("window.open('{$url}', '_blank')");
