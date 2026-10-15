@@ -116,9 +116,9 @@ class NotasVentaVentaTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->recordClasses(fn (NotasVentaVenta $record): array => [
-                'mc-cancelled-row' => $record->estatus === 'Cancelada',
-            ])
+            ->recordClasses(fn (NotasVentaVenta $record): ?string => $record->estatus === 'Cancelada'
+                ? 'mc-cancelled-row'
+                : null)
             ->recordActions([
                 ActionGroup::make([
                     ViewAction::make()
