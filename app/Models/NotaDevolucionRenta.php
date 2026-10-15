@@ -254,8 +254,25 @@ class NotaDevolucionRenta extends Model
                     continue;
                 }
 
+                $partidaEnvio = NotaEnvioPartida::query()
+                    ->whereKey($partida->nota_envio_partida_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$partidaEnvio) {
+                    continue;
+                }
+
                 $cantidadObjetivo = (float) $partida->cantidad_recogida;
+                if ($cantidadObjetivo <= 0 && (float) $partida->cantidad_aplicada <= 0) {
+                    $cantidadObjetivo = (float) $partida->cantidad_a_devolver;
+                }
+
                 $cantidadProgramada = (float) $partida->cantidad_programada;
+                if ($cantidadProgramada <= 0) {
+                    $cantidadProgramada = (float) $partidaEnvio->cantidad;
+                }
+
                 if ($cantidadObjetivo < 0) {
                     $cantidadObjetivo = 0;
                 }
@@ -273,15 +290,6 @@ class NotaDevolucionRenta extends Model
                 $delta = $cantidadObjetivo - $cantidadAplicada;
 
                 if (abs($delta) < 0.00001) {
-                    continue;
-                }
-
-                $partidaEnvio = NotaEnvioPartida::query()
-                    ->whereKey($partida->nota_envio_partida_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$partidaEnvio) {
                     continue;
                 }
 
@@ -384,7 +392,10 @@ class NotaDevolucionRenta extends Model
 
             $estadoNota = $this->calcularEstadoDesdePartidas(
                 $this->partidas,
-                static fn (NotaDevolucionRentaPartida $p): float => (float) $p->cantidad_programada,
+                static fn (NotaDevolucionRentaPartida $p): float => max(
+                    (float) $p->cantidad_programada,
+                    (float) $p->cantidad_enviada,
+                ),
                 static fn (NotaDevolucionRentaPartida $p): float => (float) $p->cantidad_aplicada,
             );
 
