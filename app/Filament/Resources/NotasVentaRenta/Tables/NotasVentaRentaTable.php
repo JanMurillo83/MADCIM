@@ -17,6 +17,7 @@ use Filament\Actions\ViewAction;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
@@ -58,6 +59,9 @@ class NotasVentaRentaTable
                     ->label('Total')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
+                    ->summarize(Sum::make()
+                        ->label('Total')
+                        ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->sortable(),
                 TextColumn::make('saldo_pendiente')
                     ->label('Saldo Pendiente')
@@ -211,6 +215,9 @@ class NotasVentaRentaTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->recordClasses(fn (NotasVentaRenta $record): string => $record->estatus === 'Cancelada'
+                ? 'bg-red-50 dark:bg-red-950/20'
+                : '')
             ->recordActions([
                 ActionGroup::make([
                     ViewAction::make()
