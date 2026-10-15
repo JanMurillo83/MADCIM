@@ -195,7 +195,11 @@ class NotasVentaRentaTable
                         $todasDevueltas = $envios->every(fn ($e) => $e->estado_renta === 'Devuelta');
                         return $todasDevueltas ? 'Devuelta' : 'Vigente';
                     })
-                    ->color(function (string $state): string {
+                    ->color(function (NotasVentaRenta $record, string $state): string {
+                        if ($record->estatus === 'Cancelada') {
+                            return 'danger';
+                        }
+
                         return match ($state) {
                             'Cancelada', 'Vencida' => 'danger',
                             'Vendida' => 'warning',
@@ -241,10 +245,7 @@ class NotasVentaRentaTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordClasses(fn (NotasVentaRenta $record): array => [
-                '!bg-red-100' => $record->estatus === 'Cancelada',
-                '[&>td]:!bg-red-100' => $record->estatus === 'Cancelada',
-                'dark:!bg-red-950' => $record->estatus === 'Cancelada',
-                'dark:[&>td]:!bg-red-950' => $record->estatus === 'Cancelada',
+                'mc-cancelled-row' => $record->estatus === 'Cancelada',
             ])
             ->recordActions([
                 ActionGroup::make([

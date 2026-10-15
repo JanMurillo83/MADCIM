@@ -22,6 +22,24 @@
 }
 
 @layer components {
+    .fi-ta-row.mc-cancelled-row,
+    .fi-ta-row.mc-cancelled-row > td {
+        background-color: #fee2e2 !important;
+    }
+
+    .fi-ta-row.mc-cancelled-row > td {
+        color: #991b1b;
+    }
+
+    .dark .fi-ta-row.mc-cancelled-row,
+    .dark .fi-ta-row.mc-cancelled-row > td {
+        background-color: #450a0a !important;
+    }
+
+    .dark .fi-ta-row.mc-cancelled-row > td {
+        color: #fecaca;
+    }
+
     .mc-dashboard {
         color: #28342d;
         font-size: 0.875rem;
