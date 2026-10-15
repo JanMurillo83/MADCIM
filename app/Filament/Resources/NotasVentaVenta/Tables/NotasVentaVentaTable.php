@@ -117,8 +117,10 @@ class NotasVentaVentaTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordClasses(fn (NotasVentaVenta $record): array => [
-                'bg-red-50 dark:bg-red-950/20 [&>td]:!bg-red-50 dark:[&>td]:!bg-red-950/20'
-                    => $record->estatus === 'Cancelada',
+                '!bg-red-100' => $record->estatus === 'Cancelada',
+                '[&>td]:!bg-red-100' => $record->estatus === 'Cancelada',
+                'dark:!bg-red-950' => $record->estatus === 'Cancelada',
+                'dark:[&>td]:!bg-red-950' => $record->estatus === 'Cancelada',
             ])
             ->recordActions([
                 ActionGroup::make([

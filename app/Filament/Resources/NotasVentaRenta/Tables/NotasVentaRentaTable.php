@@ -195,12 +195,14 @@ class NotasVentaRentaTable
                         $todasDevueltas = $envios->every(fn ($e) => $e->estado_renta === 'Devuelta');
                         return $todasDevueltas ? 'Devuelta' : 'Vigente';
                     })
-                    ->colors([
-                        'success' => 'Vigente',
-                        'gray' => 'Devuelta',
-                        'warning' => 'Vendida',
-                        'danger' => ['Vencida', 'Cancelada'],
-                    ]),
+                    ->color(function (string $state): string {
+                        return match ($state) {
+                            'Cancelada', 'Vencida' => 'danger',
+                            'Vendida' => 'warning',
+                            'Devuelta' => 'gray',
+                            default => 'success',
+                        };
+                    }),
                 TextColumn::make('uso_cfdi')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -239,8 +241,10 @@ class NotasVentaRentaTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordClasses(fn (NotasVentaRenta $record): array => [
-                'bg-red-50 dark:bg-red-950/20 [&>td]:!bg-red-50 dark:[&>td]:!bg-red-950/20'
-                    => $record->estatus === 'Cancelada',
+                '!bg-red-100' => $record->estatus === 'Cancelada',
+                '[&>td]:!bg-red-100' => $record->estatus === 'Cancelada',
+                'dark:!bg-red-950' => $record->estatus === 'Cancelada',
+                'dark:[&>td]:!bg-red-950' => $record->estatus === 'Cancelada',
             ])
             ->recordActions([
                 ActionGroup::make([
