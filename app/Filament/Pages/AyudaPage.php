@@ -454,6 +454,7 @@ class AyudaPage extends Page implements HasActions
                                             if ($metodo === 'Efectivo') {
                                                 $cajaId = \App\Models\Caja::where('estatus', 'Abierta')
                                                     ->where('usuario_apertura_id', $userId)
+                                                    ->where('sucursal_id', $nota->sucursal_id)
                                                     ->value('id');
                                                 if (!$cajaId) {
                                                     Notification::make()

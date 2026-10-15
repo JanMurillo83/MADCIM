@@ -64,6 +64,7 @@ class CobroNotaService
             $cajaId = Caja::query()
                 ->where('estatus', 'Abierta')
                 ->where('usuario_apertura_id', $userId)
+                ->where('sucursal_id', $documento->sucursal_id)
                 ->lockForUpdate()
                 ->value('id');
 

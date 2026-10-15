@@ -200,6 +200,7 @@ class NotaVentaRentaPdfController extends Controller
         if ($formaPago === '01') {
             $caja = Caja::where('estatus', 'Abierta')
                 ->where('usuario_apertura_id', $userId)
+                ->where('sucursal_id', $notaVenta->sucursal_id)
                 ->first();
             $cajaId = $caja?->id;
         }

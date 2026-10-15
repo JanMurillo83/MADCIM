@@ -596,7 +596,9 @@ class NotasEnvioTable
                         }
 
                         // 7. Movimientos en caja (efecto 0)
-                        $cajaAbierta = Caja::where('estatus', 'Abierta')->first();
+                        $cajaAbierta = Caja::where('estatus', 'Abierta')
+                            ->where('sucursal_id', $nota->sucursal_id)
+                            ->first();
                         $sinCaja = false;
 
                         if ($cajaAbierta && $deposito > 0) {

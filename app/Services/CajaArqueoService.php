@@ -34,7 +34,6 @@ class CajaArqueoService
     public function resumen(Caja $caja): array
     {
         $movimientos = $caja->movimientos()
-            ->when($caja->fecha_apertura, fn ($query) => $query->where('fecha', '>=', $caja->fecha_apertura))
             ->get();
         $ingresosEfectivo = (float) $movimientos
             ->where('tipo', 'Ingreso')

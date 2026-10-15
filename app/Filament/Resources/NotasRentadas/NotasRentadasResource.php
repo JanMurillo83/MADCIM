@@ -367,7 +367,9 @@ class NotasRentadasResource extends Resource
 
                         // Registrar egreso en caja si hay importe a devolver
                         if ($importeDevolver > 0) {
-                            $cajaAbierta = Caja::where('estatus', 'Abierta')->first();
+                            $cajaAbierta = Caja::where('estatus', 'Abierta')
+                                ->where('sucursal_id', $record->sucursal_id)
+                                ->first();
 
                             if ($cajaAbierta) {
                                 CajaMovimiento::create([
@@ -399,7 +401,9 @@ class NotasRentadasResource extends Resource
                         }
                         $mensaje .= 'Depósito devuelto: $' . number_format($importeDevolver, 2);
 
-                        if ($importeDevolver > 0 && !Caja::where('estatus', 'Abierta')->exists()) {
+                        if ($importeDevolver > 0 && !Caja::where('estatus', 'Abierta')
+                            ->where('sucursal_id', $record->sucursal_id)
+                            ->exists()) {
                             $mensaje .= ' (⚠ No se encontró caja abierta para registrar el egreso)';
                         }
 
@@ -506,7 +510,9 @@ class NotasRentadasResource extends Resource
                         }
 
                         // 6. Registrar movimientos en caja (egreso + ingreso = efecto 0)
-                        $cajaAbierta = Caja::where('estatus', 'Abierta')->first();
+                        $cajaAbierta = Caja::where('estatus', 'Abierta')
+                            ->where('sucursal_id', $record->sucursal_id)
+                            ->first();
                         $cajaMsg = '';
 
                         if ($cajaAbierta && $deposito > 0) {
