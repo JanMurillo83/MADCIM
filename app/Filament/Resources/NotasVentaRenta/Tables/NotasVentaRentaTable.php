@@ -55,6 +55,8 @@ class NotasVentaRentaTable
                     ->prefix('$')
                     ->summarize(Sum::make()
                         ->label('Depósito')
+                        ->prefix('$')
+                        ->numeric(decimalPlaces: 2, thousandsSeparator: ',', decimalSeparator: '.')
                         ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->sortable()
                     ->toggleable(),
@@ -64,6 +66,8 @@ class NotasVentaRentaTable
                     ->prefix('$')
                     ->summarize(Sum::make()
                         ->label('Total')
+                        ->prefix('$')
+                        ->numeric(decimalPlaces: 2, thousandsSeparator: ',', decimalSeparator: '.')
                         ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->sortable(),
                 TextColumn::make('saldo_pendiente')
@@ -76,6 +80,8 @@ class NotasVentaRentaTable
                     ->sortable()
                     ->summarize(Sum::make()
                         ->label('Saldo Pendiente')
+                        ->prefix('$')
+                        ->numeric(decimalPlaces: 2, thousandsSeparator: ',', decimalSeparator: '.')
                         ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->color(fn ($state) => $state > 0 ? 'warning' : 'success'),
                 TextColumn::make('estatus_pago')
@@ -221,9 +227,10 @@ class NotasVentaRentaTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->recordClasses(fn (NotasVentaRenta $record): string => $record->estatus === 'Cancelada'
-                ? 'bg-red-50 dark:bg-red-950/20'
-                : '')
+            ->recordClasses(fn (NotasVentaRenta $record): array => [
+                'bg-red-50 dark:bg-red-950/20 [&>td]:!bg-red-50 dark:[&>td]:!bg-red-950/20'
+                    => $record->estatus === 'Cancelada',
+            ])
             ->recordActions([
                 ActionGroup::make([
                     ViewAction::make()
