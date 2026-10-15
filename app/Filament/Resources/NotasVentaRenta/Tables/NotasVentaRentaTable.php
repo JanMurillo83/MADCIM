@@ -53,6 +53,9 @@ class NotasVentaRentaTable
                     ->label('Depósito')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
+                    ->summarize(Sum::make()
+                        ->label('Depósito')
+                        ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('total')
@@ -71,6 +74,9 @@ class NotasVentaRentaTable
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
                     ->sortable()
+                    ->summarize(Sum::make()
+                        ->label('Saldo Pendiente')
+                        ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->color(fn ($state) => $state > 0 ? 'warning' : 'success'),
                 TextColumn::make('estatus_pago')
                     ->label('Estatus Pago')

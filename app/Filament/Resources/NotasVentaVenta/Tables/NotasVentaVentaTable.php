@@ -50,6 +50,9 @@ class NotasVentaVentaTable
                     ->label('Saldo Pendiente')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
                     ->prefix('$')
+                    ->summarize(Sum::make()
+                        ->label('Saldo Pendiente')
+                        ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada')))
                     ->sortable()
                     ->color(fn ($state) => $state > 0 ? 'warning' : 'success'),
                 TextColumn::make('estatus_pago')
