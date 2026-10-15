@@ -86,7 +86,6 @@ class ConsultaItemsRentadosPorDireccion extends Page
             ->groupBy(fn ($item) => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0))
             ->filter(function (Collection $grupo, string $clave) use ($cierresPendientes): bool {
                 return $grupo->contains(fn ($item) => (float) ($item->cantidad_devuelta ?? 0) < (float) $item->cantidad)
-                    || $grupo->contains(fn ($item) => !in_array($item->notaVentaRenta?->estatus, ['Cancelada', 'Devuelta', 'Vendida'], true))
                     || $cierresPendientes->has($clave);
             })
             ->flatten(1)

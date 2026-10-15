@@ -216,10 +216,32 @@ class NotaDevolucionRenta extends Model
             ]);
         }
 
+        $this->actualizarEstatusNotasRenta();
+
         $this->forceFill([
             'estatus' => 'Aplicada',
             'aplicada_en' => now(),
         ])->saveQuietly();
+    }
+
+    private function actualizarEstatusNotasRenta(): void
+    {
+        $notaIds = RegistroRenta::withoutGlobalScopes()
+            ->where('cliente_id', $this->cliente_id)
+            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
+            ->pluck('nota_venta_renta_id')
+            ->unique();
+
+        foreach ($notaIds as $notaId) {
+            $tienePendientes = RegistroRenta::withoutGlobalScopes()
+                ->where('nota_venta_renta_id', $notaId)
+                ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
+                ->exists();
+
+            NotasVentaRenta::withoutGlobalScopes()
+                ->whereKey($notaId)
+                ->update(['estatus' => $tienePendientes ? 'Activa' : 'Devuelta']);
+        }
     }
 
     private function aplicarCantidadesPorEnvio(): void
