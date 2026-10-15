@@ -49,6 +49,17 @@ class NotasVentaRentaTable
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
                     ->sortable(),
+                TextColumn::make('total_sin_deposito')
+                    ->label('SubTotal')
+                    ->getStateUsing(fn (NotasVentaRenta $record): float => (float) $record->total - (float) $record->deposito)
+                    ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
+                    ->prefix('$')
+                    ->summarize(Sum::make()
+                        ->label('SubTotal')
+                        ->prefix('$')
+                        ->numeric(decimalPlaces: 2, thousandsSeparator: ',', decimalSeparator: '.')
+                        ->query(fn ($query) => $query->where('estatus', '!=', 'Cancelada'))
+                        ->using(fn ($query): float => (float) $query->sum('total') - (float) $query->sum('deposito'))),
                 TextColumn::make('deposito')
                     ->label('Depósito')
                     ->numeric(decimalPlaces: 2,thousandsSeparator: ',')
