@@ -24,8 +24,12 @@ class CajasTable
                 TextColumn::make('nombre')->searchable(),
                 TextColumn::make('estatus')->badge(),
                 TextColumn::make('saldo_inicial_cash')->money('MXN', true),
-                TextColumn::make('total_ingresos_cash')->money('MXN', true),
-                TextColumn::make('total_egresos_cash')->money('MXN', true),
+                TextColumn::make('total_ingresos_cash')
+                    ->state(fn (Caja $record): float => app(CajaArqueoService::class)->resumen($record)['ingresos_efectivo'])
+                    ->money('MXN', true),
+                TextColumn::make('total_egresos_cash')
+                    ->state(fn (Caja $record): float => app(CajaArqueoService::class)->resumen($record)['egresos_efectivo'])
+                    ->money('MXN', true),
                 TextColumn::make('fecha_apertura')->dateTime('d/m/Y H:i'),
                 TextColumn::make('fecha_cierre')->dateTime('d/m/Y H:i'),
             ])
