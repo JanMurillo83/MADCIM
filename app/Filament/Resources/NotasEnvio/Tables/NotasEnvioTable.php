@@ -489,13 +489,10 @@ class NotasEnvioTable
                         $nota->update(['estatus' => 'Devuelta']);
 
                         // 3. Crear nueva nota con los mismos datos
-                        $nuevoFolio = (NotasVentaRenta::where('serie', $nota->serie)->selectRaw('MAX(CAST(folio AS UNSIGNED)) as max_folio')->value('max_folio') ?? 0) + 1;
-
                         $nuevaNota = NotasVentaRenta::create([
                             'cliente_id' => $nota->cliente_id,
                             'direccion_entrega_id' => $nota->direccion_entrega_id,
                             'serie' => $nota->serie,
-                            'folio' => $nuevoFolio,
                             'fecha_emision' => now(),
                             'dias_renta' => $nota->dias_renta,
                             'fecha_vencimiento' => $fechaInicioVigencia->copy()->addDays(max(1, (int) ($nota->dias_renta ?? 30))),
@@ -565,10 +562,8 @@ class NotasEnvioTable
                         }
 
                         // 6. Crear nueva nota de envío vinculada a la nueva nota
-                        $nuevoFolioEnvio = (NotaEnvio::max('folio') ?? 0) + 1;
                         $nuevaNotaEnvio = NotaEnvio::create([
                             'serie' => $record->serie ?? 'NE',
-                            'folio' => $nuevoFolioEnvio,
                             'nota_venta_renta_id' => $nuevaNota->id,
                             'cliente_id' => $record->cliente_id,
                             'direccion_entrega_id' => $record->direccion_entrega_id,

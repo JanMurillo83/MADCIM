@@ -39,6 +39,17 @@ class NotaDevolucionRenta extends Model
         'aplicada_en' => 'datetime',
     ];
 
+    public function sucursalParaFolio(): ?int
+    {
+        $sucursal = $this->nota_envio_id
+            ? NotaEnvio::withoutGlobalScope('sucursal')->whereKey($this->nota_envio_id)->value('sucursal_id')
+            : ($this->nota_venta_renta_id
+                ? NotasVentaRenta::withoutGlobalScope('sucursal')->whereKey($this->nota_venta_renta_id)->value('sucursal_id')
+                : null);
+
+        return $sucursal ? (int) $sucursal : (auth()->user()?->sucursal_id ? (int) auth()->user()->sucursal_id : null);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $devolucion): void {

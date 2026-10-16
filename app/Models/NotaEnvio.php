@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use App\Models\Concerns\BelongsToSucursalScope;
+use App\Models\Concerns\HasDocumentoSerieFolio;
 
 class NotaEnvio extends Model
 {
     use BelongsToSucursalScope;
+    use HasDocumentoSerieFolio;
 
     protected $table = 'notas_envio';
 
@@ -100,6 +102,17 @@ class NotaEnvio extends Model
         'inicio_vigencia' => 'date',
         'fecha_vencimiento' => 'date',
     ];
+
+    public function sucursalParaFolio(): ?int
+    {
+        $origen = $this->nota_venta_renta_id
+            ? $this->notaVentaRenta()->withoutGlobalScope('sucursal')->value('sucursal_id')
+            : ($this->nota_venta_venta_id
+                ? $this->notaVentaVenta()->withoutGlobalScope('sucursal')->value('sucursal_id')
+                : null);
+
+        return $origen ? (int) $origen : (auth()->user()?->sucursal_id ? (int) auth()->user()->sucursal_id : null);
+    }
 
     public function notaVentaRenta(): BelongsTo
     {

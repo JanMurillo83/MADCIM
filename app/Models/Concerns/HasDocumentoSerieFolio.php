@@ -14,7 +14,17 @@ trait HasDocumentoSerieFolio
                 return;
             }
 
-            $model->folio = (string) DocumentoSerie::nextFolio($model->getTable(), $model->serie);
+            if (empty($model->sucursal_id)) {
+                $model->sucursal_id = method_exists($model, 'sucursalParaFolio')
+                    ? $model->sucursalParaFolio()
+                    : auth()->user()?->sucursal_id;
+            }
+
+            $model->folio = (string) DocumentoSerie::nextFolio(
+                $model->getTable(),
+                $model->serie,
+                $model->sucursal_id ? (int) $model->sucursal_id : null,
+            );
         });
     }
 }

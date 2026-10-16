@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasDocumentoSerieFolio;
+use App\Models\Concerns\BelongsToSucursalScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,9 +12,11 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class DevolucionesVenta extends Model
 {
     use HasDocumentoSerieFolio;
+    use BelongsToSucursalScope;
 
     protected $table = 'devoluciones_venta';
     protected $fillable = [
+        'sucursal_id',
         'serie',
         'folio',
         'condiciones_pago',
@@ -56,11 +59,25 @@ class DevolucionesVenta extends Model
         'documento_origen_id',
     ];
 
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
     protected $casts = [
         'fecha_emision' => 'datetime',
         'cfdi_fecha_timbrado' => 'datetime',
         'cfdi_fecha_cancelacion' => 'datetime',
     ];
+
+    public function sucursalParaFolio(): ?int
+    {
+        $sucursal = $this->documento_origen_id
+            ? NotasVentaVenta::withoutGlobalScope('sucursal')->whereKey($this->documento_origen_id)->value('sucursal_id')
+            : null;
+
+        return $sucursal ? (int) $sucursal : (auth()->user()?->sucursal_id ? (int) auth()->user()->sucursal_id : null);
+    }
 
     public function partidas(): HasMany
     {

@@ -340,7 +340,6 @@ class NotasRentadasResource extends Resource
                         // Crear registro de devolución
                         $devolucion = DevolucionesRenta::create([
                             'serie' => 'DR',
-                            'folio' => (DevolucionesRenta::max('folio') ?? 0) + 1,
                             'fecha_emision' => now(),
                             'moneda' => $record->moneda ?? 'MXN',
                             'tipo_cambio' => $record->tipo_cambio ?? 1,
@@ -435,13 +434,10 @@ class NotasRentadasResource extends Resource
                         $record->update(['estatus' => 'Devuelta']);
 
                         // 3. Crear nueva nota con los mismos datos
-                        $nuevoFolio = (NotasVentaRenta::where('serie', $record->serie)->selectRaw('MAX(CAST(folio AS UNSIGNED)) as max_folio')->value('max_folio') ?? 0) + 1;
-
                         $nuevaNota = NotasVentaRenta::create([
                             'cliente_id' => $record->cliente_id,
                             'direccion_entrega_id' => $record->direccion_entrega_id,
                             'serie' => $record->serie,
-                            'folio' => $nuevoFolio,
                             'fecha_emision' => now(),
                             'dias_renta' => $record->dias_renta,
                             'fecha_vencimiento' => now()->addDays($record->dias_renta ?? 30),

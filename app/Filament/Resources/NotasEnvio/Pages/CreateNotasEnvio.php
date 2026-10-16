@@ -181,7 +181,7 @@ class CreateNotasEnvio extends CreateRecord
             }
         }
 
-        $data['folio'] = (NotaEnvio::max('folio') ?? 0) + 1;
+
         $data['user_id'] = Auth::id();
 
         return $data;

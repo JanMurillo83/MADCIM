@@ -66,6 +66,15 @@ class DevolucionesRenta extends Model
         'cfdi_fecha_cancelacion' => 'datetime',
     ];
 
+    public function sucursalParaFolio(): ?int
+    {
+        $sucursal = $this->documento_origen_id
+            ? NotasVentaRenta::withoutGlobalScope('sucursal')->whereKey($this->documento_origen_id)->value('sucursal_id')
+            : null;
+
+        return $sucursal ? (int) $sucursal : (auth()->user()?->sucursal_id ? (int) auth()->user()->sucursal_id : null);
+    }
+
     public function notaOrigen(): BelongsTo
     {
         return $this->belongsTo(NotasVentaRenta::class, 'documento_origen_id');
