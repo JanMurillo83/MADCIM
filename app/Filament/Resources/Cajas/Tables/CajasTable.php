@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Cajas\Tables;
 
 use App\Models\Caja;
-use App\Models\CajaMovimiento;
 use App\Services\CajaArqueoService;
 use Filament\Actions\Action;
 use Filament\Tables\Actions\HeaderActionsPosition;
@@ -206,11 +205,10 @@ class CajasTable
 
     private static function desgloseMovimientos(Caja $caja, string $tipo): string
     {
-        $desglose = $caja->movimientos()
-            ->where('tipo', $tipo)
-            ->get()
-            ->groupBy(fn (CajaMovimiento $movimiento): string => $movimiento->metodo_pago ?: 'Sin especificar')
-            ->map(fn ($movimientos): float => (float) $movimientos->sum('importe'));
+        $clave = $tipo === 'Ingreso' ? 'ingresos' : 'egresos';
+        $desglose = collect(app(CajaArqueoService::class)->resumen($caja)['desglose'])
+            ->mapWithKeys(fn (array $totales, string $metodo): array => [$metodo => (float) $totales[$clave]])
+            ->filter(fn (float $importe): bool => $importe !== 0.0);
 
         if ($desglose->isEmpty()) {
             return 'Sin movimientos.';

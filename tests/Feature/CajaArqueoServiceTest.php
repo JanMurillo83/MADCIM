@@ -71,6 +71,8 @@ class CajaArqueoServiceTest extends TestCase
             ['caja_id' => $caja->id, 'tipo' => 'Ingreso', 'metodo_pago' => 'Efectivo', 'importe' => 30, 'fecha' => now()->addSecond(), 'created_at' => now(), 'updated_at' => now()],
         ]);
 
-        $this->assertSame(80.0, $service->resumen($cajaNueva->fresh())['efectivo_teorico']);
+        $resumen = $service->resumen($cajaNueva->fresh());
+        $this->assertSame(80.0, $resumen['efectivo_teorico']);
+        $this->assertSame(30.0, $resumen['desglose']['Efectivo']['ingresos']);
     }
 }
