@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Caja;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CajaArqueoService
 {
@@ -34,6 +35,23 @@ class CajaArqueoService
     public function resumen(Caja $caja): array
     {
         $movimientos = $caja->movimientos()
+            ->when(
+                $caja->corte_id,
+                fn ($query) => $query->where(function ($query) use ($caja): void {
+                    $query->where('corte_id', $caja->corte_id)
+                        ->when($caja->fecha_apertura, function ($query) use ($caja): void {
+                            $query->orWhere(fn ($query) => $query
+                                ->whereNull('corte_id')
+                                ->where('fecha', '>=', $caja->fecha_apertura));
+                        }, function ($query): void {
+                            $query->orWhereNull('corte_id');
+                        });
+                }),
+            )
+            ->when(
+                ! $caja->corte_id && $caja->fecha_apertura,
+                fn ($query) => $query->where('fecha', '>=', $caja->fecha_apertura),
+            )
             ->get();
         $ingresosEfectivo = (float) $movimientos
             ->where('tipo', 'Ingreso')
@@ -70,6 +88,7 @@ class CajaArqueoService
 
             $caja->update([
                 'saldo_inicial_cash' => $saldoInicial,
+                'corte_id' => (string) Str::uuid(),
                 'total_ingresos_cash' => 0,
                 'total_egresos_cash' => 0,
                 'efectivo_teorico' => 0,

@@ -15,6 +15,7 @@ class CajaMovimiento extends Model
 
     protected $fillable = [
         'caja_id',
+        'corte_id',
         'tipo',
         'fuente',
         'metodo_pago',
@@ -33,6 +34,19 @@ class CajaMovimiento extends Model
         'importe' => 'decimal:2',
         'aplicado_a_caja' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $movimiento): void {
+            if ($movimiento->corte_id || ! $movimiento->caja_id) {
+                return;
+            }
+
+            $movimiento->corte_id = Caja::query()
+                ->whereKey($movimiento->caja_id)
+                ->value('corte_id');
+        });
+    }
 
     public function caja(): BelongsTo
     {

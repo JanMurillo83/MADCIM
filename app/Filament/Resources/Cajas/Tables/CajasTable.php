@@ -76,18 +76,12 @@ class CajasTable
                             ->content(fn (Caja $record) => 'MXN $'.number_format((float)($record->saldo_inicial_cash ?? 0), 2)),
                         \Filament\Forms\Components\Placeholder::make('ingresos')->label('Ingresos (efectivo)')
                             ->content(function (Caja $record) {
-                                $ing = $record->movimientos()
-                                    ->where('tipo', 'Ingreso')
-                                    ->where('metodo_pago', 'Efectivo')
-                                    ->sum('importe');
+                                $ing = app(CajaArqueoService::class)->resumen($record)['ingresos_efectivo'];
                                 return 'MXN $'.number_format((float)$ing, 2);
                             }),
                         \Filament\Forms\Components\Placeholder::make('egresos')->label('Egresos (efectivo)')
                             ->content(function (Caja $record) {
-                                $eg = $record->movimientos()
-                                    ->where('tipo', 'Egreso')
-                                    ->where('metodo_pago', 'Efectivo')
-                                    ->sum('importe');
+                                $eg = app(CajaArqueoService::class)->resumen($record)['egresos_efectivo'];
                                 return 'MXN $'.number_format((float)$eg, 2);
                             }),
                         \Filament\Forms\Components\Placeholder::make('desglose_ingresos')
@@ -98,9 +92,7 @@ class CajasTable
                             ->content(fn (Caja $record): string => self::desgloseMovimientos($record, 'Egreso')),
                         \Filament\Forms\Components\Placeholder::make('saldo')->label('Saldo teórico en caja')
                             ->content(function (Caja $record) {
-                                $ing = $record->movimientos()->where('tipo', 'Ingreso')->where('metodo_pago', 'Efectivo')->sum('importe');
-                                $eg = $record->movimientos()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe');
-                                $saldo = (float)($record->saldo_inicial_cash ?? 0) + (float)$ing - (float)$eg;
+                                $saldo = app(CajaArqueoService::class)->resumen($record)['efectivo_teorico'];
                                 return 'MXN $'.number_format($saldo, 2);
                             }),
                     ])
