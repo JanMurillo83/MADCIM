@@ -270,8 +270,8 @@ class NotasVentaVentaForm
                                     ->columnSpan(2)
                                     ->label('Producto')
                                     ->required()
-                                    ->rules(fn () => [
-                                        function (string $attribute, mixed $value, \Closure $fail): void {
+                                    ->rules(fn (Get $get) => [
+                                        function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
                                             $producto = Productos::find($value);
                                             $sucursalId = $get('../../sucursal_id') ?: Auth::user()?->sucursal_id;
                                             if ($producto && ExistenciaSucursalService::obtener((int) $producto->id, $sucursalId) < 1) {
