@@ -114,9 +114,9 @@ class IndicadoresDashboardTest extends TestCase
 
         $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Renta de madera'));
         $this->assertSame('$500.00', $this->findStatValue($stats, 'Renta de equipo'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Depósitos cobrados'));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos cobrados'));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes'));
-        $this->assertSame('$500.00', $this->findStatValue($stats, 'Depósitos cobrados', 2));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos cobrados', 2));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes', 2));
     }
 

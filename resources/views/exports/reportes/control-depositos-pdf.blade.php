@@ -29,6 +29,7 @@
                 <th>Cliente</th>
                 <th class="text-right">Deposito nota</th>
                 <th class="text-right">Deposito registros</th>
+                <th class="text-right">Deposito devuelto</th>
                 <th class="text-right">Diferencia</th>
                 <th>Estatus</th>
             </tr>
@@ -41,6 +42,7 @@
                     <td>{{ $row['cliente'] }}</td>
                     <td class="text-right">${{ number_format($row['deposito_nota'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['deposito_registros'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['deposito_devuelto'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['diferencia'], 2) }}</td>
                     <td>{{ $row['estatus'] }}</td>
                 </tr>
@@ -61,6 +63,10 @@
             <tr>
                 <td>Deposito en registros</td>
                 <td class="text-right">${{ number_format($totals['registros'], 2) }}</td>
+            </tr>
+            <tr>
+                <td>Deposito devuelto</td>
+                <td class="text-right">${{ number_format($totals['devuelto'], 2) }}</td>
             </tr>
             <tr>
                 <td>Diferencia</td>

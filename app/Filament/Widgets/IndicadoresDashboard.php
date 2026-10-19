@@ -128,7 +128,7 @@ class IndicadoresDashboard extends Widget
     {
         return match ($key) {
             'ventas' => $this->ventas($inicio, $fin), 'madera' => $this->rentaPorLinea($inicio, $fin, 'MADERA'), 'equipo' => $this->rentaPorLinea($inicio, $fin, 'EQUIPO'),
-            'depositos' => (float) $this->scope(NotasVentaRenta::query())->whereBetween('fecha_emision', [$inicio, $fin])->where('estatus', '!=', 'Cancelada')->sum('deposito'),
+            'depositos' => $this->depositosNetos($inicio, $fin),
             'pendientes' => $this->depositosPendientes($inicio, $fin),
         };
     }
@@ -187,10 +187,24 @@ class IndicadoresDashboard extends Widget
     private function depositosPendientes(Carbon $inicio, Carbon $fin): float
     {
         $cobrados = $this->metric('depositos', $inicio, $fin);
-        $devueltos = (float) $this->scope(CajaMovimiento::query())->whereBetween('fecha', [$inicio, $fin])->where('tipo', 'Egreso')->where('fuente', 'Devolución depósito renta')->sum('importe');
         $aplicados = (float) $this->scope(CierreDevolucionRenta::query())->whereBetween('cerrada_en', [$inicio, $fin])->where('estatus', '!=', 'Cancelado')->sum('deposito_aplicado');
 
-        return max(0, $cobrados - $devueltos - $aplicados);
+        return max(0, $cobrados - $aplicados);
+    }
+
+    private function depositosNetos(Carbon $inicio, Carbon $fin): float
+    {
+        $cobrados = (float) $this->scope(NotasVentaRenta::query())
+            ->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estatus', '!=', 'Cancelada')
+            ->sum('deposito');
+        $devueltos = (float) $this->scope(CajaMovimiento::query())
+            ->whereBetween('fecha', [$inicio, $fin])
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->sum('importe');
+
+        return max(0, $cobrados - $devueltos);
     }
 
     private function chartData(Carbon $inicio, Carbon $fin, Collection $sucursales): array

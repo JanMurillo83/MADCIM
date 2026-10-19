@@ -3,7 +3,9 @@
 namespace App\Filament\Pages\Reportes;
 
 use App\Models\Clientes;
+use App\Models\CajaMovimiento;
 use App\Models\CierreDevolucionRenta;
+use App\Models\DevolucionesRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\User;
 use BackedEnum;
@@ -57,7 +59,6 @@ class ControlDepositos extends Page
         return [
             'Activa' => 'Activa',
             'Pagada' => 'Pagada',
-            'Cancelada' => 'Cancelada',
         ];
     }
 
@@ -160,31 +161,113 @@ class ControlDepositos extends Page
     #[Computed]
     public function depositos(): Collection
     {
-        return NotasVentaRenta::query()
+        $notas = NotasVentaRenta::query()
             ->with(['cliente', 'registrosRenta'])
             ->where('deposito', '>', 0)
+            ->where('estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
             ->when($this->estatus, fn ($q) => $q->where('estatus', $this->estatus))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin))
-            ->get()
-            ->map(function ($row) {
+            ->get();
+        $devueltosPorNota = $this->depositosDevueltosPorNota($notas);
+
+        return $notas
+            ->map(function ($row) use ($devueltosPorNota) {
                 $depositoRegistros = (float) $row->registrosRenta
                     ->unique('nota_venta_renta_id')
                     ->sum('importe_deposito');
                 $depositoNota = (float) $row->deposito;
+                $depositoDevuelto = min($depositoNota, (float) ($devueltosPorNota[$row->id] ?? 0));
+                $depositoNota -= $depositoDevuelto;
+                $depositoRegistros = max(0, $depositoRegistros - $depositoDevuelto);
                 return [
                     'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
                     'fecha_emision' => optional($row->fecha_emision)->format('Y-m-d'),
                     'cliente' => $row->cliente?->nombre ?? 'N/A',
                     'deposito_nota' => $depositoNota,
                     'deposito_registros' => $depositoRegistros,
+                    'deposito_devuelto' => $depositoDevuelto,
                     'diferencia' => $depositoNota - $depositoRegistros,
                     'estatus' => $row->estatus,
                 ];
             });
+    }
+
+    private function depositosDevueltosPorNota(Collection $notas): Collection
+    {
+        $notaIds = $notas->pluck('id')->map(fn ($id): int => (int) $id);
+        $devueltos = $notaIds->mapWithKeys(fn (int $id): array => [$id => 0.0]);
+
+        if ($notaIds->isEmpty()) {
+            return $devueltos;
+        }
+
+        $movimientos = CajaMovimiento::query()
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->whereIn('movimentable_type', [
+                NotasVentaRenta::class,
+                DevolucionesRenta::class,
+                CierreDevolucionRenta::class,
+            ])
+            ->get(['importe', 'movimentable_type', 'movimentable_id']);
+
+        $devolucionIds = $movimientos
+            ->where('movimentable_type', DevolucionesRenta::class)
+            ->pluck('movimentable_id');
+        $devoluciones = DevolucionesRenta::withoutGlobalScope('sucursal')
+            ->whereIn('id', $devolucionIds)
+            ->pluck('documento_origen_id', 'id');
+
+        $cierreIds = $movimientos
+            ->where('movimentable_type', CierreDevolucionRenta::class)
+            ->pluck('movimentable_id');
+        $cierres = CierreDevolucionRenta::withoutGlobalScope('sucursal')
+            ->whereIn('id', $cierreIds)
+            ->get(['id', 'nota_ids']);
+        $depositosPorNota = NotasVentaRenta::withoutGlobalScope('sucursal')
+            ->whereIn('id', $cierres->flatMap(fn (CierreDevolucionRenta $cierre) => $cierre->nota_ids ?? [])->unique())
+            ->pluck('deposito', 'id')
+            ->map(fn ($deposito): float => (float) $deposito);
+
+        foreach ($movimientos as $movimiento) {
+            $importe = (float) $movimiento->importe;
+
+            if ($movimiento->movimentable_type === NotasVentaRenta::class) {
+                if ($devueltos->has((int) $movimiento->movimentable_id)) {
+                    $devueltos->put((int) $movimiento->movimentable_id, $devueltos[(int) $movimiento->movimentable_id] + $importe);
+                }
+                continue;
+            }
+
+            if ($movimiento->movimentable_type === DevolucionesRenta::class) {
+                $notaId = (int) ($devoluciones[$movimiento->movimentable_id] ?? 0);
+                if ($devueltos->has($notaId)) {
+                    $devueltos->put($notaId, $devueltos[$notaId] + $importe);
+                }
+                continue;
+            }
+
+            $cierre = $cierres->firstWhere('id', $movimiento->movimentable_id);
+            $idsCierre = collect($cierre?->nota_ids ?? [])->map(fn ($id): int => (int) $id);
+            $depositoTotal = (float) $idsCierre->sum(fn (int $id): float => $depositosPorNota[$id] ?? 0);
+
+            if ($depositoTotal <= 0) {
+                continue;
+            }
+
+            foreach ($idsCierre as $notaId) {
+                if ($devueltos->has($notaId)) {
+                    $proporcion = ($depositosPorNota[$notaId] ?? 0) / $depositoTotal;
+                    $devueltos->put($notaId, $devueltos[$notaId] + ($importe * $proporcion));
+                }
+            }
+        }
+
+        return $devueltos;
     }
 
     #[Computed]
@@ -200,6 +283,12 @@ class ControlDepositos extends Page
     }
 
     #[Computed]
+    public function totalDepositoDevuelto(): float
+    {
+        return (float) $this->depositos->sum('deposito_devuelto');
+    }
+
+    #[Computed]
     public function totalDiferencia(): float
     {
         return (float) $this->depositos->sum('diferencia');
@@ -211,6 +300,7 @@ class ControlDepositos extends Page
         $totals = [
             'nota' => $this->totalDepositoNota,
             'registros' => $this->totalDepositoRegistros,
+            'devuelto' => $this->totalDepositoDevuelto,
             'diferencia' => $this->totalDiferencia,
         ];
 
@@ -229,7 +319,7 @@ class ControlDepositos extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Serie/Folio', 'Fecha', 'Cliente', 'Deposito nota', 'Deposito registros', 'Diferencia', 'Estatus'];
+        $rows[] = ['Serie/Folio', 'Fecha', 'Cliente', 'Deposito nota', 'Deposito registros', 'Deposito devuelto', 'Diferencia', 'Estatus'];
 
         foreach ($this->depositos as $row) {
             $rows[] = [
@@ -238,13 +328,14 @@ class ControlDepositos extends Page
                 $row['cliente'],
                 number_format($row['deposito_nota'], 2, '.', ''),
                 number_format($row['deposito_registros'], 2, '.', ''),
+                number_format($row['deposito_devuelto'], 2, '.', ''),
                 number_format($row['diferencia'], 2, '.', ''),
                 $row['estatus'],
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', 'TOTALES', number_format($this->totalDepositoNota, 2, '.', ''), number_format($this->totalDepositoRegistros, 2, '.', ''), number_format($this->totalDiferencia, 2, '.', ''), ''];
+        $rows[] = ['', '', 'TOTALES', number_format($this->totalDepositoNota, 2, '.', ''), number_format($this->totalDepositoRegistros, 2, '.', ''), number_format($this->totalDepositoDevuelto, 2, '.', ''), number_format($this->totalDiferencia, 2, '.', ''), ''];
 
         $filename = 'control_depositos_' . now()->format('Ymd_His') . '.csv';
 

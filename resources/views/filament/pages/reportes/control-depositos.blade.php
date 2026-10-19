@@ -147,6 +147,7 @@
                             <th class="px-4 py-2 text-left text-gray-600">Cliente</th>
                             <th class="px-4 py-2 text-right text-gray-600">Deposito nota</th>
                             <th class="px-4 py-2 text-right text-gray-600">Deposito registros</th>
+                            <th class="px-4 py-2 text-right text-gray-600">Deposito devuelto</th>
                             <th class="px-4 py-2 text-right text-gray-600">Diferencia</th>
                             <th class="px-4 py-2 text-left text-gray-600">Estatus</th>
                         </tr>
@@ -159,12 +160,13 @@
                                 <td class="px-4 py-2">{{ $row['cliente'] }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['deposito_nota'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['deposito_registros'], 2) }}</td>
+                                <td class="px-4 py-2 text-right">${{ number_format($row['deposito_devuelto'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['diferencia'], 2) }}</td>
                                 <td class="px-4 py-2">{{ $row['estatus'] }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="7">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="8">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -172,7 +174,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Deposito en notas</p>
                 <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalDepositoNota, 2) }}</p>
@@ -180,6 +182,10 @@
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Deposito en registros</p>
                 <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalDepositoRegistros, 2) }}</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
+                <p class="text-sm text-gray-500">Deposito devuelto</p>
+                <p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalDepositoDevuelto, 2) }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow border border-gray-200">
                 <p class="text-sm text-gray-500">Diferencia</p>
