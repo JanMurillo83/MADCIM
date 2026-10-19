@@ -10,6 +10,7 @@ use App\Models\DevolucionRentaPartidas;
 use App\Models\NotasVentaRenta;
 use App\Models\NotaVentaRentaPartidas;
 use App\Models\RegistroRenta;
+use App\Models\Sucursal;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -22,6 +23,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Tables;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use App\Filament\Concerns\HasRoleResourceAccess;
 
@@ -125,6 +127,24 @@ class NotasRentadasResource extends Resource
                         'success' => 'Surtido completo',
                         'gray' => 'Sin partidas',
                     ]),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('sucursal_id')
+                    ->label('Sucursal')
+                    ->options(fn (): array => Sucursal::query()
+                        ->orderBy('nombre')
+                        ->pluck('nombre', 'id')
+                        ->all())
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'] ?? null,
+                            fn (Builder $query, $sucursalId): Builder => $query->whereHas(
+                                'notaVentaRenta',
+                                fn (Builder $notaQuery): Builder => $notaQuery->where('sucursal_id', $sucursalId),
+                            ),
+                        );
+                    }),
             ])
             ->recordActions([
                 Action::make('ver_detalle')
