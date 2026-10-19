@@ -171,7 +171,9 @@ class ControlDepositos extends Page
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin))
             ->get()
             ->map(function ($row) {
-                $depositoRegistros = (float) $row->registrosRenta->sum('importe_deposito');
+                $depositoRegistros = (float) $row->registrosRenta
+                    ->unique('nota_venta_renta_id')
+                    ->sum('importe_deposito');
                 $depositoNota = (float) $row->deposito;
                 return [
                     'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
