@@ -267,6 +267,10 @@ class NotasVentaRentaForm
         return $schema
             ->components([
                 Section::make('Encabezado')
+                    ->description('Información general de la nota de renta/venta')
+                    ->icon('heroicon-o-document-text')
+                    ->iconColor('info')
+                    ->extraAttributes(['class' => 'mc-renta-section mc-renta-header'])
                     ->schema([
                         Select::make('tipo_nota_renta')
                             ->label('Tipo de Nota de Renta')
@@ -514,6 +518,10 @@ class NotasVentaRentaForm
                     ])
                     ->columns(5),
                 Section::make('Partidas')
+                    ->description('Agrega los productos o rentas a la nota')
+                    ->icon('heroicon-o-cube')
+                    ->iconColor('warning')
+                    ->extraAttributes(['class' => 'mc-renta-section mc-renta-partidas'])
                     ->visible(fn (Get $get) => !self::esMaderaM2($get))
                     ->schema([
                         Repeater::make('partidas')
@@ -728,9 +736,13 @@ class NotasVentaRentaForm
                                     ]),
                             ])
                             ->defaultItems(1)
+                            ->addActionLabel('Agregar partida')
+                            ->addActionAlignment('end')
                             ->columnSpanFull(),
                     ]),
                 Section::make('Renta de Madera por Metro Cuadrado')
+                    ->iconColor('warning')
+                    ->extraAttributes(['class' => 'mc-renta-section mc-renta-m2'])
                     ->visible(fn (Get $get) => self::esMaderaM2($get))
                     ->schema([
                         TextInput::make('metros_m2')
@@ -804,6 +816,10 @@ class NotasVentaRentaForm
                     ->columns(4)
                     ->visible(false),
                 Section::make('Totales')
+                    ->description('Resumen de montos de la nota')
+                    ->icon('heroicon-o-calculator')
+                    ->iconColor('success')
+                    ->extraAttributes(['class' => 'mc-renta-section mc-renta-totales'])
                     ->schema([
                         TextInput::make('subtotal')
                             ->label('Subtotal Partidas')
@@ -819,7 +835,7 @@ class NotasVentaRentaForm
                             ])
                             ->hidden(),
                         Placeholder::make('total_renta_visible')
-                            ->label('Total de Renta')
+                            ->hiddenLabel()
                             ->content(fn (Get $get): string => '$' . number_format(
                                 (float) $get('subtotal') + (float) $get('impuestos_total'),
                                 2,
@@ -828,10 +844,13 @@ class NotasVentaRentaForm
                             ))
                             ->live()
                             ->extraAttributes([
-                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right; width:17rem;',
+                                'class' => 'mc-total-renta',
+                                'data-total-label' => 'Total de Renta',
+                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right; width:100%;',
                             ]),
                         TextInput::make('deposito')
                             ->label('Depósito (50% Madera)')
+                            ->hiddenLabel()
                             ->required()
                             ->numeric()
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
@@ -848,7 +867,9 @@ class NotasVentaRentaForm
                                 $set('saldo_pendiente', $total);
                             })
                             ->extraAttributes([
-                                'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
+                                'class' => 'mc-total-deposito',
+                                'data-total-label' => 'Depósito (50% Madera)',
+                                'style' => 'background-color: #e3f2fd; font-weight: bold; font-size: 1.5rem; text-align: right;width:100%;',
                             ]),
                         TextInput::make('impuestos_total')
                             ->label('IVA')
@@ -865,6 +886,7 @@ class NotasVentaRentaForm
                             ->hidden(),
                         TextInput::make('total')
                             ->label('Total')
+                            ->hiddenLabel()
                             ->required()
                             ->numeric()
                             ->prefix('$')
@@ -873,11 +895,13 @@ class NotasVentaRentaForm
                             ->default(0.0)
                             ->readOnly()
                             ->extraAttributes([
-                                'style' => 'background-color: #c8e6c9; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
+                                'class' => 'mc-total-final',
+                                'data-total-label' => 'Total',
+                                'style' => 'background-color: #c8e6c9; font-weight: bold; font-size: 2rem; text-align: right;width:100%;',
                             ]),
                         Hidden::make('saldo_pendiente')->default(0.0),
                     ])
-                    ->columns(4),
+                    ->columns(3),
                 Actions::make([
                     Action::make('cancelar_captura_abajo')
                         ->label('Cancelar captura')
