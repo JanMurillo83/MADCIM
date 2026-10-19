@@ -58,6 +58,9 @@
         </div>
 
         <div class="flex gap-3">
+            <x-filament::button wire:click="actualizarReporte" color="gray" icon="heroicon-o-arrow-path">
+                Actualizar reporte
+            </x-filament::button>
             <x-filament::button wire:click="exportPdf" color="danger" icon="heroicon-o-document-arrow-down">
                 Exportar PDF
             </x-filament::button>

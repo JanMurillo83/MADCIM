@@ -68,6 +68,7 @@ class ControlDepositos extends Page
             ->with(['cliente', 'direccionEntrega'])
             ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
             ->when($this->cliente_id, fn ($query) => $query->where('cliente_id', $this->cliente_id))
+            ->when($this->sucursalEfectiva(), fn ($query) => $query->where('sucursal_id', $this->sucursalEfectiva()))
             ->when($this->fecha_inicio, fn ($query) => $query->whereDate('created_at', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($query) => $query->whereDate('created_at', '<=', $this->fecha_fin))
             ->get();
@@ -146,12 +147,22 @@ class ControlDepositos extends Page
             ->mapWithKeys(fn ($u) => [$u->id => $u->name]);
     }
 
+    public function actualizarReporte(): void
+    {
+        unset($this->depositos, $this->totalDepositoNota, $this->totalDepositoRegistros, $this->totalDiferencia);
+
+        Notification::make()
+            ->success()
+            ->title('Reporte actualizado')
+            ->send();
+    }
+
     #[Computed]
     public function depositos(): Collection
     {
         return NotasVentaRenta::query()
             ->with(['cliente', 'registrosRenta'])
-            ->whereRaw("UPPER(TRIM(serie)) = 'RM'")
+            ->where('deposito', '>', 0)
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
