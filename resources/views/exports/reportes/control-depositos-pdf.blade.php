@@ -24,27 +24,27 @@
     <table>
         <thead>
             <tr>
-                <th>Serie/Folio</th>
+                <th>Nota</th>
+                <th>Sucursal</th>
                 <th>Fecha</th>
-                <th>Cliente</th>
-                <th class="text-right">Deposito nota</th>
-                <th class="text-right">Deposito registros</th>
-                <th class="text-right">Deposito devuelto</th>
-                <th class="text-right">Diferencia</th>
-                <th>Estatus</th>
+                <th class="text-right">Total nota</th>
+                <th class="text-right">Deposito</th>
+                <th class="text-right">Devuelto</th>
+                <th class="text-right">Pendiente</th>
+                <th>Estado de pago</th>
             </tr>
         </thead>
         <tbody>
             @foreach($depositos as $row)
                 <tr>
                     <td>{{ $row['serie_folio'] }}</td>
+                    <td>{{ $row['sucursal'] }}</td>
                     <td>{{ $row['fecha_emision'] }}</td>
-                    <td>{{ $row['cliente'] }}</td>
-                    <td class="text-right">${{ number_format($row['deposito_nota'], 2) }}</td>
-                    <td class="text-right">${{ number_format($row['deposito_registros'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['total_nota'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['deposito'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['deposito_devuelto'], 2) }}</td>
-                    <td class="text-right">${{ number_format($row['diferencia'], 2) }}</td>
-                    <td>{{ $row['estatus'] }}</td>
+                    <td class="text-right">${{ number_format($row['deposito_pendiente'], 2) }}</td>
+                    <td>{{ $row['estado_pago'] }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -57,20 +57,20 @@
                 <th class="text-right">Importe</th>
             </tr>
             <tr>
-                <td>Deposito en notas</td>
-                <td class="text-right">${{ number_format($totals['nota'], 2) }}</td>
+                <td>Total de notas</td>
+                <td class="text-right">${{ number_format($totals['total_nota'], 2) }}</td>
             </tr>
             <tr>
-                <td>Deposito en registros</td>
-                <td class="text-right">${{ number_format($totals['registros'], 2) }}</td>
+                <td>Depósitos</td>
+                <td class="text-right">${{ number_format($totals['deposito'], 2) }}</td>
             </tr>
             <tr>
                 <td>Deposito devuelto</td>
                 <td class="text-right">${{ number_format($totals['devuelto'], 2) }}</td>
             </tr>
             <tr>
-                <td>Diferencia</td>
-                <td class="text-right">${{ number_format($totals['diferencia'], 2) }}</td>
+                <td>Pendientes</td>
+                <td class="text-right">${{ number_format($totals['pendiente'], 2) }}</td>
             </tr>
         </table>
     </div>

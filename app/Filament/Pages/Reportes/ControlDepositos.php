@@ -150,7 +150,7 @@ class ControlDepositos extends Page
 
     public function actualizarReporte(): void
     {
-        unset($this->depositos, $this->totalDepositoNota, $this->totalDepositoRegistros, $this->totalDiferencia);
+        unset($this->depositos, $this->totalNota, $this->totalDeposito, $this->totalDepositoDevuelto, $this->totalDepositoPendiente);
 
         Notification::make()
             ->success()
@@ -162,7 +162,7 @@ class ControlDepositos extends Page
     public function depositos(): Collection
     {
         $notas = NotasVentaRenta::query()
-            ->with(['cliente', 'registrosRenta'])
+            ->with('sucursal')
             ->where('deposito', '>', 0)
             ->where('estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
@@ -176,22 +176,19 @@ class ControlDepositos extends Page
 
         return $notas
             ->map(function ($row) use ($devueltosPorNota) {
-                $depositoRegistros = (float) $row->registrosRenta
-                    ->unique('nota_venta_renta_id')
-                    ->sum('importe_deposito');
-                $depositoNota = (float) $row->deposito;
-                $depositoDevuelto = min($depositoNota, (float) ($devueltosPorNota[$row->id] ?? 0));
-                $depositoNota -= $depositoDevuelto;
-                $depositoRegistros = max(0, $depositoRegistros - $depositoDevuelto);
+                $deposito = (float) $row->deposito;
+                $depositoDevuelto = min($deposito, (float) ($devueltosPorNota[$row->id] ?? 0));
                 return [
                     'serie_folio' => trim(($row->serie ?? '') . ($row->folio ?? '')),
+                    'sucursal' => $row->sucursal?->nombre ?? 'N/A',
                     'fecha_emision' => optional($row->fecha_emision)->format('Y-m-d'),
-                    'cliente' => $row->cliente?->nombre ?? 'N/A',
-                    'deposito_nota' => $depositoNota,
-                    'deposito_registros' => $depositoRegistros,
+                    'total_nota' => (float) $row->total,
+                    'deposito' => $deposito,
                     'deposito_devuelto' => $depositoDevuelto,
-                    'diferencia' => $depositoNota - $depositoRegistros,
-                    'estatus' => $row->estatus,
+                    'deposito_pendiente' => max(0, $deposito - $depositoDevuelto),
+                    'estado_pago' => (float) $row->saldo_pendiente <= 0
+                        ? 'Pagada'
+                        : 'Pendiente de pago',
                 ];
             });
     }
@@ -271,15 +268,15 @@ class ControlDepositos extends Page
     }
 
     #[Computed]
-    public function totalDepositoNota(): float
+    public function totalNota(): float
     {
-        return (float) $this->depositos->sum('deposito_nota');
+        return (float) $this->depositos->sum('total_nota');
     }
 
     #[Computed]
-    public function totalDepositoRegistros(): float
+    public function totalDeposito(): float
     {
-        return (float) $this->depositos->sum('deposito_registros');
+        return (float) $this->depositos->sum('deposito');
     }
 
     #[Computed]
@@ -289,19 +286,19 @@ class ControlDepositos extends Page
     }
 
     #[Computed]
-    public function totalDiferencia(): float
+    public function totalDepositoPendiente(): float
     {
-        return (float) $this->depositos->sum('diferencia');
+        return (float) $this->depositos->sum('deposito_pendiente');
     }
 
     public function exportPdf()
     {
         $depositos = $this->depositos;
         $totals = [
-            'nota' => $this->totalDepositoNota,
-            'registros' => $this->totalDepositoRegistros,
+            'total_nota' => $this->totalNota,
+            'deposito' => $this->totalDeposito,
             'devuelto' => $this->totalDepositoDevuelto,
-            'diferencia' => $this->totalDiferencia,
+            'pendiente' => $this->totalDepositoPendiente,
         ];
 
         $pdf = Pdf::loadView('exports.reportes.control-depositos-pdf', [
@@ -319,23 +316,23 @@ class ControlDepositos extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Serie/Folio', 'Fecha', 'Cliente', 'Deposito nota', 'Deposito registros', 'Deposito devuelto', 'Diferencia', 'Estatus'];
+        $rows[] = ['Nota', 'Sucursal', 'Fecha', 'Total nota', 'Deposito', 'Devuelto', 'Pendiente', 'Estado de pago'];
 
         foreach ($this->depositos as $row) {
             $rows[] = [
                 $row['serie_folio'],
+                $row['sucursal'],
                 $row['fecha_emision'],
-                $row['cliente'],
-                number_format($row['deposito_nota'], 2, '.', ''),
-                number_format($row['deposito_registros'], 2, '.', ''),
+                number_format($row['total_nota'], 2, '.', ''),
+                number_format($row['deposito'], 2, '.', ''),
                 number_format($row['deposito_devuelto'], 2, '.', ''),
-                number_format($row['diferencia'], 2, '.', ''),
-                $row['estatus'],
+                number_format($row['deposito_pendiente'], 2, '.', ''),
+                $row['estado_pago'],
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['', '', 'TOTALES', number_format($this->totalDepositoNota, 2, '.', ''), number_format($this->totalDepositoRegistros, 2, '.', ''), number_format($this->totalDepositoDevuelto, 2, '.', ''), number_format($this->totalDiferencia, 2, '.', ''), ''];
+        $rows[] = ['', '', 'TOTALES', number_format($this->totalNota, 2, '.', ''), number_format($this->totalDeposito, 2, '.', ''), number_format($this->totalDepositoDevuelto, 2, '.', ''), number_format($this->totalDepositoPendiente, 2, '.', ''), ''];
 
         $filename = 'control_depositos_' . now()->format('Ymd_His') . '.csv';
 
