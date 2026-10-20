@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Pages\CobrosPendientes;
-use App\Filament\Pages\ConsultaDevoluciones;
 use App\Filament\Pages\ProductosRentaVencidos;
 use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Resources\CajaMovimientos\CajaMovimientosResource;
@@ -100,7 +99,7 @@ class IndicadoresDashboard extends Widget
             'comparativo' => collect($metrics)->map(fn ($m) => ['label' => $m['label'], 'branches' => $m['branches'], 'value' => $m['value']])->values(),
             'alerts' => $this->alerts($inicio, $fin), 'porVencer' => $this->rentasActivas()->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->copy()->addDays(7)->toDateString()])->count(),
             'cash' => $this->cashSummary(), 'annualMetrics' => $this->annualMetrics($sucursales), 'movimientos' => $this->movimientosRecientes(),
-            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'cobros' => CobrosPendientes::getUrl(), 'devoluciones' => ConsultaDevoluciones::getUrl(), 'movimientos' => CajaMovimientosResource::getUrl('index')],
+            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'cobros' => CobrosPendientes::getUrl(), 'devoluciones' => url('/consulta-devoluciones'), 'movimientos' => CajaMovimientosResource::getUrl('index')],
         ];
     }
 
@@ -241,7 +240,36 @@ class IndicadoresDashboard extends Widget
         $vencidas = $this->rentasActivas()->whereDate('fecha_vencimiento', '<', now()->toDateString())->count();
         $cobros = $this->scope(NotasVentaVenta::query())->where('estatus', '!=', 'Cancelada')->where('saldo_pendiente', '>', 0)->whereDate('fecha_vencimiento_pago', '<', now()->toDateString())->count() + $this->scope(NotasVentaRenta::query())->where('estatus', '!=', 'Cancelada')->where('saldo_pendiente', '>', 0)->whereDate('fecha_vencimiento_pago', '<', now()->toDateString())->count();
 
-        return ['vencidas' => ['label' => 'Rentas vencidas', 'value' => $vencidas, 'detail' => 'Rentas activas fuera de fecha', 'color' => 'red'], 'depositos' => ['label' => 'Depósitos pendientes', 'value' => $this->depositosPendientes($inicio, $fin), 'detail' => 'Del periodo seleccionado', 'color' => 'orange'], 'stock' => ['label' => 'Productos sin existencia', 'value' => Productos::query()->where('existencia', '<=', 0)->count(), 'detail' => 'No hay umbral de stock mínimo configurado', 'color' => 'yellow'], 'cobros' => ['label' => 'Cuentas por cobrar vencidas', 'value' => $cobros, 'detail' => 'Con saldo pendiente y fecha vencida', 'color' => 'red'], 'devoluciones' => ['label' => 'Devoluciones pendientes', 'value' => $this->scope(DevolucionesRenta::query())->whereNotIn('estatus', ['Cancelada', 'Completada'])->count(), 'detail' => 'Registros aún sin completar', 'color' => 'purple']];
+        return ['vencidas' => ['label' => 'Rentas vencidas', 'value' => $vencidas, 'detail' => 'Rentas activas fuera de fecha', 'color' => 'red'], 'depositos' => ['label' => 'Depósitos pendientes', 'value' => $this->depositosPendientes($inicio, $fin), 'detail' => 'Del periodo seleccionado', 'color' => 'orange'], 'stock' => ['label' => 'Productos sin existencia', 'value' => Productos::query()->where('existencia', '<=', 0)->count(), 'detail' => 'No hay umbral de stock mínimo configurado', 'color' => 'yellow'], 'cobros' => ['label' => 'Cuentas por cobrar vencidas', 'value' => $cobros, 'detail' => 'Con saldo pendiente y fecha vencida', 'color' => 'red'], 'devoluciones' => ['label' => 'Devoluciones pendientes', 'value' => $this->obrasListasParaCerrar(), 'detail' => 'Obras sin pendientes por cerrar', 'color' => 'purple']];
+    }
+
+    private function obrasListasParaCerrar(): int
+    {
+        $items = $this->scope(RegistroRenta::query())
+            ->with('notaVentaRenta:id,direccion_entrega_id')
+            ->whereHas('notaVentaRenta', fn (Builder $query) => $query
+                ->whereIn('estatus', ['Activa', 'Pagada'])
+                ->whereHas('notasEnvio', fn (Builder $envio) => $envio->whereIn('estatus', ['Enviada', 'Entregada'])))
+            ->get(['cliente_id', 'nota_venta_renta_id', 'cantidad', 'cantidad_devuelta']);
+
+        $listas = $items
+            ->groupBy(fn (RegistroRenta $item): string => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0))
+            ->filter(fn (Collection $grupo): bool => $grupo->every(
+                fn (RegistroRenta $item): bool => (float) ($item->cantidad_devuelta ?? 0) >= (float) $item->cantidad
+            ));
+
+        if ($listas->isEmpty()) {
+            return 0;
+        }
+
+        $cierres = $this->scope(CierreDevolucionRenta::query())
+            ->whereNotIn('estatus', ['Cancelado'])
+            ->get(['cliente_id', 'direccion_entrega_id'])
+            ->mapWithKeys(fn (CierreDevolucionRenta $cierre): array => [
+                $cierre->cliente_id . '-' . $cierre->direccion_entrega_id => true,
+            ]);
+
+        return $listas->keys()->reject(fn (string $clave): bool => $cierres->has($clave))->count();
     }
 
     private function cashSummary(): array
