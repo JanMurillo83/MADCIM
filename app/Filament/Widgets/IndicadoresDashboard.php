@@ -219,9 +219,10 @@ class IndicadoresDashboard extends Widget
     private function chartData(Carbon $inicio, Carbon $fin, Collection $sucursales): array
     {
         $labels = [];
-        $series = ['global' => ['label' => 'Global', 'color' => 'green', 'values' => []]];
+        $series = ['global' => ['label' => 'Global', 'color' => 'green', 'fill' => '#298244', 'values' => []]];
         foreach ($sucursales as $branch) {
-            $series['branch-'.$branch->id] = ['label' => $branch->nombre, 'color' => count($series) === 1 ? 'brown' : 'orange', 'values' => []];
+            $branchColor = count($series) === 1 ? ['brown', '#b7773e'] : ['orange', '#ff9214'];
+            $series['branch-'.$branch->id] = ['label' => $branch->nombre, 'color' => $branchColor[0], 'fill' => $branchColor[1], 'values' => []];
         }
         $selected = $this->sucursalId;
         for ($month = $inicio->copy()->startOfMonth(); $month->lte($fin); $month->addMonth()) {
@@ -240,13 +241,13 @@ class IndicadoresDashboard extends Widget
         $max = max(1, ...collect($series)->pluck('values')->flatten()->all());
         foreach ($series as &$serie) {
             $serie['heights'] = array_map(
-                fn (float|int $value): float => $value > 0 ? log10($value + 1) / log10($max + 1) * 100 : 0,
+                fn (float|int $value): float => $value > 0 ? max(2, $value / $max * 100) : 0,
                 $serie['values']
             );
         }
         unset($serie);
 
-        return compact('labels', 'series', 'max') + ['middle' => sqrt($max)];
+        return compact('labels', 'series', 'max') + ['middle' => $max / 2];
     }
 
     private function rentasActivas(): Builder

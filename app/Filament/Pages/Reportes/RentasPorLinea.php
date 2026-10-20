@@ -5,8 +5,8 @@ namespace App\Filament\Pages\Reportes;
 use App\Filament\Concerns\HasRolePageAccess;
 use App\Filament\Concerns\RestringeSucursal;
 use App\Models\Clientes;
+use App\Models\NotaVentaRentaPartidas;
 use App\Models\Productos;
-use App\Models\RegistroRenta;
 use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -78,21 +78,29 @@ class RentasPorLinea extends Page
     #[Computed]
     public function rentas(): Collection
     {
-        return RegistroRenta::query()
+        return NotaVentaRentaPartidas::query()
             ->with('producto')
-            ->whereHas('notaVentaRenta', function ($query): void {
+            ->whereHas('documento', function ($query): void {
                 $query->where('estatus', '!=', 'Cancelada')
                     ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
-                    ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id));
+                    ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
+                    ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
+                    ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_emision', '>=', $this->fecha_inicio))
+                    ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_emision', '<=', $this->fecha_fin));
             })
-            ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
-            ->when($this->producto_id, fn ($q) => $q->where('producto_id', $this->producto_id))
-            ->when($this->fecha_inicio, fn ($q) => $q->whereDate('fecha_renta', '>=', $this->fecha_inicio))
-            ->when($this->fecha_fin, fn ($q) => $q->whereDate('fecha_renta', '<=', $this->fecha_fin))
+            ->when($this->producto_id, fn ($q) => $q->where('item', $this->producto_id))
             ->get()
-            ->groupBy('producto_id')
+            ->groupBy('item')
             ->map(function (Collection $items): array {
                 $producto = $items->first()?->producto;
+                $importe = (float) $items->sum(function (NotaVentaRentaPartidas $partida): float {
+                    $total = (float) $partida->total;
+                    $subtotal = (float) $partida->subtotal;
+
+                    return $total > 0
+                        ? $total
+                        : ($subtotal > 0 ? $subtotal : (float) $partida->cantidad * (float) $partida->valor_unitario);
+                });
 
                 return [
                     'linea' => $producto?->linea ?? 'Sin linea',
@@ -100,7 +108,7 @@ class RentasPorLinea extends Page
                     'clave' => $producto?->clave ?? 'N/A',
                     'descripcion' => $producto?->descripcion ?? 'Producto eliminado',
                     'cantidad' => (float) $items->sum('cantidad'),
-                    'total' => (float) $items->sum('importe_renta'),
+                    'total' => $importe,
                 ];
             })
             ->filter(fn (array $row): bool => (! $this->linea || $row['linea'] === $this->linea)

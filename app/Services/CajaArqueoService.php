@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Caja;
+use App\Models\CajaCorte;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -139,6 +140,24 @@ class CajaArqueoService
                 'estatus' => 'Cerrada',
                 'fecha_cierre' => now(),
                 'usuario_cierre_id' => $usuarioId,
+            ]);
+
+            CajaCorte::create([
+                'corte_id' => $caja->corte_id,
+                'caja_id' => $caja->id,
+                'sucursal_id' => $caja->sucursal_id,
+                'fecha_apertura' => $caja->fecha_apertura,
+                'fecha_cierre' => $caja->fecha_cierre,
+                'usuario_apertura_id' => $caja->usuario_apertura_id,
+                'usuario_cierre_id' => $caja->usuario_cierre_id,
+                'saldo_inicial_cash' => $caja->saldo_inicial_cash,
+                'total_ingresos_cash' => $caja->total_ingresos_cash,
+                'total_egresos_cash' => $caja->total_egresos_cash,
+                'efectivo_teorico' => $caja->efectivo_teorico,
+                'efectivo_contado' => $caja->efectivo_contado,
+                'total_diferencia' => $caja->total_diferencia,
+                'denominaciones_efectivo' => $caja->denominaciones_efectivo,
+                'observaciones_cierre' => $caja->observaciones_cierre,
             ]);
 
             return [

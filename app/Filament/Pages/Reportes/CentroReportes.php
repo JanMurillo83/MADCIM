@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Reportes;
 use BackedEnum;
 use Filament\Pages\Page;
 use App\Filament\Pages\Reportes\CajaDiaria;
+use App\Filament\Pages\Reportes\CortesCaja;
 use App\Filament\Pages\Reportes\ComprasPorPeriodo;
 use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Pages\Reportes\CuentasPorCobrar;
@@ -83,6 +84,11 @@ class CentroReportes extends Page
                 'titulo' => 'Caja Diaria',
                 'descripcion' => 'Entradas y salidas de caja por dia.',
                 'url' => CajaDiaria::getUrl(),
+            ],
+            [
+                'titulo' => 'Cortes de Caja',
+                'descripcion' => 'Reimpresion de cortes de caja anteriores por sucursal, caja o de forma global.',
+                'url' => CortesCaja::getUrl(),
             ],
             [
                 'titulo' => 'Control de Depositos',
