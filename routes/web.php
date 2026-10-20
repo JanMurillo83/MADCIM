@@ -122,3 +122,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/recepciones-compra/{id}/descargar/carta', [RecepcionCompraPdfController::class, 'descargarCarta'])
         ->name('recepciones-compra.descargar.carta');
 });
+Route::get('/report-previews/{token}', function (string $token) {
+    abort_unless(preg_match('/^[0-9a-f-]{36}$/', $token) === 1, 404);
+
+    $path = "report-previews/{$token}.pdf";
+    abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+
+    return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+        'Content-Type' => 'application/pdf',
+        'Content-Disposition' => 'inline; filename="reporte.pdf"',
+    ]);
+})->middleware('auth')->name('report-preview.file');

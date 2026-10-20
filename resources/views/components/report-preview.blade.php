@@ -7,8 +7,12 @@
     'previewData' => [],
 ])
 
-<div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
-    <x-filament::button type="button" color="gray" icon="heroicon-o-eye" x-on:click="open = true">
+<div
+    x-data="{ open: false, pdfUrl: null, loading: false }"
+    x-on:keydown.escape.window="open = false"
+    x-on:report-preview-ready.window="pdfUrl = $event.detail.url; loading = false"
+>
+    <x-filament::button type="button" color="gray" icon="heroicon-o-eye" x-on:click="open = true; pdfUrl = null; loading = true; $wire.call('{{ $pdfAction === 'exportPdf' ? 'previewPdf' : $pdfAction }}')">
         Vista previa
     </x-filament::button>
 
@@ -41,21 +45,21 @@
 
             <main class="overflow-y-auto p-5">
                 <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                    @if($previewView)
-                        <iframe
-                            title="Vista previa de {{ $title }}"
-                            srcdoc="{{ e(view($previewView, $previewData)->render()) }}"
-                            class="h-[65vh] min-h-[28rem] w-full rounded-lg border-0 bg-white"
-                        ></iframe>
-                    @else
-                        {{ $slot }}
-                    @endif
+                    <div x-show="loading" class="flex min-h-[28rem] items-center justify-center text-sm text-gray-500">
+                        Generando PDF...
+                    </div>
+                    <iframe
+                        x-show="pdfUrl"
+                        :src="pdfUrl"
+                        title="PDF de {{ $title }}"
+                        class="h-[65vh] min-h-[28rem] w-full rounded-lg border-0 bg-white"
+                    ></iframe>
                 </div>
             </main>
 
             <footer class="flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-white px-5 py-4">
-                <x-filament::button type="button" color="danger" icon="heroicon-o-document-arrow-down" wire:click="{{ $pdfAction }}">
-                    Guardar PDF
+                <x-filament::button type="button" color="gray" icon="heroicon-o-printer" x-on:click="pdfUrl = null; loading = true; $wire.call('{{ $pdfAction === 'exportPdf' ? 'previewPdf' : $pdfAction }}')">
+                    Abrir PDF / Imprimir
                 </x-filament::button>
                 <x-filament::button type="button" color="success" icon="heroicon-o-table-cells" wire:click="{{ $excelAction }}">
                     Guardar Excel
