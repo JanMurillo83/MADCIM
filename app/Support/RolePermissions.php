@@ -10,6 +10,10 @@ class RolePermissions
     public const ROLE_VENDEDOR = 'Vendedor';
     public const ROLE_ALMACEN = 'Almacen';
     public const ROLE_ENTREGAS = 'Entregas';
+    public const ROLE_EMPLEADO = 'Empleado';
+    public const ROLE_RH = 'Recursos Humanos';
+    public const ROLE_NOMINA = 'Nómina';
+    public const ROLE_GERENCIA = 'Gerencia';
 
     public const ADMIN_ONLY_RESOURCES = [
         'App\\Filament\\Resources\\Usuarios\\UsuariosResource',
@@ -48,6 +52,28 @@ class RolePermissions
         'App\\Filament\\Resources\\RequisicionesCompra\\RequisicionesCompraResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN],
         'App\\Filament\\Resources\\OrdenesCompra\\OrdenesCompraResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN],
         'App\\Filament\\Resources\\RecepcionesCompra\\RecepcionesCompraResource' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN],
+
+        'App\\Filament\\Resources\\Empleados\\EmpleadoResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\Horarios\\HorarioResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\Checadas\\ChecadaResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
     ];
 
     public const PAGES = [

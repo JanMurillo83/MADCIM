@@ -42,7 +42,11 @@
             <main class="overflow-y-auto p-5">
                 <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                     @if($previewView)
-                        @include($previewView, $previewData)
+                        <iframe
+                            title="Vista previa de {{ $title }}"
+                            srcdoc="{{ e(view($previewView, $previewData)->render()) }}"
+                            class="h-[65vh] min-h-[28rem] w-full rounded-lg border-0 bg-white"
+                        ></iframe>
                     @else
                         {{ $slot }}
                     @endif
