@@ -2,7 +2,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <div class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-8 gap-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-8">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
                 <input type="date" wire:model.live="fecha_inicio"
