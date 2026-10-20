@@ -2,7 +2,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <div class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-8 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
                 <input type="date" wire:model.live="fecha_inicio"
@@ -61,6 +61,16 @@
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">-- Todas --</option>
                     @foreach($this->lineas as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Grupo</label>
+                <select wire:model.live="grupo"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                    <option value="">-- Todos --</option>
+                    @foreach($this->grupos as $value => $label)
                         <option value="{{ $value }}">{{ $label }}</option>
                     @endforeach
                 </select>

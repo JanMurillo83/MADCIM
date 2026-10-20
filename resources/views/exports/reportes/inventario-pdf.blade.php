@@ -21,6 +21,17 @@
     <h1>Inventario</h1>
     <p class="info">Generado: {{ now()->format('d/m/Y H:i') }}</p>
 
+    <table class="totales">
+        <tr>
+            <th>Productos</th>
+            <th class="text-right">Valor total del inventario</th>
+        </tr>
+        <tr>
+            <td>{{ number_format($totals['productos']) }}</td>
+            <td class="text-right">${{ number_format($totals['valor'], 2) }}</td>
+        </tr>
+    </table>
+
     <table>
         <thead>
             <tr>
@@ -30,6 +41,7 @@
                 <th>Grupo</th>
                 <th class="text-right">Costo promedio</th>
                 <th class="text-right">Ultimo costo</th>
+                <th class="text-right">Valor inventario</th>
             </tr>
         </thead>
         <tbody>
@@ -41,6 +53,7 @@
                     <td>{{ $row['grupo'] }}</td>
                     <td class="text-right">${{ number_format($row['costo'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['ultimo_costo'], 2) }}</td>
+                    <td class="text-right">${{ number_format($row['valor'], 2) }}</td>
                 </tr>
             @endforeach
         </tbody>

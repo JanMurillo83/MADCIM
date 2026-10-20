@@ -77,6 +77,13 @@ class RolePermissions
     ];
 
     public const PAGES = [
+        'App\\Filament\\Clusters\\RecursosHumanos\\Pages\\EscritorioAsistencia' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
         'App\\Filament\\Pages\\CobrosPendientes' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_CAJERO],
         'App\\Filament\\Pages\\AyudaPage' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR],
         'App\\Filament\\Pages\\ActualizarPreciosMadera' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
@@ -94,6 +101,7 @@ class RolePermissions
         'App\\Filament\\Pages\\Reportes\\ProductosMasRentados' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\RentasActivasVencidas' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\VentasPorLinea' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
+        'App\\Filament\\Pages\\Reportes\\RentasPorLinea' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\VentasPorPeriodo' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\ComprasPorPeriodo' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\Reportes\\OrdenesCompraPorEstatus' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],

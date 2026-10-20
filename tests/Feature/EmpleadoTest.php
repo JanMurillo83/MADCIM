@@ -6,6 +6,7 @@ use App\Models\Empleado;
 use App\Models\Horario;
 use App\Models\Sucursal;
 use App\Services\RegistrarChecadaService;
+use App\Services\EvaluarAsistenciaService;
 use App\Enums\MetodoChecada;
 use App\Enums\TipoChecada;
 use LogicException;
@@ -117,5 +118,62 @@ class EmpleadoTest extends TestCase
 
         $this->expectException(LogicException::class);
         $checada->update(['dispositivo' => 'alterado']);
+    }
+
+    public function test_evalua_retardo_comida_excedida_salida_anticipada_y_tiempo_efectivo(): void
+    {
+        $sucursal = Sucursal::create([
+            'nombre' => 'MADCIM HUATULCO',
+            'codigo' => 'HUA',
+            'activa' => true,
+        ]);
+        $horario = Horario::create([
+            'nombre' => 'Horario estándar',
+            'sucursal_id' => $sucursal->id,
+            'hora_entrada' => '08:00',
+            'hora_salida_comida' => '14:00',
+            'hora_regreso_comida' => '15:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado = Empleado::create([
+            'numero_empleado' => 'RH-004',
+            'nombre' => 'Carlos',
+            'apellido_paterno' => 'Ramírez',
+            'sucursal_id' => $sucursal->id,
+            'horario_id' => $horario->id,
+            'fecha_ingreso' => '2026-10-20',
+            'estatus' => 'activo',
+        ]);
+        $registrar = app(RegistrarChecadaService::class);
+
+        foreach ([
+            [TipoChecada::Entrada, '08:15'],
+            [TipoChecada::SalidaComida, '14:00'],
+            [TipoChecada::RegresoComida, '15:15'],
+            [TipoChecada::Salida, '17:45'],
+        ] as [$tipo, $hora]) {
+            $registrar->registrar([
+                'empleado_id' => $empleado->id,
+                'sucursal_id' => $sucursal->id,
+                'tipo' => $tipo,
+                'metodo' => MetodoChecada::Nip,
+                'registrada_en' => "2026-10-20 {$hora}:00",
+            ]);
+        }
+
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-20', $sucursal->id)
+            ->sole();
+
+        $this->assertSame('retardo', $resultado['estado']);
+        $this->assertSame(15, $resultado['minutos_retardo']);
+        $this->assertSame(5, $resultado['minutos_comida_excedidos']);
+        $this->assertSame(15, $resultado['minutos_salida_anticipada']);
+        $this->assertSame(495, $resultado['minutos_efectivos']);
     }
 }

@@ -31,6 +31,7 @@ class VentasPorLinea extends Page
     public ?int $cliente_id = null;
     public ?string $estatus = null;
     public ?string $linea = null;
+    public ?string $grupo = null;
     public ?int $sucursal_id = null;
     public ?int $usuario_id = null;
 
@@ -55,6 +56,15 @@ class VentasPorLinea extends Page
             ->distinct()
             ->orderBy('linea')
             ->pluck('linea', 'linea');
+    }
+
+    public function getGruposProperty(): Collection
+    {
+        return Productos::select('grupo')
+            ->whereNotNull('grupo')
+            ->distinct()
+            ->orderBy('grupo')
+            ->pluck('grupo', 'grupo');
     }
 
     public function getEstatusesProperty(): array
@@ -161,6 +171,9 @@ class VentasPorLinea extends Page
 
         if ($this->linea) {
             $collection = $collection->where('linea', $this->linea)->values();
+        }
+        if ($this->grupo) {
+            $collection = $collection->where('grupo', $this->grupo)->values();
         }
 
         return $collection->sortBy([

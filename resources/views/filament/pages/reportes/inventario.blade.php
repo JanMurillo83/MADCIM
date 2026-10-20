@@ -35,6 +35,17 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-500">Productos en inventario</p>
+                <p class="mt-1 text-2xl font-bold text-gray-800">{{ number_format($this->totalProductos) }}</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-500">Valor total del inventario</p>
+                <p class="mt-1 text-2xl font-bold text-emerald-700">${{ number_format($this->totalValor, 2) }}</p>
+            </div>
+        </div>
+
         <div class="flex gap-3">
             <x-filament::button wire:click="exportPdf" color="danger" icon="heroicon-o-document-arrow-down">
                 Exportar PDF
@@ -45,7 +56,7 @@
             <x-report-preview
                 title="Vista previa de inventario"
                 :preview-view="'exports.reportes.inventario-pdf'"
-                :preview-data="['items' => $this->items]"
+                :preview-data="['items' => $this->items, 'totals' => ['productos' => $this->totalProductos, 'valor' => $this->totalValor]]"
             />
         </div>
 

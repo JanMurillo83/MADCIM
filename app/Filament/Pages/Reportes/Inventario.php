@@ -78,11 +78,27 @@ class Inventario extends Page
             });
     }
 
+    #[Computed]
+    public function totalProductos(): int
+    {
+        return $this->items->count();
+    }
+
+    #[Computed]
+    public function totalValor(): float
+    {
+        return (float) $this->items->sum('valor');
+    }
+
     public function exportPdf()
     {
         $items = $this->items;
         $pdf = Pdf::loadView('exports.reportes.inventario-pdf', [
             'items' => $items,
+            'totals' => [
+                'productos' => $this->totalProductos,
+                'valor' => $this->totalValor,
+            ],
         ])->setPaper('letter', 'landscape');
 
         return response()->streamDownload(function () use ($pdf) {

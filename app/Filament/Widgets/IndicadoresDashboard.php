@@ -183,6 +183,16 @@ class IndicadoresDashboard extends Widget
         })->whereHas('producto', fn (Builder $q) => $q->whereRaw('UPPER(TRIM(linea)) = ?', [$linea]))->sum('total');
     }
 
+    private function rentas(Carbon $inicio, Carbon $fin): float
+    {
+        return (float) $this->scope(NotaVentaRentaPartidas::query())
+            ->whereHas('documento', function (Builder $q) use ($inicio, $fin): void {
+                $q->whereBetween('fecha_emision', [$inicio, $fin])->where('estatus', '!=', 'Cancelada');
+                $this->scope($q);
+            })
+            ->sum('total');
+    }
+
     private function depositosPendientes(Carbon $inicio, Carbon $fin): float
     {
         $cobrados = $this->metric('depositos', $inicio, $fin);
@@ -219,15 +229,24 @@ class IndicadoresDashboard extends Widget
             $monthEnd = $month->copy()->endOfMonth()->min($fin);
             $labels[] = ucfirst($month->locale('es')->translatedFormat('M'));
             $this->sucursalId = null;
-            $series['global']['values'][] = $this->ventas($monthStart, $monthEnd);
+            $series['global']['values'][] = $this->ventas($monthStart, $monthEnd) + $this->rentas($monthStart, $monthEnd);
             foreach ($sucursales as $branch) {
                 $this->sucursalId = $branch->id;
-                $series['branch-'.$branch->id]['values'][] = $this->ventas($monthStart, $monthEnd);
+                $series['branch-'.$branch->id]['values'][] = $this->ventas($monthStart, $monthEnd) + $this->rentas($monthStart, $monthEnd);
             }
         }
         $this->sucursalId = $selected;
 
-        return compact('labels', 'series') + ['max' => max(1, ...collect($series)->pluck('values')->flatten()->all())];
+        $max = max(1, ...collect($series)->pluck('values')->flatten()->all());
+        foreach ($series as &$serie) {
+            $serie['heights'] = array_map(
+                fn (float|int $value): float => $value > 0 ? log10($value + 1) / log10($max + 1) * 100 : 0,
+                $serie['values']
+            );
+        }
+        unset($serie);
+
+        return compact('labels', 'series', 'max') + ['middle' => sqrt($max)];
     }
 
     private function rentasActivas(): Builder

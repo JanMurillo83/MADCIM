@@ -18,6 +18,7 @@ use App\Filament\Pages\Reportes\ReporteConcentrado;
 use App\Filament\Pages\Reportes\ReporteDiario;
 use App\Filament\Pages\Reportes\ConcentradoHistorico;
 use App\Filament\Pages\Reportes\RentasActivasVencidas;
+use App\Filament\Pages\Reportes\RentasPorLinea;
 use App\Filament\Pages\Reportes\VentasPorLinea;
 use App\Filament\Pages\Reportes\VentasPorPeriodo;
 use App\Filament\Concerns\HasRolePageAccess;
@@ -72,6 +73,11 @@ class CentroReportes extends Page
                 'titulo' => 'Ventas por Linea',
                 'descripcion' => 'Consolidado de ventas por linea de producto.',
                 'url' => VentasPorLinea::getUrl(),
+            ],
+            [
+                'titulo' => 'Rentas por Linea',
+                'descripcion' => 'Consolidado de rentas por linea, grupo y producto, sin incluir depósitos.',
+                'url' => RentasPorLinea::getUrl(),
             ],
             [
                 'titulo' => 'Caja Diaria',
