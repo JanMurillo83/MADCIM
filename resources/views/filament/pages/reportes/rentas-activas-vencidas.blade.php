@@ -74,6 +74,12 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de rentas activas vencidas"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.rentas-activas-vencidas-pdf'"
+                :preview-data="['rentas' => $this->rentas, 'totals' => ['total' => $this->totalRentas, 'saldo' => $this->totalSaldo], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">

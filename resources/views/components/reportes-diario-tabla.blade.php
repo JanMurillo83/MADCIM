@@ -1,8 +1,8 @@
-@props(['titulo', 'encabezados'])
+@props(['titulo', 'encabezados', 'icon' => 'heroicon-o-document-text'])
 
-<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-    <div class="border-b border-gray-200 px-4 py-3">
-        <h3 class="font-semibold text-gray-950">{{ $titulo }}</h3>
+<div class="rd-table-card">
+    <div class="rd-table-heading">
+        <h3><span class="rd-table-icon"><x-dynamic-component :component="$icon" /></span>{{ $titulo }}</h3>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">

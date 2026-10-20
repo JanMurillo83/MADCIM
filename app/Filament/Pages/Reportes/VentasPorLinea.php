@@ -82,17 +82,33 @@ class VentasPorLinea extends Page
     #[Computed]
     public function ventas(): Collection
     {
+        return $this->desglose()
+            ->groupBy('linea')
+            ->map(fn (Collection $rows, string $linea): array => [
+                'linea' => $linea,
+                'cantidad' => (float) $rows->sum('cantidad'),
+                'subtotal' => (float) $rows->sum('subtotal'),
+                'total' => (float) $rows->sum('total'),
+            ])
+            ->sortByDesc('total')
+            ->values();
+    }
+
+    #[Computed]
+    public function desglose(): Collection
+    {
         $ventasNotas = DB::table('nota_venta_venta_partidas as p')
             ->join('notas_venta_venta as n', 'n.id', '=', 'p.nota_venta_venta_id')
             ->leftJoin('productos as prod', 'prod.id', '=', 'p.item')
+            ->where('n.estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('n.cliente_id', $this->cliente_id))
             ->when($this->sucursalEfectiva(), fn ($q) => $q->where('n.sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('n.user_id', $this->usuario_id))
             ->when($this->estatus, fn ($q) => $q->where('n.estatus', $this->estatus))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('n.fecha_emision', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('n.fecha_emision', '<=', $this->fecha_fin))
-            ->groupBy('prod.linea')
-            ->select('prod.linea as linea',
+            ->groupBy('prod.linea', 'prod.grupo', 'prod.id', 'prod.clave', 'prod.descripcion')
+            ->select('prod.linea as linea', 'prod.grupo as grupo', 'prod.id as producto_id', 'prod.clave as clave', 'prod.descripcion as descripcion',
                 DB::raw('SUM(p.cantidad) as cantidad'),
                 DB::raw('SUM(p.subtotal) as subtotal'),
                 DB::raw('SUM(p.total) as total')
@@ -102,14 +118,15 @@ class VentasPorLinea extends Page
         $ventasFacturas = DB::table('factura_cfdi_partidas as p')
             ->join('facturas_cfdi as f', 'f.id', '=', 'p.factura_cfdi_id')
             ->leftJoin('productos as prod', 'prod.id', '=', 'p.item')
+            ->where('f.estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('f.cliente_id', $this->cliente_id))
             ->when($this->sucursalEfectiva(), fn ($q) => $q->where('f.sucursal_id', $this->sucursalEfectiva()))
             ->when($this->usuario_id, fn ($q) => $q->where('f.user_id', $this->usuario_id))
             ->when($this->estatus, fn ($q) => $q->where('f.estatus', $this->estatus))
             ->when($this->fecha_inicio, fn ($q) => $q->whereDate('f.fecha_emision', '>=', $this->fecha_inicio))
             ->when($this->fecha_fin, fn ($q) => $q->whereDate('f.fecha_emision', '<=', $this->fecha_fin))
-            ->groupBy('prod.linea')
-            ->select('prod.linea as linea',
+            ->groupBy('prod.linea', 'prod.grupo', 'prod.id', 'prod.clave', 'prod.descripcion')
+            ->select('prod.linea as linea', 'prod.grupo as grupo', 'prod.id as producto_id', 'prod.clave as clave', 'prod.descripcion as descripcion',
                 DB::raw('SUM(p.cantidad) as cantidad'),
                 DB::raw('SUM(p.subtotal) as subtotal'),
                 DB::raw('SUM(p.total) as total')
@@ -120,22 +137,24 @@ class VentasPorLinea extends Page
 
         foreach ($ventasNotas as $row) {
             $linea = $row->linea ?? 'Sin linea';
-            if (!isset($map[$linea])) {
-                $map[$linea] = ['linea' => $linea, 'cantidad' => 0, 'subtotal' => 0, 'total' => 0];
-            }
-            $map[$linea]['cantidad'] += (float) $row->cantidad;
-            $map[$linea]['subtotal'] += (float) $row->subtotal;
-            $map[$linea]['total'] += (float) $row->total;
+            $grupo = $row->grupo ?? 'Sin grupo';
+            $clave = $row->clave ?? (string) ($row->producto_id ?? 'N/A');
+            $key = $linea.'|'.$grupo.'|'.$clave;
+            $map[$key] ??= ['linea' => $linea, 'grupo' => $grupo, 'clave' => $clave, 'descripcion' => $row->descripcion ?? 'Producto eliminado', 'cantidad' => 0, 'subtotal' => 0, 'total' => 0];
+            $map[$key]['cantidad'] += (float) $row->cantidad;
+            $map[$key]['subtotal'] += (float) $row->subtotal;
+            $map[$key]['total'] += (float) $row->total;
         }
 
         foreach ($ventasFacturas as $row) {
             $linea = $row->linea ?? 'Sin linea';
-            if (!isset($map[$linea])) {
-                $map[$linea] = ['linea' => $linea, 'cantidad' => 0, 'subtotal' => 0, 'total' => 0];
-            }
-            $map[$linea]['cantidad'] += (float) $row->cantidad;
-            $map[$linea]['subtotal'] += (float) $row->subtotal;
-            $map[$linea]['total'] += (float) $row->total;
+            $grupo = $row->grupo ?? 'Sin grupo';
+            $clave = $row->clave ?? (string) ($row->producto_id ?? 'N/A');
+            $key = $linea.'|'.$grupo.'|'.$clave;
+            $map[$key] ??= ['linea' => $linea, 'grupo' => $grupo, 'clave' => $clave, 'descripcion' => $row->descripcion ?? 'Producto eliminado', 'cantidad' => 0, 'subtotal' => 0, 'total' => 0];
+            $map[$key]['cantidad'] += (float) $row->cantidad;
+            $map[$key]['subtotal'] += (float) $row->subtotal;
+            $map[$key]['total'] += (float) $row->total;
         }
 
         $collection = collect(array_values($map));
@@ -144,7 +163,11 @@ class VentasPorLinea extends Page
             $collection = $collection->where('linea', $this->linea)->values();
         }
 
-        return $collection->sortByDesc('total')->values();
+        return $collection->sortBy([
+            ['linea', 'asc'],
+            ['grupo', 'asc'],
+            ['total', 'desc'],
+        ])->values();
     }
 
     #[Computed]
@@ -167,7 +190,7 @@ class VentasPorLinea extends Page
 
     public function exportPdf()
     {
-        $ventas = $this->ventas;
+        $ventas = $this->desglose;
         $totals = [
             'cantidad' => $this->totalCantidad,
             'total' => $this->totalTotal,
@@ -188,18 +211,20 @@ class VentasPorLinea extends Page
     public function exportExcel()
     {
         $rows = [];
-        $rows[] = ['Linea', 'Cantidad', 'Total'];
+        $rows[] = ['Linea', 'Grupo', 'Producto', 'Cantidad', 'Total'];
 
-        foreach ($this->ventas as $row) {
+        foreach ($this->desglose as $row) {
             $rows[] = [
                 $row['linea'],
+                $row['grupo'],
+                $row['clave'].' - '.$row['descripcion'],
                 number_format($row['cantidad'], 2, '.', ''),
                 number_format($row['total'], 2, '.', ''),
             ];
         }
 
         $rows[] = [];
-        $rows[] = ['TOTALES', number_format($this->totalCantidad, 2, '.', ''), number_format($this->totalTotal, 2, '.', '')];
+        $rows[] = ['TOTALES', '', '', number_format($this->totalCantidad, 2, '.', ''), number_format($this->totalTotal, 2, '.', '')];
 
         $filename = 'ventas_por_linea_' . now()->format('Ymd_His') . '.csv';
 

@@ -67,6 +67,12 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de control de depósitos"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.control-depositos-pdf'"
+                :preview-data="['depositos' => $this->depositos, 'totals' => ['total_nota' => $this->totalNota, 'deposito' => $this->totalDeposito, 'devuelto' => $this->totalDepositoDevuelto, 'pendiente' => $this->totalDepositoPendiente], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-amber-200 overflow-hidden">

@@ -25,6 +25,8 @@
         <thead>
             <tr>
                 <th>Linea</th>
+                <th>Grupo</th>
+                <th>Producto</th>
                 <th class="text-right">Cantidad</th>
                 <th class="text-right">Total</th>
             </tr>
@@ -33,6 +35,8 @@
             @foreach($ventas as $row)
                 <tr>
                     <td>{{ $row['linea'] }}</td>
+                    <td>{{ $row['grupo'] }}</td>
+                    <td>{{ $row['clave'] }} - {{ $row['descripcion'] }}</td>
                     <td class="text-right">{{ number_format($row['cantidad'], 2) }}</td>
                     <td class="text-right">${{ number_format($row['total'], 2) }}</td>
                 </tr>

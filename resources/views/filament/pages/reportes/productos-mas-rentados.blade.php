@@ -64,6 +64,12 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de productos más rentados"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.productos-mas-rentados-pdf'"
+                :preview-data="['productos' => $this->productos, 'totals' => ['cantidad' => $this->totalCantidad, 'importe_renta' => $this->totalImporteRenta, 'importe_deposito' => $this->totalImporteDeposito], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">

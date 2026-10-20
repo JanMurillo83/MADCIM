@@ -42,6 +42,11 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de inventario"
+                :preview-view="'exports.reportes.inventario-pdf'"
+                :preview-data="['items' => $this->items]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
@@ -71,7 +76,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="6">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="7">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>

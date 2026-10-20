@@ -12,6 +12,7 @@ use App\Models\NotaEnvio;
 use App\Models\NotasVentaRenta;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
+use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
@@ -32,6 +33,47 @@ class IndicadoresDashboardTest extends TestCase
         }
 
         return $matches[$occurrence - 1] ?? null;
+    }
+
+    public function test_atencion_requerida_incluye_valores_por_sucursal(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-22 10:00:00'));
+
+        $admin = User::factory()->create(['role' => 'Administrador']);
+        $sucursalA = Sucursal::create(['nombre' => 'Sucursal Centro', 'codigo' => 'CENTRO']);
+        $sucursalB = Sucursal::create(['nombre' => 'Sucursal Norte', 'codigo' => 'NORTE']);
+        $producto = Productos::create([
+            'clave' => 'STOCK-SUCURSAL',
+            'descripcion' => 'Producto con existencia por sucursal',
+            'grupo' => 'GENERAL',
+            'linea' => 'EQUIPO',
+            'existencia' => 0,
+        ]);
+        $producto->existenciasSucursal()->createMany([
+            ['sucursal_id' => $sucursalA->id, 'existencia' => 0],
+            ['sucursal_id' => $sucursalB->id, 'existencia' => 4],
+        ]);
+
+        $this->actingAs($admin);
+        $widget = new class extends IndicadoresDashboard
+        {
+            public function viewData(): array
+            {
+                return $this->getViewData();
+            }
+        };
+
+        $data = $widget->viewData();
+        $alerts = $data['alerts'];
+
+        $this->assertSame(0, $alerts['stock']['branches'][$sucursalB->id]['value']);
+        $this->assertSame(1, $alerts['stock']['branches'][$sucursalA->id]['value']);
+        $this->assertSame(['vencidas', 'depositos', 'stock', 'devoluciones'], array_keys($alerts));
+        $this->assertCount(2, $alerts['devoluciones']['branches']);
+        $this->assertSame('Sucursal Centro', $alerts['devoluciones']['branches'][$sucursalA->id]['name']);
+        $this->assertSame('Pendientes por cerrar', $alerts['devoluciones']['label']);
+        $this->assertCount(1, $data['chart']['labels']);
+        $this->assertCount(1, $data['chart']['series']['global']['values']);
     }
 
     public function test_rentas_madera_y_equipo_del_mes_separadas_y_depositos_totales_y_pendientes_consideran_devoluciones(): void
@@ -115,9 +157,9 @@ class IndicadoresDashboardTest extends TestCase
         $this->assertSame('$1,000.00', $this->findStatValue($stats, 'Renta de madera'));
         $this->assertSame('$500.00', $this->findStatValue($stats, 'Renta de equipo'));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos cobrados'));
-        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes'));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes a devolver'));
         $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos cobrados', 2));
-        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes', 2));
+        $this->assertSame('$200.00', $this->findStatValue($stats, 'Depósitos pendientes a devolver', 2));
     }
 
     public function test_rentas_por_vencer_considera_fecha_de_vencimiento_de_partida(): void
@@ -304,7 +346,7 @@ class IndicadoresDashboardTest extends TestCase
 
         $stats = $widget->stats();
 
-        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes'));
-        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes', 2));
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes a devolver'));
+        $this->assertSame('$300.00', $this->findStatValue($stats, 'Depósitos pendientes a devolver', 2));
     }
 }

@@ -43,6 +43,7 @@ class ReporteConcentrado extends Page
     {
         return NotasVentaRenta::query()
             ->with('cliente')
+            ->where('estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->whereHas('notasEnvio', function ($q) {
                 $q->where(function ($query) {
@@ -80,6 +81,7 @@ class ReporteConcentrado extends Page
         $notas = NotaEnvio::query()
             ->with(['cliente', 'notaVentaRenta', 'direccionEntrega', 'partidas.producto'])
             ->whereNotNull('nota_venta_renta_id')
+            ->whereHas('notaVentaRenta', fn ($q) => $q->where('estatus', '!=', 'Cancelada'))
             ->where(function ($query) {
                 $query->where('estado_renta', '!=', 'Devuelta')
                     ->orWhereNull('estado_renta');

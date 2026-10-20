@@ -89,6 +89,7 @@ class DetallePorCliente extends Page
             $movs = $movs->concat(
                 NotasVentaRenta::query()
                     ->with('cliente')
+                    ->where('estatus', '!=', 'Cancelada')
                     ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
                     ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
                     ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))
@@ -114,6 +115,7 @@ class DetallePorCliente extends Page
             $movs = $movs->concat(
                 NotasVentaVenta::query()
                     ->with('cliente')
+                    ->where('estatus', '!=', 'Cancelada')
                     ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
                     ->when($this->sucursalEfectiva(), fn ($q) => $q->where('sucursal_id', $this->sucursalEfectiva()))
                     ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))

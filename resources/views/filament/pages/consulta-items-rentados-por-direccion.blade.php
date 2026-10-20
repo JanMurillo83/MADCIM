@@ -34,6 +34,11 @@
                 <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                     Exportar Excel (CSV)
                 </x-filament::button>
+                <x-report-preview
+                    title="Vista previa de artículos rentados por dirección"
+                    :preview-view="'exports.items-rentados-por-direccion-pdf'"
+                    :preview-data="['items' => $this->items, 'itemsAgrupados' => $this->itemsAgrupados, 'cliente' => \App\Models\Clientes::find($this->cliente_id), 'totalImporteRenta' => $this->totalImporteRenta, 'totalPrecioVenta' => $this->totalPrecioVenta]"
+                />
             </div>
         @endif
 

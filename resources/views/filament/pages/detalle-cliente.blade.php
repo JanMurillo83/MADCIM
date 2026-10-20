@@ -24,6 +24,11 @@
                 <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                     Exportar Excel (CSV)
                 </x-filament::button>
+                <x-report-preview
+                    title="Vista previa del detalle del cliente"
+                    :preview-view="'exports.detalle-cliente-pdf'"
+                    :preview-data="['cliente' => \App\Models\Clientes::find($this->cliente_id), 'notasPorFecha' => $this->notasPorFecha]"
+                />
             </div>
         @endif
 

@@ -42,6 +42,11 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (XLSX)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa del concentrado histórico"
+                :preview-view="'exports.reportes.concentrado-pdf'"
+                :preview-data="['titulo' => 'Concentrado historico de madera enviada al cliente x obra', 'grupos' => $this->grupos, 'totalGeneral' => $this->totalGeneral]"
+            />
         </div>
 
         @forelse($this->grupos as $index => $grupo)

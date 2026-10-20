@@ -73,6 +73,65 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de ventas y rentas"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.ventas-por-periodo-pdf'"
+                :preview-data="['ventas' => $this->ventas, 'totals' => ['total' => $this->totalGeneral], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin, 'tipo' => $tipo]"
+            >
+                <div class="mb-5 flex items-end justify-between border-b border-gray-200 pb-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Reporte de operaciones</p>
+                        <p class="mt-1 text-xl font-bold text-gray-950">Ventas y rentas por periodo</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">Total general</p>
+                        <p class="text-2xl font-bold text-emerald-700">${{ number_format($this->totalGeneral, 2) }}</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-gray-600">Tipo</th>
+                                <th class="px-3 py-2 text-left text-gray-600">Serie/Folio</th>
+                                <th class="px-3 py-2 text-left text-gray-600">Fecha</th>
+                                <th class="px-3 py-2 text-left text-gray-600">Cliente</th>
+                                <th class="px-3 py-2 text-right text-gray-600">Total</th>
+                                <th class="px-3 py-2 text-right text-gray-600">Saldo</th>
+                                <th class="px-3 py-2 text-left text-gray-600">Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            @forelse($this->ventas as $venta)
+                                <tr>
+                                    <td class="px-3 py-2">{{ $venta['tipo'] }}</td>
+                                    <td class="px-3 py-2">{{ $venta['serie_folio'] }}</td>
+                                    <td class="px-3 py-2">{{ $venta['fecha_emision'] }}</td>
+                                    <td class="px-3 py-2">{{ $venta['cliente'] }}</td>
+                                    <td class="px-3 py-2 text-right">${{ number_format($venta['total'], 2) }}</td>
+                                    <td class="px-3 py-2 text-right">${{ number_format($venta['saldo_pendiente'], 2) }}</td>
+                                    <td class="px-3 py-2">{{ $venta['estatus'] }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">Sin resultados para los filtros seleccionados.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-5 flex justify-end border-t border-gray-200 pt-4">
+                    <div class="w-full max-w-sm overflow-hidden rounded-lg border border-gray-200">
+                        <div class="flex items-center justify-between bg-gray-800 px-4 py-2 text-sm font-semibold text-white">
+                            <span>Totales</span>
+                            <x-heroicon-o-calculator class="h-4 w-4" />
+                        </div>
+                        <div class="flex items-center justify-between px-4 py-3 text-sm">
+                            <span class="font-medium text-gray-600">Total</span>
+                            <strong class="text-lg text-emerald-700">${{ number_format($this->totalGeneral, 2) }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </x-report-preview>
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">

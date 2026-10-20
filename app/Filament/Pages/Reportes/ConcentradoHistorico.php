@@ -43,6 +43,7 @@ class ConcentradoHistorico extends Page
     {
         return NotasVentaRenta::query()
             ->with('cliente')
+            ->where('estatus', '!=', 'Cancelada')
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->whereHas('notasEnvio')
             ->orderByDesc('id')
@@ -75,6 +76,7 @@ class ConcentradoHistorico extends Page
         $notas = NotaEnvio::query()
             ->with(['cliente', 'notaVentaRenta', 'direccionEntrega', 'partidas.producto'])
             ->whereNotNull('nota_venta_renta_id')
+            ->whereHas('notaVentaRenta', fn ($q) => $q->where('estatus', '!=', 'Cancelada'))
             ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
             ->when($this->nota_origen_id, fn ($q) => $q->where('nota_venta_renta_id', $this->nota_origen_id))
             ->when($this->direccion_entrega_id, fn ($q) => $q->where('direccion_entrega_id', $this->direccion_entrega_id))

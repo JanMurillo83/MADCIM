@@ -73,6 +73,7 @@ class Inventario extends Page
                     'grupo' => $row->grupo,
                     'costo' => (float) $row->costo,
                     'ultimo_costo' => (float) ($row->ultimo_costo ?? 0),
+                    'valor' => (float) $row->existencia * (float) $row->costo,
                 ];
             });
     }

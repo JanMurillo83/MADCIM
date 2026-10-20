@@ -74,6 +74,12 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de cuentas por cobrar"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.cuentas-por-cobrar-pdf'"
+                :preview-data="['cuentas' => $this->cuentas, 'totals' => ['saldo' => $this->totalSaldo, 'documentos' => $this->totalDocumentos], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">

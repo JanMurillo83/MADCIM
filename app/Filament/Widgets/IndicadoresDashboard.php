@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Pages\CobrosPendientes;
 use App\Filament\Pages\ProductosRentaVencidos;
 use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Resources\CajaMovimientos\CajaMovimientosResource;
@@ -17,6 +16,7 @@ use App\Models\NotaVentaRentaPartidas;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
 use App\Models\Sucursal;
+use App\Models\ExistenciaSucursal;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
@@ -83,7 +83,7 @@ class IndicadoresDashboard extends Widget
         $definitions = [
             'ventas' => ['Ventas', 'green', 'heroicon-o-chart-bar-square'], 'madera' => ['Renta de madera', 'brown', 'heroicon-o-rectangle-group'],
             'equipo' => ['Renta de equipo', 'orange', 'heroicon-o-wrench-screwdriver'], 'depositos' => ['Depósitos cobrados', 'blue', 'heroicon-o-banknotes'],
-            'pendientes' => ['Depósitos pendientes', 'red', 'heroicon-o-document-currency-dollar'],
+            'pendientes' => ['Depósitos pendientes a devolver', 'red', 'heroicon-o-document-currency-dollar'],
         ];
         $metrics = [];
         foreach ($definitions as $key => [$label, $color, $icon]) {
@@ -97,9 +97,9 @@ class IndicadoresDashboard extends Widget
             'sucursales' => $sucursales, 'inicio' => $inicio, 'fin' => $fin, 'periodoLabel' => $this->periodoLabel($inicio), 'metrics' => $metrics,
             'chart' => $this->chartData($inicio, $fin, $sucursales),
             'comparativo' => collect($metrics)->map(fn ($m) => ['label' => $m['label'], 'branches' => $m['branches'], 'value' => $m['value']])->values(),
-            'alerts' => $this->alerts($inicio, $fin), 'porVencer' => $this->rentasActivas()->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->copy()->addDays(7)->toDateString()])->count(),
-            'cash' => $this->cashSummary(), 'annualMetrics' => $this->annualMetrics($sucursales), 'movimientos' => $this->movimientosRecientes(),
-            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'cobros' => CobrosPendientes::getUrl(), 'devoluciones' => url('/consulta-devoluciones'), 'movimientos' => CajaMovimientosResource::getUrl('index')],
+            'alerts' => $this->alerts($inicio, $fin, $sucursales), 'porVencer' => $this->rentasActivas()->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->copy()->addDays(7)->toDateString()])->count(),
+            'cobros' => $this->cobrosPendientes($sucursales), 'annualMetrics' => $this->annualMetrics($sucursales), 'movimientos' => $this->movimientosRecientes(),
+            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'devoluciones' => url('/consulta-devoluciones'), 'movimientos' => CajaMovimientosResource::getUrl('index')],
         ];
     }
 
@@ -208,21 +208,21 @@ class IndicadoresDashboard extends Widget
 
     private function chartData(Carbon $inicio, Carbon $fin, Collection $sucursales): array
     {
-        $days = min($inicio->diffInDays($fin) + 1, 31);
         $labels = [];
         $series = ['global' => ['label' => 'Global', 'color' => 'green', 'values' => []]];
         foreach ($sucursales as $branch) {
             $series['branch-'.$branch->id] = ['label' => $branch->nombre, 'color' => count($series) === 1 ? 'brown' : 'orange', 'values' => []];
         }
         $selected = $this->sucursalId;
-        for ($i = 0; $i < $days; $i++) {
-            $day = $inicio->copy()->addDays($i);
-            $labels[] = $day->format('d');
+        for ($month = $inicio->copy()->startOfMonth(); $month->lte($fin); $month->addMonth()) {
+            $monthStart = $month->copy()->max($inicio);
+            $monthEnd = $month->copy()->endOfMonth()->min($fin);
+            $labels[] = ucfirst($month->locale('es')->translatedFormat('M'));
             $this->sucursalId = null;
-            $series['global']['values'][] = $this->ventas($day->copy()->startOfDay(), $day->copy()->endOfDay());
+            $series['global']['values'][] = $this->ventas($monthStart, $monthEnd);
             foreach ($sucursales as $branch) {
                 $this->sucursalId = $branch->id;
-                $series['branch-'.$branch->id]['values'][] = $this->ventas($day->copy()->startOfDay(), $day->copy()->endOfDay());
+                $series['branch-'.$branch->id]['values'][] = $this->ventas($monthStart, $monthEnd);
             }
         }
         $this->sucursalId = $selected;
@@ -235,12 +235,51 @@ class IndicadoresDashboard extends Widget
         return $this->scope(RegistroRenta::query())->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')->whereHas('notaVentaRenta', fn (Builder $q) => $q->whereIn('estatus', ['Activa', 'Pagada']));
     }
 
-    private function alerts(Carbon $inicio, Carbon $fin): array
+    private function alerts(Carbon $inicio, Carbon $fin, Collection $sucursales): array
     {
-        $vencidas = $this->rentasActivas()->whereDate('fecha_vencimiento', '<', now()->toDateString())->count();
-        $cobros = $this->scope(NotasVentaVenta::query())->where('estatus', '!=', 'Cancelada')->where('saldo_pendiente', '>', 0)->whereDate('fecha_vencimiento_pago', '<', now()->toDateString())->count() + $this->scope(NotasVentaRenta::query())->where('estatus', '!=', 'Cancelada')->where('saldo_pendiente', '>', 0)->whereDate('fecha_vencimiento_pago', '<', now()->toDateString())->count();
+        $definitions = [
+            'vencidas' => ['Rentas vencidas', 'Rentas activas fuera de fecha', 'red'],
+            'depositos' => ['Depósitos pendientes por devolver', 'Del periodo seleccionado', 'orange'],
+            'stock' => ['Productos sin existencia', 'No hay umbral de stock mínimo configurado', 'yellow'],
+            'devoluciones' => ['Pendientes por cerrar', 'Obras o direcciones sin artículos pendientes de devolver', 'purple'],
+        ];
+        $alerts = [];
+        foreach ($definitions as $key => [$label, $detail, $color]) {
+            $alerts[$key] = [
+                'label' => $label,
+                'value' => $this->alertValue($key, $inicio, $fin),
+                'detail' => $detail,
+                'color' => $color,
+                'branches' => $this->branchAlertValues($key, $inicio, $fin, $sucursales),
+            ];
+        }
 
-        return ['vencidas' => ['label' => 'Rentas vencidas', 'value' => $vencidas, 'detail' => 'Rentas activas fuera de fecha', 'color' => 'red'], 'depositos' => ['label' => 'Depósitos pendientes', 'value' => $this->depositosPendientes($inicio, $fin), 'detail' => 'Del periodo seleccionado', 'color' => 'orange'], 'stock' => ['label' => 'Productos sin existencia', 'value' => Productos::query()->where('existencia', '<=', 0)->count(), 'detail' => 'No hay umbral de stock mínimo configurado', 'color' => 'yellow'], 'cobros' => ['label' => 'Cuentas por cobrar vencidas', 'value' => $cobros, 'detail' => 'Con saldo pendiente y fecha vencida', 'color' => 'red'], 'devoluciones' => ['label' => 'Devoluciones pendientes', 'value' => $this->obrasListasParaCerrar(), 'detail' => 'Obras sin pendientes por cerrar', 'color' => 'purple']];
+        return $alerts;
+    }
+
+    private function alertValue(string $key, Carbon $inicio, Carbon $fin): int|float
+    {
+        return match ($key) {
+            'vencidas' => $this->rentasActivas()->whereDate('fecha_vencimiento', '<', now()->toDateString())->count(),
+            'depositos' => $this->depositosPendientes($inicio, $fin),
+            'stock' => $this->sucursalId
+                ? ExistenciaSucursal::query()->where('sucursal_id', $this->sucursalId)->where('existencia', '<=', 0)->count()
+                : Productos::query()->where('existencia', '<=', 0)->count(),
+            'devoluciones' => $this->obrasListasParaCerrar(),
+        };
+    }
+
+    private function branchAlertValues(string $key, Carbon $inicio, Carbon $fin, Collection $sucursales): array
+    {
+        $selected = $this->sucursalId;
+        $values = $sucursales->mapWithKeys(function (Sucursal $branch) use ($key, $inicio, $fin): array {
+            $this->sucursalId = $branch->id;
+
+            return [$branch->id => ['name' => $branch->nombre, 'value' => $this->alertValue($key, $inicio, $fin)]];
+        })->all();
+        $this->sucursalId = $selected;
+
+        return $values;
     }
 
     private function obrasListasParaCerrar(): int
@@ -272,20 +311,47 @@ class IndicadoresDashboard extends Widget
         return $listas->keys()->reject(fn (string $clave): bool => $cierres->has($clave))->count();
     }
 
-    private function cashSummary(): array
+    private function cobrosPendientes(Collection $sucursales): array
     {
-        $today = [now()->copy()->startOfDay(), now()->copy()->endOfDay()];
-        $rows = [];
-        foreach (Sucursal::query()->when(! auth()->user()?->isAdmin(), fn (Builder $q) => $q->whereKey(auth()->user()?->sucursal_id))->orderBy('nombre')->get() as $branch) {
-            $query = CajaMovimiento::query()->whereHas('caja', fn (Builder $q) => $q->where('sucursal_id', $branch->id))->whereBetween('fecha', $today);
-            $amount = fn (string $type, ?string $method = null) => (float) (clone $query)->where('tipo', $type)->when($method, fn (Builder $q) => $q->where('metodo_pago', $method))->sum('importe');
-            $retiros = (float) (clone $query)->where('tipo', 'Egreso')->where('fuente', 'like', '%Retiro%')->sum('importe');
-            $gastos = (float) (clone $query)->where('tipo', 'Egreso')->where('fuente', 'not like', '%Retiro%')->sum('importe');
-            $rows[$branch->id] = ['name' => $branch->nombre, 'efectivo' => $amount('Ingreso', 'Efectivo'), 'tarjeta' => $amount('Ingreso', 'Tarjeta'), 'transferencias' => $amount('Ingreso', 'Transferencia'), 'gastos' => $gastos, 'retiros' => $retiros];
-            $rows[$branch->id]['saldo'] = $rows[$branch->id]['efectivo'] + $rows[$branch->id]['tarjeta'] + $rows[$branch->id]['transferencias'] - $rows[$branch->id]['gastos'] - $rows[$branch->id]['retiros'];
+        $selected = $this->sucursalId;
+        $values = ['hoy' => [], 'anteriores' => []];
+        foreach ($values as $pestana => &$pestanaValues) {
+            $this->sucursalId = $selected;
+            $pestanaValues['value'] = $this->importeNotasPendientes($pestana);
+            $pestanaValues['branches'] = [];
+            foreach ($sucursales as $branch) {
+                $this->sucursalId = $branch->id;
+                $pestanaValues['branches'][$branch->id] = [
+                    'name' => $branch->nombre,
+                    'value' => $this->importeNotasPendientes($pestana),
+                ];
+            }
+        }
+        unset($pestanaValues);
+        $this->sucursalId = $selected;
+
+        return $values;
+    }
+
+    private function importeNotasPendientes(string $pestana): float
+    {
+        $hoy = now()->toDateString();
+        $importe = 0;
+        foreach ([NotasVentaRenta::class, NotasVentaVenta::class] as $modelo) {
+            $importe += (float) $this->scope($modelo::query())
+                ->where('estatus', '!=', 'Cancelada')
+                ->where('saldo_pendiente', '>', 0)
+                ->where(function (Builder $query) use ($pestana, $hoy): void {
+                    if ($pestana === 'hoy') {
+                        $query->whereDate('fecha_emision', $hoy)->whereNull('cobro_credito_confirmado_en');
+                    } else {
+                        $query->whereNotNull('cobro_credito_confirmado_en')->orWhereDate('fecha_emision', '<', $hoy);
+                    }
+                })
+                ->sum('saldo_pendiente');
         }
 
-        return $rows;
+        return $importe;
     }
 
     private function annualMetrics(Collection $sucursales): array

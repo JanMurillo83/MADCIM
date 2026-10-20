@@ -74,6 +74,12 @@
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">
                 Exportar Excel (CSV)
             </x-filament::button>
+            <x-report-preview
+                title="Vista previa de ventas por línea"
+                subtitle="Periodo: {{ $fecha_inicio }} al {{ $fecha_fin }}"
+                :preview-view="'exports.reportes.ventas-por-linea-pdf'"
+                :preview-data="['ventas' => $this->desglose, 'totals' => ['cantidad' => $this->totalCantidad, 'total' => $this->totalTotal], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
+            />
         </div>
 
         <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
@@ -82,20 +88,24 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-2 text-left text-gray-600">Linea</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Grupo</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Producto</th>
                             <th class="px-4 py-2 text-right text-gray-600">Cantidad</th>
                             <th class="px-4 py-2 text-right text-gray-600">Total</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        @forelse($this->ventas as $row)
+                        @forelse($this->desglose as $row)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $row['linea'] }}</td>
+                                <td class="px-4 py-2">{{ $row['grupo'] }}</td>
+                                <td class="px-4 py-2">{{ $row['clave'] }} - {{ $row['descripcion'] }}</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($row['cantidad'], 2) }}</td>
                                 <td class="px-4 py-2 text-right">${{ number_format($row['total'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="px-4 py-6 text-center text-gray-500" colspan="3">Sin resultados para los filtros seleccionados.</td>
+                                <td class="px-4 py-6 text-center text-gray-500" colspan="5">Sin resultados para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>
