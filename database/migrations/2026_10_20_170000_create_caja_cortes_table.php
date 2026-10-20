@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->foreignId('caja_id')->constrained('cajas')->cascadeOnDelete();
             $table->foreignId('sucursal_id')->nullable()->constrained('sucursales')->nullOnDelete();
             $table->timestamp('fecha_apertura')->nullable();
-            $table->timestamp('fecha_cierre')->index();
+            $table->timestamp('fecha_cierre')->nullable()->index();
             $table->foreignId('usuario_apertura_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('usuario_cierre_id')->nullable()->constrained('users')->nullOnDelete();
             $table->decimal('saldo_inicial_cash', 12, 2)->default(0);
