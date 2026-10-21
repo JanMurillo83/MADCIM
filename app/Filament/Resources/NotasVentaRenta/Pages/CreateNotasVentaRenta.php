@@ -122,7 +122,7 @@ class CreateNotasVentaRenta extends CreateRecord
             ->map(function (array $partida) use ($fechaEmision): Carbon {
                 $tipo = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? 'equipo') ?? TipoNotaRenta::Equipo;
                 $dias = $tipo->esMadera()
-                    ? min(30, max(1, (int) ($partida['dias_renta'] ?? 1)))
+                    ? min(30, max(1, (int) ($partida['dias_renta'] ?? 25)))
                     : $this->calcularDiasRentaEquipo($partida);
                 return Carbon::parse($fechaEmision)->addDays($dias);
             })
@@ -187,7 +187,7 @@ class CreateNotasVentaRenta extends CreateRecord
             $tipoRenta = $partida['tipo_renta'] ?? 'dia';
             $duracion = max(1, (int) ($partida['duracion_renta'] ?? 1));
             $dias = $tipo->esMadera()
-                ? min(30, max(1, (int) ($partida['dias_renta'] ?? 1)))
+                ? min(30, max(1, (int) ($partida['dias_renta'] ?? 25)))
                 : match ($tipoRenta) {
                     'semana' => $duracion * 7,
                     'mes' => $duracion * 30,

@@ -553,6 +553,7 @@ class NotasVentaRentaForm
                                         if ($tipo?->esMadera()) {
                                             $set('tipo_renta', 'dia');
                                             $set('duracion_renta', 1);
+                                            $set('dias_renta', 25);
                                         }
                                         self::recalculatePartidaByRentaConfig($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
