@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('contratos', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('empleado_id')->constrained('empleados')->restrictOnDelete();
+            $table->string('tipo', 60);
+            $table->date('fecha_inicio');
+            $table->date('fecha_fin')->nullable();
+            $table->string('estatus', 30)->default('vigente');
+            $table->string('archivo')->nullable();
+            $table->text('observaciones')->nullable();
+            $table->string('decision', 30)->nullable();
+            $table->foreignId('registrado_por_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->index(['empleado_id', 'fecha_fin']);
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('contratos');
+    }
+};

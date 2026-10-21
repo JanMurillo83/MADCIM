@@ -9,6 +9,12 @@ use App\Services\RegistrarChecadaService;
 use App\Services\EvaluarAsistenciaService;
 use App\Enums\MetodoChecada;
 use App\Enums\TipoChecada;
+use App\Enums\EstadoIncidencia;
+use App\Enums\TipoIncidencia;
+use App\Models\Incidencia;
+use App\Models\User;
+use App\Services\GestionarIncidenciaService;
+use App\Services\GenerarReporteAsistenciaService;
 use LogicException;
 use App\Support\RolePermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -175,5 +181,114 @@ class EmpleadoTest extends TestCase
         $this->assertSame(5, $resultado['minutos_comida_excedidos']);
         $this->assertSame(15, $resultado['minutos_salida_anticipada']);
         $this->assertSame(495, $resultado['minutos_efectivos']);
+    }
+
+    public function test_incidente_pendiente_puede_aprobarse_y_queda_bloqueado(): void
+    {
+        $sucursal = Sucursal::create([
+            'nombre' => 'MADCIM HUATULCO',
+            'codigo' => 'HUA',
+            'activa' => true,
+        ]);
+        $empleado = Empleado::create([
+            'numero_empleado' => 'RH-005',
+            'nombre' => 'Sofía',
+            'apellido_paterno' => 'Mendoza',
+            'sucursal_id' => $sucursal->id,
+            'fecha_ingreso' => '2026-10-20',
+            'estatus' => 'activo',
+        ]);
+        $usuario = User::factory()->create([
+            'role' => 'Recursos Humanos',
+            'sucursal_id' => $sucursal->id,
+        ]);
+
+        $incidencia = Incidencia::create([
+            'empleado_id' => $empleado->id,
+            'sucursal_id' => $sucursal->id,
+            'tipo' => TipoIncidencia::PermisoSinGoce,
+            'fecha_inicio' => '2026-10-20',
+            'fecha_fin' => '2026-10-20',
+            'dias' => 1,
+            'motivo' => 'Trámite personal',
+        ]);
+
+        $this->assertSame(EstadoIncidencia::Pendiente, $incidencia->estatus);
+
+        $aprobada = app(GestionarIncidenciaService::class)->aprobar(
+            $incidencia,
+            $usuario->id,
+            'Revisado por RH',
+        );
+
+        $this->assertSame(EstadoIncidencia::Aprobada, $aprobada->estatus);
+        $this->assertSame($usuario->id, $aprobada->autorizada_por_id);
+
+        $this->expectException(\LogicException::class);
+        $aprobada->update(['motivo' => 'Modificación no permitida']);
+    }
+
+    public function test_reporte_acumula_asistencia_y_horas_extra_aprobadas(): void
+    {
+        $sucursal = Sucursal::create([
+            'nombre' => 'MADCIM HUATULCO',
+            'codigo' => 'HUA',
+            'activa' => true,
+        ]);
+        $horario = Horario::create([
+            'nombre' => 'Horario estándar',
+            'sucursal_id' => $sucursal->id,
+            'hora_entrada' => '08:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado = Empleado::create([
+            'numero_empleado' => 'RH-006',
+            'nombre' => 'Jorge',
+            'apellido_paterno' => 'Luna',
+            'sucursal_id' => $sucursal->id,
+            'horario_id' => $horario->id,
+            'fecha_ingreso' => '2026-10-20',
+            'estatus' => 'activo',
+        ]);
+        $registrar = app(RegistrarChecadaService::class);
+        foreach ([[TipoChecada::Entrada, '08:00'], [TipoChecada::Salida, '18:00']] as [$tipo, $hora]) {
+            $registrar->registrar([
+                'empleado_id' => $empleado->id,
+                'sucursal_id' => $sucursal->id,
+                'tipo' => $tipo,
+                'metodo' => MetodoChecada::Manual,
+                'registrada_en' => "2026-10-20 {$hora}:00",
+            ]);
+        }
+
+        $usuario = User::factory()->create([
+            'role' => 'Recursos Humanos',
+            'sucursal_id' => $sucursal->id,
+        ]);
+        Incidencia::create([
+            'empleado_id' => $empleado->id,
+            'sucursal_id' => $sucursal->id,
+            'tipo' => TipoIncidencia::HoraExtra,
+            'estatus' => EstadoIncidencia::Aprobada,
+            'fecha_inicio' => '2026-10-20',
+            'minutos' => 90,
+            'motivo' => 'Inventario autorizado',
+            'autorizada_por_id' => $usuario->id,
+            'autorizada_en' => now(),
+        ]);
+
+        $resultado = app(GenerarReporteAsistenciaService::class)
+            ->generar('2026-10-20', '2026-10-20', $sucursal->id)
+            ->sole();
+
+        $this->assertSame(1, $resultado['dias_programados']);
+        $this->assertSame(1, $resultado['dias_laborados']);
+        $this->assertSame(1, $resultado['puntuales']);
+        $this->assertSame(90, $resultado['horas_extra_autorizadas']);
     }
 }

@@ -83,6 +83,11 @@ trait BelongsToSucursalScope
                 return;
             }
 
+            if (method_exists($model, 'empleado')) {
+                $builder->whereHas('empleado', fn (Builder $empleado) => $empleado->where('sucursal_id', $user->sucursal_id));
+                return;
+            }
+
             $builder->whereRaw('1 = 0');
         });
 
@@ -144,6 +149,10 @@ trait BelongsToSucursalScope
                 ]);
             }
 
+            if (method_exists($model, 'empleado')) {
+                $this->validarRelacionesSucursal($model, (int) $user->sucursal_id);
+            }
+
             if (in_array('sucursal_id', $model->getFillable(), true)) {
                 if ((int) $model->getOriginal('sucursal_id') !== (int) $user->sucursal_id) {
                     throw ValidationException::withMessages([
@@ -193,7 +202,7 @@ trait BelongsToSucursalScope
 
     protected function validarRelacionesSucursal(Model $model, int $sucursalId): void
     {
-        foreach (['notaVentaRenta', 'notaVentaVenta', 'notaEnvio', 'notaOrigen', 'documento'] as $relacion) {
+        foreach (['notaVentaRenta', 'notaVentaVenta', 'notaEnvio', 'notaOrigen', 'documento', 'empleado'] as $relacion) {
             if (!method_exists($model, $relacion)) {
                 continue;
             }

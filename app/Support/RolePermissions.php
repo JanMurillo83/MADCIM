@@ -74,10 +74,80 @@ class RolePermissions
             self::ROLE_NOMINA,
             self::ROLE_GERENCIA,
         ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\Incidencias\\IncidenciaResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\Contratos\\ContratoResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\DocumentoEmpleados\\DocumentoEmpleadoResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\HistorialSalarial\\HistorialSalarialResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\MovimientosLaborales\\MovimientosLaboralesResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\SaldoVacaciones\\SaldoVacacionesResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\SolicitudesVacaciones\\SolicitudesVacacionesResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\BajasEmpleados\\BajasEmpleadosResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\PeriodosNomina\\PeriodosNominaResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
     ];
 
     public const PAGES = [
         'App\\Filament\\Clusters\\RecursosHumanos\\Pages\\EscritorioAsistencia' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Pages\\ReporteAsistencia' => [
+            self::ROLE_ADMIN,
+            self::ROLE_SUPERVISOR,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Pages\\AlertasExpediente' => [
             self::ROLE_ADMIN,
             self::ROLE_SUPERVISOR,
             self::ROLE_RH,

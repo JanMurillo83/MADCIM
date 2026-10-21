@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('clientes:actualizar-estatus')->dailyAt('00:05');
+Schedule::command('rh:actualizar-vencimientos')->dailyAt('00:10');

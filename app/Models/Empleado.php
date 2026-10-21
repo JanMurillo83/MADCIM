@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToSucursalScope;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
 
 class Empleado extends Model
@@ -49,6 +50,31 @@ class Empleado extends Model
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function historialSalarial(): HasMany
+    {
+        return $this->hasMany(HistorialSalarial::class);
+    }
+
+    public function movimientosLaborales(): HasMany
+    {
+        return $this->hasMany(MovimientoLaboral::class);
+    }
+
+    public function saldosVacaciones(): HasMany
+    {
+        return $this->hasMany(SaldoVacacion::class);
+    }
+
+    public function solicitudesVacaciones(): HasMany
+    {
+        return $this->hasMany(SolicitudVacacion::class);
+    }
+
+    public function bajas(): HasMany
+    {
+        return $this->hasMany(BajaEmpleado::class);
     }
 
     public function getNombreCompletoAttribute(): string
