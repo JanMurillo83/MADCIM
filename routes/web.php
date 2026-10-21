@@ -12,7 +12,18 @@ use App\Http\Controllers\PagoTicketController;
 use App\Http\Controllers\OrdenCompraPdfController;
 use App\Http\Controllers\RecepcionCompraPdfController;
 use App\Http\Controllers\RequisicionCompraPdfController;
+use App\Http\Controllers\AdmsController;
 use Illuminate\Support\Facades\Route;
+
+Route::match(['get', 'post'], '/iclock/cdata', [AdmsController::class, 'cdata'])
+    ->middleware('throttle:adms')
+    ->name('adms.cdata');
+Route::get('/iclock/getrequest', [AdmsController::class, 'getRequest'])
+    ->middleware('throttle:adms')
+    ->name('adms.getrequest');
+Route::post('/iclock/devicecmd', [AdmsController::class, 'deviceCmd'])
+    ->middleware('throttle:adms')
+    ->name('adms.devicecmd');
 
 // Rutas para impresión de cotizaciones
 Route::middleware(['auth'])->group(function () {

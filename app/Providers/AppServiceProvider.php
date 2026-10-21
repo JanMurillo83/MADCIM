@@ -6,7 +6,10 @@ use Filament\Tables\Table;
 use Filament\Forms\Components\TextInput;
 use Filament\Support\RawJs;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Number;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('adms', function (Request $request): Limit {
+            $serie = (string) $request->query('SN', $request->query('sn', ''));
+
+            return Limit::perMinute(600)->by($serie !== '' ? $serie : $request->ip());
+        });
+
         Relation::morphMap([
             'notas_venta_renta' => \App\Models\NotasVentaRenta::class,
             'notas_venta_venta' => \App\Models\NotasVentaVenta::class,

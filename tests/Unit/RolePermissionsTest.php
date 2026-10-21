@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Filament\Pages\ConsultaDevoluciones;
+use App\Filament\Pages\CierresDevolucionRenta;
 use App\Filament\Resources\Configuracion\ConfiguracionResource;
 use App\Filament\Resources\Inventario\InventarioResource;
 use App\Support\RolePermissions;
@@ -22,6 +23,14 @@ class RolePermissionsTest extends TestCase
         $this->assertTrue(
             RolePermissions::canAccessPage(ConsultaDevoluciones::class, RolePermissions::ROLE_SUPERVISOR)
         );
+    }
+
+    public function test_operational_branch_roles_can_process_returns_and_close_works(): void
+    {
+        foreach ([RolePermissions::ROLE_VENDEDOR, RolePermissions::ROLE_ALMACEN, RolePermissions::ROLE_ENTREGAS] as $role) {
+            $this->assertTrue(RolePermissions::canAccessPage(ConsultaDevoluciones::class, $role));
+            $this->assertTrue(RolePermissions::canAccessPage(CierresDevolucionRenta::class, $role));
+        }
     }
 
     public function test_supervisors_cannot_access_administration_resources(): void

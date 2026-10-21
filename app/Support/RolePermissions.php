@@ -136,6 +136,16 @@ class RolePermissions
             self::ROLE_NOMINA,
             self::ROLE_GERENCIA,
         ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\DispositivosBiometricos\\DispositivoBiometricoResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+        ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\VinculacionesBiometricas\\VinculacionBiometricaResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+        ],
     ];
 
     public const PAGES = [
@@ -164,6 +174,8 @@ class RolePermissions
         'App\\Filament\\Pages\\AyudaPage' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR],
         'App\\Filament\\Pages\\ActualizarPreciosMadera' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
         'App\\Filament\\Pages\\ConsultaItemsRentadosPorDireccion' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
+        'App\\Filament\\Pages\\ConsultaDevoluciones' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
+        'App\\Filament\\Pages\\CierresDevolucionRenta' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_VENDEDOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
         'App\\Filament\\Pages\\DetalleCliente' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR, self::ROLE_ALMACEN, self::ROLE_ENTREGAS],
 
         'App\\Filament\\Pages\\Reportes\\CentroReportes' => [self::ROLE_ADMIN, self::ROLE_SUPERVISOR],
