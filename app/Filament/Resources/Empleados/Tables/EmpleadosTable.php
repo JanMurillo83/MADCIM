@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Empleados\Tables;
 
+use Filament\Actions\CreateAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -39,6 +40,10 @@ class EmpleadosTable
                         'baja' => 'danger',
                         default => 'gray',
                     }),
+            ])
+            ->toolbarActions([
+                CreateAction::make()
+                    ->label('Agregar empleado'),
             ])
             ->defaultSort('apellido_paterno');
     }

@@ -27,6 +27,8 @@ class EmpleadoResource extends Resource
 
     protected static ?string $navigationLabel = 'Empleados';
 
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
+
     protected static ?string $modelLabel = 'empleado';
 
     protected static ?string $pluralModelLabel = 'empleados';

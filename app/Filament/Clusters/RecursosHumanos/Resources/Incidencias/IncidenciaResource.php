@@ -22,13 +22,15 @@ class IncidenciaResource extends Resource
 
     protected static ?string $model = Incidencia::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
     protected static ?string $recordTitleAttribute = 'tipo';
 
     protected static ?string $navigationLabel = 'Incidencias';
+
+    protected static string|null|\UnitEnum $navigationGroup = 'Incidencias';
 
     protected static ?string $modelLabel = 'incidencia';
 

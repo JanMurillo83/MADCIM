@@ -9,12 +9,15 @@ use App\Models\SolicitudVacacion;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use BackedEnum;
 class SolicitudesVacacionesResource extends Resource
 {
     use HasRoleResourceAccess;
     protected static ?string $model = SolicitudVacacion::class;
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static ?string $navigationLabel = 'Solicitudes de vacaciones';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
+    protected static string|null|\UnitEnum $navigationGroup = 'Incidencias';
     protected static ?string $modelLabel = 'solicitud de vacaciones';
     protected static ?string $pluralModelLabel = 'solicitudes de vacaciones';
     public static function form(Schema $schema): Schema { return SolicitudVacacionForm::configure($schema); }

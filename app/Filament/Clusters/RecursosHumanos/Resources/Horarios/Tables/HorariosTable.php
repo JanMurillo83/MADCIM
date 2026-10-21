@@ -3,6 +3,7 @@
 namespace App\Filament\Clusters\RecursosHumanos\Resources\Horarios\Tables;
 
 use Filament\Actions\EditAction;
+use Filament\Actions\CreateAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -38,6 +39,9 @@ class HorariosTable
             ])
             ->recordActions([
                 EditAction::make(),
+            ])
+            ->toolbarActions([
+                CreateAction::make()->label('Agregar horario'),
             ])
             ->defaultSort('nombre');
     }

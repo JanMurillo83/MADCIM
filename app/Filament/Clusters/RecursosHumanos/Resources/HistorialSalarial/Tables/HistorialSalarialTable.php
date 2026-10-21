@@ -2,6 +2,7 @@
 
 namespace App\Filament\Clusters\RecursosHumanos\Resources\HistorialSalarial\Tables;
 
+use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -17,6 +18,8 @@ class HistorialSalarialTable
             TextColumn::make('sueldo_diario')->label('Sueldo diario')->money('MXN'),
             TextColumn::make('sueldo_semanal')->label('Sueldo semanal')->money('MXN'),
             TextColumn::make('motivo')->limit(45),
-        ])->recordActions([EditAction::make()])->defaultSort('fecha_inicio', 'desc');
+        ])->recordActions([EditAction::make()])->toolbarActions([
+            CreateAction::make()->label('Agregar historial salarial'),
+        ])->defaultSort('fecha_inicio', 'desc');
     }
 }

@@ -19,13 +19,15 @@ class ChecadaResource extends Resource
 
     protected static ?string $model = Checada::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-finger-print';
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
     protected static ?string $recordTitleAttribute = 'empleado_id';
 
     protected static ?string $navigationLabel = 'Checadas';
+
+    protected static string|null|\UnitEnum $navigationGroup = 'Incidencias';
 
     protected static ?string $modelLabel = 'checada';
 

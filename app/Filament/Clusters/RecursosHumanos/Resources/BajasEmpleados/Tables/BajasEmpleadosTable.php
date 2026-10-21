@@ -5,6 +5,7 @@ namespace App\Filament\Clusters\RecursosHumanos\Resources\BajasEmpleados\Tables;
 use App\Models\Empleado;
 use App\Services\GestionarBajaEmpleadoService;
 use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -48,6 +49,9 @@ class BajasEmpleadosTable
                         );
                         Notification::make()->title('Empleado reingresado')->success()->send();
                     }),
+            ])
+            ->toolbarActions([
+                CreateAction::make()->label('Agregar baja'),
             ]);
     }
 }

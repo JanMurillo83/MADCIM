@@ -2,7 +2,7 @@
 namespace App\Filament\Clusters\RecursosHumanos\Resources\SolicitudesVacaciones\Tables;
 use App\Enums\EstadoVacacion;
 use App\Services\GestionarVacacionService;
-use Filament\Actions\{Action,EditAction};
+use Filament\Actions\{Action,CreateAction,EditAction};
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -19,5 +19,5 @@ class SolicitudesVacacionesTable
         EditAction::make()->visible(fn ($record): bool => $record->estatus === EstadoVacacion::Pendiente),
         Action::make('aprobar')->label('Aprobar')->color('success')->requiresConfirmation()->visible(fn ($record): bool => $record->estatus === EstadoVacacion::Pendiente)->action(function ($record): void { app(GestionarVacacionService::class)->aprobar($record, auth()->id()); Notification::make()->title('Vacaciones aprobadas')->success()->send(); }),
         Action::make('rechazar')->label('Rechazar')->color('danger')->form([Textarea::make('comentario')->required()])->visible(fn ($record): bool => $record->estatus === EstadoVacacion::Pendiente)->action(function ($record, array $data): void { app(GestionarVacacionService::class)->rechazar($record, auth()->id(), $data['comentario']); Notification::make()->title('Solicitud rechazada')->success()->send(); }),
-    ])->defaultSort('fecha_inicio','desc'); }
+    ])->toolbarActions([CreateAction::make()->label('Agregar solicitud')])->defaultSort('fecha_inicio','desc'); }
 }

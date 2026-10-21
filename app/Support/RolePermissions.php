@@ -130,6 +130,12 @@ class RolePermissions
             self::ROLE_NOMINA,
             self::ROLE_GERENCIA,
         ],
+        'App\\Filament\\Clusters\\RecursosHumanos\\Resources\\ConceptosNomina\\ConceptosNominaResource' => [
+            self::ROLE_ADMIN,
+            self::ROLE_RH,
+            self::ROLE_NOMINA,
+            self::ROLE_GERENCIA,
+        ],
     ];
 
     public const PAGES = [

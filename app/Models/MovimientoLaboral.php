@@ -11,6 +11,9 @@ class MovimientoLaboral extends Model
 {
     use BelongsToSucursalScope;
 
+    protected $table = 'movimientos_laborales';
+
+
     protected $fillable = [
         'empleado_id', 'fecha_movimiento', 'tipo', 'sucursal_origen_id',
         'sucursal_destino_id', 'departamento', 'puesto', 'horario_id',

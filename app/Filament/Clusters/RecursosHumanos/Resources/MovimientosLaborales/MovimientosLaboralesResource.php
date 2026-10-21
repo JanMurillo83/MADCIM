@@ -23,6 +23,7 @@ class MovimientosLaboralesResource extends Resource
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationLabel = 'Movimientos laborales';
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
     protected static ?string $modelLabel = 'movimiento laboral';
     protected static ?string $pluralModelLabel = 'movimientos laborales';
 

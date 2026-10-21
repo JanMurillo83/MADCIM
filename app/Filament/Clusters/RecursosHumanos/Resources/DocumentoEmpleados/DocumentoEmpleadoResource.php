@@ -22,13 +22,15 @@ class DocumentoEmpleadoResource extends Resource
 
     protected static ?string $model = DocumentoEmpleado::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
     protected static ?string $recordTitleAttribute = 'nombre';
 
     protected static ?string $navigationLabel = 'Documentos laborales';
+
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
 
     protected static ?string $modelLabel = 'documento laboral';
 

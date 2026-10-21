@@ -4,7 +4,7 @@ namespace App\Filament\Concerns;
 
 trait HasRolePageAccess
 {
-    public static function canAccess(): bool
+    public static function canAccess(array $parameters = []): bool
     {
         return auth()->user()?->canAccessPage(static::class) ?? false;
     }

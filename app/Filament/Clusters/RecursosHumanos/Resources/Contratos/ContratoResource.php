@@ -22,13 +22,15 @@ class ContratoResource extends Resource
 
     protected static ?string $model = Contrato::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-briefcase';
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
     protected static ?string $recordTitleAttribute = 'tipo';
 
     protected static ?string $navigationLabel = 'Contratos';
+
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
 
     protected static ?string $modelLabel = 'contrato';
 

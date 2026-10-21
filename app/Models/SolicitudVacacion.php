@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SolicitudVacacion extends Model
 {
     use BelongsToSucursalScope;
+
+    protected $table = 'solicitudes_vacaciones';
+
     protected $fillable = ['empleado_id', 'saldo_vacaciones_id', 'fecha_inicio', 'fecha_fin', 'dias', 'estatus', 'motivo', 'solicitada_por_id', 'autorizada_por_id', 'autorizada_en', 'comentario_autorizacion'];
     protected function casts(): array { return ['fecha_inicio' => 'date', 'fecha_fin' => 'date', 'dias' => 'decimal:2', 'estatus' => EstadoVacacion::class, 'autorizada_en' => 'datetime']; }
     public function empleado(): BelongsTo { return $this->belongsTo(Empleado::class); }

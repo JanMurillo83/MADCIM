@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EstadoIncidencia;
 use App\Enums\TipoIncidencia;
 use App\Models\Empleado;
+use App\Models\ConceptoNomina;
 use App\Models\HistorialSalarial;
 use App\Models\Incidencia;
 use App\Models\NominaSemanal;
@@ -22,7 +23,7 @@ class GenerarNominaSemanalService
     public function generar(PeriodoNomina $periodo, ?int $usuarioId = null): PeriodoNomina
     {
         if ($periodo->estatus !== 'abierto') {
-            throw ValidationException::withMessages(['estatus' => 'El periodo ya fue generado o cerrado.']);
+            throw ValidationException::withMessages(['estatus' => 'El periodo ya fue generado y no puede regenerarse desde este estado.']);
         }
 
         return DB::transaction(function () use ($periodo, $usuarioId): PeriodoNomina {
@@ -62,23 +63,48 @@ class GenerarNominaSemanalService
                     $sueldoDiario = (float) ($salario?->sueldo_diario ?? $empleado->sueldo_diario ?? 0);
                     $asistenciaEmpleado = $asistencia->get($empleado->id, []);
                     $faltas = (int) ($asistenciaEmpleado['faltas'] ?? 0);
+                    $diasProgramados = (int) ($asistenciaEmpleado['dias_programados'] ?? 0);
+                    $diasTrabajados = (int) ($asistenciaEmpleado['dias_laborados'] ?? 0);
                     $minutosRetardo = (int) ($asistenciaEmpleado['minutos_retardo'] ?? 0);
                     $descuentoFaltas = $faltas * $sueldoDiario;
                     $descuentoRetardos = ($minutosRetardo / 60) * ($sueldoDiario / 8);
-                    $descuentosTotal = $descuentoImporte + $descuentoFaltas + $descuentoRetardos;
-                    $total = max(0, $sueldoBase + $pagoExtra - $descuentosTotal);
+                    $conceptos = ConceptoNomina::query()
+                        ->where('periodo_nomina_id', $periodo->id)
+                        ->where('empleado_id', $empleado->id)
+                        ->get();
+                    $bonos = (float) $conceptos->where('tipo', 'bono')->sum('importe');
+                    $aguinaldo = (float) $conceptos->where('tipo', 'aguinaldo')->sum('importe');
+                    $apoyos = (float) $conceptos->where('tipo', 'apoyo')->sum('importe');
+                    $importeDiaFestivo = (float) $conceptos->where('tipo', 'dia_festivo')->sum('importe');
+                    $importeDescansoLaborado = (float) $conceptos->where('tipo', 'dia_descanso')->sum('importe');
+                    $descuentosManuales = (float) $conceptos->where('tipo', 'descuento')->sum('importe');
+                    $anticipos = (float) $conceptos->where('tipo', 'anticipo')->sum('importe');
+                    $prestamos = (float) $conceptos->where('tipo', 'prestamo')->sum('importe');
+                    $otrosDescuentos = $descuentoImporte + $descuentosManuales;
+                    $descuentosTotal = $otrosDescuentos + $anticipos + $prestamos + $descuentoFaltas + $descuentoRetardos;
+                    $total = max(0, $sueldoBase + $pagoExtra + $bonos + $aguinaldo + $apoyos + $importeDiaFestivo + $importeDescansoLaborado - $descuentosTotal);
 
                     NominaSemanal::updateOrCreate(
                         ['periodo_nomina_id' => $periodo->id, 'empleado_id' => $empleado->id],
                         [
                             'sueldo_base' => $sueldoBase,
+                            'dias_programados' => $diasProgramados,
+                            'dias_trabajados' => $diasTrabajados,
+                            'dias_descanso_laborados' => (int) $conceptos->where('tipo', 'dia_descanso')->sum('cantidad'),
+                            'dias_festivos' => (int) $conceptos->where('tipo', 'dia_festivo')->sum('cantidad'),
+                            'importe_descanso_laborado' => $importeDescansoLaborado,
+                            'importe_dia_festivo' => $importeDiaFestivo,
                             'faltas' => $faltas,
                             'minutos_retardo' => $minutosRetardo,
                             'descuento_faltas' => $descuentoFaltas,
                             'descuento_retardos' => $descuentoRetardos,
-                            'otros_descuentos' => $descuentoImporte,
+                            'otros_descuentos' => $otrosDescuentos,
                             'horas_extra' => $pagoExtra,
-                            'bonos' => 0,
+                            'bonos' => $bonos,
+                            'aguinaldo' => $aguinaldo,
+                            'apoyos' => $apoyos,
+                            'anticipos' => $anticipos,
+                            'prestamos' => $prestamos,
                             'descuentos' => $descuentosTotal,
                             'total' => $total,
                         ],

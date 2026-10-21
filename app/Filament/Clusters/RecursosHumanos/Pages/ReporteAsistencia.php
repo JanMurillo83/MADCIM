@@ -25,6 +25,8 @@ class ReporteAsistencia extends Page
 
     protected static ?string $navigationLabel = 'Reporte de asistencia';
 
+    protected static string|null|\UnitEnum $navigationGroup = 'Indicadores';
+
     protected static ?string $title = 'Reporte de asistencia';
 
     public ?string $fecha_inicio = null;

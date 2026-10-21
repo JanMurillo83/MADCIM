@@ -1,5 +1,6 @@
 <?php
 namespace App\Filament\Clusters\RecursosHumanos\Resources\SaldoVacaciones\Tables;
+use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -11,5 +12,5 @@ class SaldoVacacionesTable
         TextColumn::make('dias_asignados')->label('Asignados'),
         TextColumn::make('dias_usados')->label('Usados'),
         TextColumn::make('dias_disponibles')->label('Disponibles')->state(fn ($record): float => $record->dias_disponibles)->badge()->color('success'),
-    ])->recordActions([EditAction::make()])->defaultSort('anio','desc'); }
+    ])->recordActions([EditAction::make()])->toolbarActions([CreateAction::make()->label('Agregar saldo')])->defaultSort('anio','desc'); }
 }

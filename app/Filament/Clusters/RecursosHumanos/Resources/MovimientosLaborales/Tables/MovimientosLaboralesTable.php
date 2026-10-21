@@ -2,6 +2,7 @@
 
 namespace App\Filament\Clusters\RecursosHumanos\Resources\MovimientosLaborales\Tables;
 
+use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -18,6 +19,8 @@ class MovimientosLaboralesTable
             TextColumn::make('sucursalDestino.nombre')->label('Destino')->placeholder('—'),
             TextColumn::make('puesto')->placeholder('Sin puesto'),
             TextColumn::make('motivo')->limit(40),
-        ])->recordActions([EditAction::make()])->defaultSort('fecha_movimiento', 'desc');
+        ])->recordActions([EditAction::make()])->toolbarActions([
+            CreateAction::make()->label('Agregar movimiento'),
+        ])->defaultSort('fecha_movimiento', 'desc');
     }
 }

@@ -11,6 +11,8 @@ class BajaEmpleado extends Model
 {
     use BelongsToSucursalScope;
 
+    protected $table = 'bajas_empleados';
+
     protected $fillable = [
         'empleado_id',
         'fecha_baja',

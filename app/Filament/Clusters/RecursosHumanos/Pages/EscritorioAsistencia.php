@@ -22,9 +22,13 @@ class EscritorioAsistencia extends Page
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationLabel = 'Escritorio de asistencia';
+    protected static ?string $navigationLabel = 'Dashboard de asistencia';
 
-    protected static ?string $title = 'Escritorio de asistencia';
+    protected static string|null|\UnitEnum $navigationGroup = 'Indicadores';
+
+    protected static ?string $title = 'Dashboard de asistencia';
+
+    protected static ?int $navigationSort = -100;
 
     public ?string $fecha = null;
 

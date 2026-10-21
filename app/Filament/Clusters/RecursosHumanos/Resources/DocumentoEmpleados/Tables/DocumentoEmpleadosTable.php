@@ -3,6 +3,7 @@
 namespace App\Filament\Clusters\RecursosHumanos\Resources\DocumentoEmpleados\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -30,6 +31,7 @@ class DocumentoEmpleadosTable
                 EditAction::make(),
             ])
             ->toolbarActions([
+                CreateAction::make()->label('Agregar documento'),
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),

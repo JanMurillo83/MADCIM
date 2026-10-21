@@ -25,6 +25,8 @@ class AlertasExpediente extends Page
 
     protected static ?string $navigationLabel = 'Alertas de expediente';
 
+    protected static string|null|\UnitEnum $navigationGroup = 'Indicadores';
+
     protected static ?string $title = 'Alertas de expediente laboral';
 
     #[Computed]

@@ -6,6 +6,7 @@ use App\Enums\EstadoIncidencia;
 use App\Enums\TipoIncidencia;
 use App\Services\GestionarIncidenciaService;
 use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -71,6 +72,9 @@ class IncidenciasTable
                         app(GestionarIncidenciaService::class)->rechazar($record, auth()->id(), $data['comentario']);
                         Notification::make()->title('Incidencia rechazada')->success()->send();
                     }),
+            ])
+            ->toolbarActions([
+                CreateAction::make()->label('Agregar incidencia'),
             ])
             ->defaultSort('fecha_inicio', 'desc');
     }

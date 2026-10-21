@@ -3,6 +3,7 @@
 namespace App\Filament\Clusters\RecursosHumanos\Resources\Contratos\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -31,6 +32,7 @@ class ContratosTable
                 EditAction::make(),
             ])
             ->toolbarActions([
+                CreateAction::make()->label('Agregar contrato'),
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),

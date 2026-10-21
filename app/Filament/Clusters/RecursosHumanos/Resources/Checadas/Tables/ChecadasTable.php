@@ -2,6 +2,7 @@
 
 namespace App\Filament\Clusters\RecursosHumanos\Resources\Checadas\Tables;
 
+use Filament\Actions\CreateAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -29,6 +30,9 @@ class ChecadasTable
                     ->formatStateUsing(fn ($state): string => $state?->label() ?? (string) $state),
                 TextColumn::make('dispositivo')
                     ->placeholder('No indicado'),
+            ])
+            ->toolbarActions([
+                CreateAction::make()->label('Agregar checada'),
             ])
             ->defaultSort('registrada_en', 'desc');
     }

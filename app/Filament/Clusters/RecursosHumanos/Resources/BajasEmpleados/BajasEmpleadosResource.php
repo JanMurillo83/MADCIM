@@ -22,6 +22,7 @@ class BajasEmpleadosResource extends Resource
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-user-minus';
     protected static ?string $navigationLabel = 'Bajas y reingresos';
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
     protected static ?string $modelLabel = 'baja de empleado';
     protected static ?string $pluralModelLabel = 'bajas de empleados';
 

@@ -9,12 +9,15 @@ use App\Models\SaldoVacacion;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use BackedEnum;
 class SaldoVacacionesResource extends Resource
 {
     use HasRoleResourceAccess;
     protected static ?string $model = SaldoVacacion::class;
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static ?string $navigationLabel = 'Saldos de vacaciones';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calendar';
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
     protected static ?string $modelLabel = 'saldo de vacaciones';
     protected static ?string $pluralModelLabel = 'saldos de vacaciones';
     public static function form(Schema $schema): Schema { return SaldoVacacionForm::configure($schema); }

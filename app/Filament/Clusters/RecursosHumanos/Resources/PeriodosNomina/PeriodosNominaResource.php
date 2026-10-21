@@ -11,6 +11,7 @@ use App\Models\PeriodoNomina;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use BackedEnum;
 
 class PeriodosNominaResource extends Resource
 {
@@ -18,6 +19,8 @@ class PeriodosNominaResource extends Resource
     protected static ?string $model = PeriodoNomina::class;
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static ?string $navigationLabel = 'Nómina semanal';
+    protected static string|null|\UnitEnum $navigationGroup = 'Incidencias';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calculator';
     protected static ?string $slug = 'nomina-semanal';
     protected static ?string $modelLabel = 'periodo de nómina';
     protected static ?string $pluralModelLabel = 'periodos de nómina';

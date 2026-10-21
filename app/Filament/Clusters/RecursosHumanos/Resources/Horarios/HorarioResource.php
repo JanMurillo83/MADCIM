@@ -22,13 +22,15 @@ class HorarioResource extends Resource
 
     protected static ?string $model = Horario::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clock';
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
     protected static ?string $recordTitleAttribute = 'nombre';
 
     protected static ?string $navigationLabel = 'Horarios';
+
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
 
     protected static ?string $modelLabel = 'horario';
 

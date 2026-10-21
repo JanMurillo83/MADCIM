@@ -23,6 +23,7 @@ class HistorialSalarialResource extends Resource
     protected static ?string $cluster = RecursosHumanosCluster::class;
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Historial salarial';
+    protected static string|null|\UnitEnum $navigationGroup = 'Catálogos';
     protected static ?string $slug = 'historial-salarial';
     protected static ?string $modelLabel = 'registro salarial';
     protected static ?string $pluralModelLabel = 'historial salarial';
