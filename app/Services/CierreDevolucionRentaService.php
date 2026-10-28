@@ -215,11 +215,15 @@ class CierreDevolucionRentaService
     ): array
     {
         return DB::transaction(function () use ($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno): array {
-            ClienteDireccionEntrega::query()
-                ->whereKey($direccionEntregaId)
-                ->where('cliente_id', $clienteId)
-                ->lockForUpdate()
-                ->firstOrFail();
+            if ($direccionEntregaId > 0) {
+                ClienteDireccionEntrega::query()
+                    ->whereKey($direccionEntregaId)
+                    ->where('cliente_id', $clienteId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            } else {
+                Clientes::query()->lockForUpdate()->findOrFail($clienteId);
+            }
 
             return $this->cerrarObraBloqueada($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno);
         }, attempts: 3);
@@ -238,7 +242,9 @@ class CierreDevolucionRentaService
     ): array {
         $cierrePendiente = CierreDevolucionRenta::query()
             ->where('cliente_id', $clienteId)
-            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->when($direccionEntregaId > 0,
+                fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
+                fn ($query) => $query->whereNull('direccion_entrega_id'))
             ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
             ->latest('id')
             ->lockForUpdate()
@@ -263,7 +269,9 @@ class CierreDevolucionRentaService
 
         $notas = NotasVentaRenta::query()
             ->where('cliente_id', $clienteId)
-            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->when($direccionEntregaId > 0,
+                fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
+                fn ($query) => $query->whereNull('direccion_entrega_id'))
             ->where('estatus', '!=', 'Cancelada')
             ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
             ->whereNotIn('id', $this->notaIdsEnCierresActivos($clienteId, $direccionEntregaId))
@@ -273,7 +281,9 @@ class CierreDevolucionRentaService
         if ($notas->isEmpty()) {
             $cierreProcesado = CierreDevolucionRenta::query()
                 ->where('cliente_id', $clienteId)
-                ->where('direccion_entrega_id', $direccionEntregaId)
+                ->when($direccionEntregaId > 0,
+                    fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
+                    fn ($query) => $query->whereNull('direccion_entrega_id'))
                 ->where('estatus', 'Procesado')
                 ->latest('id')
                 ->first();
@@ -316,7 +326,7 @@ class CierreDevolucionRentaService
         $cierre = CierreDevolucionRenta::create([
             'sucursal_id' => $nota->sucursal_id ?? auth()->user()?->sucursal_id,
             'cliente_id' => $clienteId,
-            'direccion_entrega_id' => $direccionEntregaId,
+            'direccion_entrega_id' => $direccionEntregaId > 0 ? $direccionEntregaId : null,
             'nota_ids' => $notaIds,
             'estatus' => $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])
                 ? 'PendienteCaja'
@@ -351,7 +361,9 @@ class CierreDevolucionRentaService
     {
         $notaIds = NotasVentaRenta::query()
             ->where('cliente_id', $nota->cliente_id)
-            ->where('direccion_entrega_id', $nota->direccion_entrega_id)
+            ->when($nota->direccion_entrega_id,
+                fn ($query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id),
+                fn ($query) => $query->whereNull('direccion_entrega_id'))
             ->where('estatus', '!=', 'Cancelada')
             ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
             ->pluck('id')
@@ -799,7 +811,9 @@ class CierreDevolucionRentaService
     {
         return CierreDevolucionRenta::query()
             ->where('cliente_id', $clienteId)
-            ->where('direccion_entrega_id', $direccionEntregaId)
+            ->when($direccionEntregaId > 0,
+                fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
+                fn ($query) => $query->whereNull('direccion_entrega_id'))
             ->where('estatus', '!=', 'Cancelado')
             ->pluck('nota_ids')
             ->flatMap(function ($ids): array {
