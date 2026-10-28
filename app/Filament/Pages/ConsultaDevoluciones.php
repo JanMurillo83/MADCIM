@@ -18,6 +18,7 @@ use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
@@ -199,6 +200,13 @@ class ConsultaDevoluciones extends Page implements HasActions
                         ->send();
                 } catch (\Throwable $exception) {
                     report($exception);
+                    Log::error('Falló el cierre de obra en Consulta de Devoluciones.', [
+                        'cliente_id' => $this->clienteCierreId,
+                        'direccion_entrega_id' => $this->direccionCierreId,
+                        'user_id' => Auth::id(),
+                        'exception_class' => $exception::class,
+                        'exception_message' => $exception->getMessage(),
+                    ]);
                     Notification::make()
                         ->danger()
                         ->title('No se pudo cerrar la obra')
