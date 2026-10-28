@@ -6,6 +6,7 @@ use App\Models\Caja;
 use App\Models\CajaMovimiento;
 use App\Models\CierreDevolucionRenta;
 use App\Models\Clientes;
+use App\Models\ClienteDireccionEntrega;
 use App\Models\DevolucionesRenta;
 use App\Models\DevolucionRentaPartidas;
 use App\Models\DocumentoSerie;
@@ -213,6 +214,28 @@ class CierreDevolucionRentaService
         ?string $folioInterno = null,
     ): array
     {
+        return DB::transaction(function () use ($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno): array {
+            ClienteDireccionEntrega::query()
+                ->whereKey($direccionEntregaId)
+                ->where('cliente_id', $clienteId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            return $this->cerrarObraBloqueada($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno);
+        }, attempts: 3);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cerrarObraBloqueada(
+        int $clienteId,
+        int $direccionEntregaId,
+        ?string $observaciones,
+        ?int $userId,
+        string $modo,
+        ?string $folioInterno,
+    ): array {
         $cierrePendiente = CierreDevolucionRenta::query()
             ->where('cliente_id', $clienteId)
             ->where('direccion_entrega_id', $direccionEntregaId)
@@ -255,12 +278,23 @@ class CierreDevolucionRentaService
                 ->latest('id')
                 ->first();
 
+            if (! $cierreProcesado) {
+                return [
+                    'already_closed' => false,
+                    'no_eligible_notes' => true,
+                    'resumen' => [],
+                    'nota_id' => null,
+                    'cierre_id' => null,
+                    'cierre_estatus' => null,
+                ];
+            }
+
             return [
                 'already_closed' => true,
-                'resumen' => $cierreProcesado ? $this->resumenDesdeCierre($cierreProcesado) : [],
-                'nota_id' => $cierreProcesado ? collect($cierreProcesado->nota_ids)->first() : null,
-                'cierre_id' => $cierreProcesado?->id,
-                'cierre_estatus' => $cierreProcesado?->estatus ?? 'Procesado',
+                'resumen' => $this->resumenDesdeCierre($cierreProcesado),
+                'nota_id' => collect($cierreProcesado->nota_ids)->first(),
+                'cierre_id' => $cierreProcesado->id,
+                'cierre_estatus' => $cierreProcesado->estatus,
             ];
         }
 

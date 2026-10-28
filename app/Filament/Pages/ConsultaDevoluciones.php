@@ -19,6 +19,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 
 class ConsultaDevoluciones extends Page implements HasActions
@@ -163,6 +164,16 @@ class ConsultaDevoluciones extends Page implements HasActions
                         return;
                     }
 
+                    if (!empty($resultado['no_eligible_notes'])) {
+                        Notification::make()
+                            ->warning()
+                            ->title('No hay notas disponibles para cerrar')
+                            ->body('No se encontraron rentas entregadas y activas de esta obra en tu sucursal. Actualiza la página o solicita a un administrador que revise la sucursal de las notas.')
+                            ->persistent()
+                            ->send();
+                        return;
+                    }
+
                     session(['cierre_devolucion_observaciones_nvr_' . $resultado['nota_id'] => null]);
                     session(['cierre_devolucion_resumen_nvr_' . $resultado['nota_id'] => $resultado['resumen']]);
 
@@ -170,12 +181,28 @@ class ConsultaDevoluciones extends Page implements HasActions
                         route('notas-venta-renta.cierre-devolucion-ticket', $resultado['nota_id']),
                         navigate: false,
                     );
+                } catch (ValidationException $exception) {
+                    report($exception);
+                    Notification::make()
+                        ->danger()
+                        ->title('Revisa los datos del cierre')
+                        ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                        ->persistent()
+                        ->send();
+                } catch (\DomainException $exception) {
+                    report($exception);
+                    Notification::make()
+                        ->danger()
+                        ->title('No se pudo cerrar la obra')
+                        ->body($exception->getMessage())
+                        ->persistent()
+                        ->send();
                 } catch (\Throwable $exception) {
                     report($exception);
                     Notification::make()
                         ->danger()
                         ->title('No se pudo cerrar la obra')
-                        ->body('La obra no se cerró. Revise los datos y vuelva a intentarlo.')
+                        ->body('La operación se revirtió sin crear un cierre parcial. Consulte el registro de errores antes de reintentar.')
                         ->persistent()
                         ->send();
                 }
@@ -200,12 +227,26 @@ class ConsultaDevoluciones extends Page implements HasActions
             ->get();
 
         $items = collect($items);
-        $cierresPendientes = CierreDevolucionRenta::query()
-            ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+        $cierres = CierreDevolucionRenta::query()
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja', 'Procesado'])
             ->when($this->cliente_id, fn ($query) => $query->where('cliente_id', $this->cliente_id))
             ->when($this->direccion_entrega_id, fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
-            ->get(['cliente_id', 'direccion_entrega_id'])
+            ->get(['cliente_id', 'direccion_entrega_id', 'nota_ids', 'estatus']);
+
+        $cierresPendientes = $cierres
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
             ->mapWithKeys(fn ($cierre) => [$cierre->cliente_id . '-' . $cierre->direccion_entrega_id => true]);
+
+        $notaIdsCerradas = $cierres
+            ->where('estatus', 'Procesado')
+            ->flatMap(fn (CierreDevolucionRenta $cierre): array => $cierre->nota_ids ?? [])
+            ->map(fn ($notaId): int => (int) $notaId)
+            ->unique()
+            ->values();
+
+        if ($notaIdsCerradas->isNotEmpty()) {
+            $items = $items->reject(fn (RegistroRenta $item): bool => $notaIdsCerradas->contains((int) $item->nota_venta_renta_id));
+        }
 
         return $items
             ->groupBy(fn ($item) => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0))
