@@ -17,6 +17,8 @@ class RecursosHumanosCluster extends Cluster
 
     protected static ?int $navigationSort = 4;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public function mount(): void
     {
         redirect(EscritorioAsistencia::getUrl());

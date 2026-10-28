@@ -50,6 +50,28 @@
                 </tr>
             @endforeach
         </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">Totales</th>
+                <th class="right">${{ number_format($nominas->sum('sueldo_base'), 2) }}</th>
+                <th class="right">{{ $nominas->sum('dias_programados') }}</th>
+                <th class="right">{{ $nominas->sum('dias_trabajados') }}</th>
+                <th class="right">{{ $nominas->sum('dias_descanso_laborados') }}</th>
+                <th class="right">{{ $nominas->sum('dias_festivos') }}</th>
+                <th class="right">{{ $nominas->sum('faltas') }}</th>
+                <th class="right">{{ $nominas->sum('minutos_retardo') }}</th>
+                <th class="right">${{ number_format($nominas->sum('descuento_faltas'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('descuento_retardos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('horas_extra'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('bonos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('aguinaldo'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('apoyos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('anticipos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('prestamos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('otros_descuentos'), 2) }}</th>
+                <th class="right">${{ number_format($nominas->sum('total'), 2) }}</th>
+            </tr>
+        </tfoot>
     </table>
 </body>
 </html>

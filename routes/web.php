@@ -1,19 +1,21 @@
 <?php
 
-use App\Http\Controllers\CotizacionPdfController;
-use App\Http\Controllers\CajaMovimientoTicketController;
+use App\Http\Controllers\AdmsController;
 use App\Http\Controllers\CajaCierreTicketController;
+use App\Http\Controllers\CajaMovimientoTicketController;
+use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\DevolucionRentaController;
-use App\Http\Controllers\NotaVentaRentaPdfController;
-use App\Http\Controllers\NotaEnvioPdfController;
+use App\Http\Controllers\NominaPdfController;
 use App\Http\Controllers\NotaDevolucionRentaPdfController;
+use App\Http\Controllers\NotaEnvioPdfController;
+use App\Http\Controllers\NotaVentaRentaPdfController;
 use App\Http\Controllers\NotaVentaVentaPdfController;
-use App\Http\Controllers\PagoTicketController;
 use App\Http\Controllers\OrdenCompraPdfController;
+use App\Http\Controllers\PagoTicketController;
 use App\Http\Controllers\RecepcionCompraPdfController;
 use App\Http\Controllers\RequisicionCompraPdfController;
-use App\Http\Controllers\AdmsController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::match(['get', 'post'], '/iclock/cdata', [AdmsController::class, 'cdata'])
     ->middleware('throttle:adms')
@@ -27,6 +29,15 @@ Route::post('/iclock/devicecmd', [AdmsController::class, 'deviceCmd'])
 
 // Rutas para impresión de cotizaciones
 Route::middleware(['auth'])->group(function () {
+    Route::get('/nomina-semanal/{periodo}/pdf', [NominaPdfController::class, 'nomina'])
+        ->name('nomina-semanal.pdf');
+    Route::get('/nomina-semanal/{periodo}/pdf/preview', [NominaPdfController::class, 'previewNomina'])
+        ->name('nomina-semanal.pdf.preview');
+    Route::get('/nomina-semanal/{nomina}/recibo', [NominaPdfController::class, 'recibo'])
+        ->name('nomina-semanal.recibo');
+    Route::get('/nomina-semanal/{nomina}/recibo/preview', [NominaPdfController::class, 'previewRecibo'])
+        ->name('nomina-semanal.recibo.preview');
+
     Route::get('/pagos/{id}/ticket', PagoTicketController::class)
         ->name('pagos.ticket');
     Route::get('/caja-movimientos/{id}/devolucion-deposito/ticket', [CajaMovimientoTicketController::class, 'devolucionDeposito'])
@@ -137,9 +148,9 @@ Route::get('/report-previews/{token}', function (string $token) {
     abort_unless(preg_match('/^[0-9a-f-]{36}$/', $token) === 1, 404);
 
     $path = "report-previews/{$token}.pdf";
-    abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+    abort_unless(Storage::disk('local')->exists($path), 404);
 
-    return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+    return response()->file(Storage::disk('local')->path($path), [
         'Content-Type' => 'application/pdf',
         'Content-Disposition' => 'inline; filename="reporte.pdf"',
     ]);

@@ -8,7 +8,9 @@
                 <th class="px-3 py-2 text-right">Retardos</th>
                 <th class="px-3 py-2 text-right">Desc. faltas</th>
                 <th class="px-3 py-2 text-right">Desc. retardos</th>
-                <th class="px-3 py-2 text-right">Extra</th>
+                <th class="px-3 py-2 text-right">Otros desc.</th>
+                <th class="px-3 py-2 text-right">H. extra</th>
+                <th class="px-3 py-2 text-right">Bonos</th>
                 <th class="px-3 py-2 text-right">Total</th>
             </tr>
         </thead>
@@ -21,11 +23,13 @@
                     <td class="px-3 py-2 text-right">{{ $nomina->minutos_retardo }}</td>
                     <td class="px-3 py-2 text-right">${{ number_format($nomina->descuento_faltas, 2) }}</td>
                     <td class="px-3 py-2 text-right">${{ number_format($nomina->descuento_retardos, 2) }}</td>
+                    <td class="px-3 py-2 text-right">${{ number_format($nomina->otros_descuentos, 2) }}</td>
                     <td class="px-3 py-2 text-right">${{ number_format($nomina->horas_extra, 2) }}</td>
+                    <td class="px-3 py-2 text-right">${{ number_format($nomina->bonos, 2) }}</td>
                     <td class="px-3 py-2 text-right font-semibold">${{ number_format($nomina->total, 2) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Este periodo todavía no tiene nómina generada.</td></tr>
+                <tr><td colspan="10" class="px-3 py-6 text-center text-gray-500">Este periodo todavía no tiene nómina generada.</td></tr>
             @endforelse
         </tbody>
     </table>

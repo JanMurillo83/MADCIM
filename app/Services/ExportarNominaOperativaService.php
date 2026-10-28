@@ -55,13 +55,37 @@ class ExportarNominaOperativaService
 
     public function pdf(PeriodoNomina $periodo)
     {
+        return $this->pdfDocument($periodo)->download("nomina-{$periodo->fecha_inicio->toDateString()}-{$periodo->fecha_fin->toDateString()}.pdf");
+    }
+
+    public function previewPdf(PeriodoNomina $periodo)
+    {
+        return $this->pdfDocument($periodo)->stream("nomina-{$periodo->fecha_inicio->toDateString()}-{$periodo->fecha_fin->toDateString()}.pdf");
+    }
+
+    private function pdfDocument(PeriodoNomina $periodo)
+    {
         return Pdf::loadView('filament.clusters.recursos-humanos.resources.periodos-nomina.pdf.nomina-operativa', [
             'periodo' => $periodo,
             'nominas' => $this->registros($periodo),
-        ])->setPaper('letter', 'landscape')->download("nomina-{$periodo->fecha_inicio->toDateString()}-{$periodo->fecha_fin->toDateString()}.pdf");
+        ])->setPaper('letter', 'landscape');
     }
 
     public function recibo(NominaSemanal $nomina)
+    {
+        return $this->reciboDocument($nomina)->download(
+            "recibo-{$nomina->empleado?->numero_empleado}-{$nomina->periodo?->fecha_inicio->toDateString()}.pdf",
+        );
+    }
+
+    public function previewRecibo(NominaSemanal $nomina)
+    {
+        return $this->reciboDocument($nomina)->stream(
+            "recibo-{$nomina->empleado?->numero_empleado}-{$nomina->periodo?->fecha_inicio->toDateString()}.pdf",
+        );
+    }
+
+    private function reciboDocument(NominaSemanal $nomina)
     {
         $nomina->loadMissing(['empleado.sucursal', 'periodo']);
         $conceptos = ConceptoNomina::query()
@@ -76,8 +100,6 @@ class ExportarNominaOperativaService
             'empleado' => $nomina->empleado,
             'periodo' => $nomina->periodo,
             'conceptos' => $conceptos,
-        ])->setPaper('letter', 'portrait')->download(
-            "recibo-{$nomina->empleado?->numero_empleado}-{$nomina->periodo?->fecha_inicio->toDateString()}.pdf",
-        );
+        ])->setPaper('letter', 'portrait');
     }
 }

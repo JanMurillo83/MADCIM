@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Enums\EstadoIncidencia;
 use App\Enums\TipoIncidencia;
-use App\Models\Empleado;
 use App\Models\ConceptoNomina;
+use App\Models\Empleado;
 use App\Models\HistorialSalarial;
 use App\Models\Incidencia;
 use App\Models\NominaSemanal;
@@ -17,8 +17,7 @@ class GenerarNominaSemanalService
 {
     public function __construct(
         private readonly GenerarReporteAsistenciaService $reporteAsistencia,
-    ) {
-    }
+    ) {}
 
     public function generar(PeriodoNomina $periodo, ?int $usuarioId = null): PeriodoNomina
     {
@@ -29,6 +28,18 @@ class GenerarNominaSemanalService
         return DB::transaction(function () use ($periodo, $usuarioId): PeriodoNomina {
             $inicio = $periodo->fecha_inicio;
             $fin = $periodo->fecha_fin;
+            app(SincronizarIncidenciasAsistenciaService::class)->sincronizar($inicio, $fin);
+            if (Incidencia::query()
+                ->where('estatus', EstadoIncidencia::Pendiente)
+                ->whereDate('fecha_inicio', '<=', $fin)
+                ->where(function ($query) use ($inicio): void {
+                    $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $inicio);
+                })
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'estatus' => 'La nómina no puede generarse mientras existan incidencias pendientes de autorización.',
+                ]);
+            }
             $asistencia = $this->reporteAsistencia->generar($inicio, $fin)->keyBy('empleado_id');
 
             Empleado::query()
@@ -56,7 +67,15 @@ class GenerarNominaSemanalService
                     $descuentos = Incidencia::query()
                         ->where('empleado_id', $empleado->id)
                         ->where('estatus', EstadoIncidencia::Aprobada)
-                        ->whereIn('tipo', [TipoIncidencia::PermisoSinGoce, TipoIncidencia::FaltaJustificada])
+                        ->where(function ($query): void {
+                            $query
+                                ->where('tipo', TipoIncidencia::PermisoSinGoce)
+                                ->orWhere(function ($query): void {
+                                    $query
+                                        ->where('tipo', TipoIncidencia::FaltaJustificada)
+                                        ->where('afecta_nomina', true);
+                                });
+                        })
                         ->whereBetween('fecha_inicio', [$inicio, $fin])
                         ->sum('dias');
                     $descuentoImporte = (float) $descuentos * (float) ($salario?->sueldo_diario ?? $empleado->sueldo_diario ?? 0);

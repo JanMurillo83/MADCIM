@@ -9,6 +9,7 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -41,9 +42,13 @@ class IncidenciasTable
                         'rechazada', 'cancelada' => 'danger',
                         default => 'warning',
                     }),
-                TextColumn::make('motivo')
-                    ->label('Motivo')
-                    ->limit(45),
+                TextColumn::make('minutos')
+                    ->label('Min. retardo')
+                    ->state(fn ($record): int => in_array($record->tipo, [
+                        TipoIncidencia::RetardoAutorizado,
+                        TipoIncidencia::ComidaExcedida,
+                    ], true) ? (int) ($record->minutos ?? 0) : 0)
+                    ->sortable(),
             ])
             ->recordActions([
                 EditAction::make()
@@ -53,9 +58,31 @@ class IncidenciasTable
                     ->icon('heroicon-o-check')
                     ->color('success')
                     ->requiresConfirmation()
+                    ->modalHeading(fn ($record): string => $record->tipo instanceof TipoIncidencia
+                        && in_array($record->tipo, [TipoIncidencia::RetardoAutorizado, TipoIncidencia::ComidaExcedida], true)
+                            ? "Aprobar {$record->tipo->label()} ({$record->minutos} minutos)"
+                            : 'Aprobar incidencia')
+                    ->modalDescription(fn ($record): ?string => $record->tipo instanceof TipoIncidencia
+                        && in_array($record->tipo, [TipoIncidencia::RetardoAutorizado, TipoIncidencia::ComidaExcedida], true)
+                            ? 'Define si los minutos deben descontarse en la nómina.'
+                            : null)
+                    ->form(fn ($record): array => $record->tipo instanceof TipoIncidencia
+                        && in_array($record->tipo, [TipoIncidencia::RetardoAutorizado, TipoIncidencia::ComidaExcedida], true)
+                            ? [
+                                Toggle::make('afecta_nomina')
+                                    ->label('Descontar minutos en nómina')
+                                    ->default((bool) $record->afecta_nomina)
+                                    ->helperText('Desactivado: se autoriza sin descuento.'),
+                            ]
+                            : [])
                     ->visible(fn ($record): bool => $record->estatus === EstadoIncidencia::Pendiente)
-                    ->action(function ($record): void {
-                        app(GestionarIncidenciaService::class)->aprobar($record, auth()->id());
+                    ->action(function ($record, array $data): void {
+                        app(GestionarIncidenciaService::class)->aprobar(
+                            $record,
+                            auth()->id(),
+                            null,
+                            array_key_exists('afecta_nomina', $data) ? (bool) $data['afecta_nomina'] : null,
+                        );
                         Notification::make()->title('Incidencia aprobada')->success()->send();
                     }),
                 Action::make('rechazar')

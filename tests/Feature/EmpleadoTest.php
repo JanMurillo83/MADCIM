@@ -2,22 +2,23 @@
 
 namespace Tests\Feature;
 
-use App\Models\Empleado;
-use App\Models\Horario;
-use App\Models\Sucursal;
-use App\Services\RegistrarChecadaService;
-use App\Services\EvaluarAsistenciaService;
+use App\Enums\EstadoIncidencia;
 use App\Enums\MetodoChecada;
 use App\Enums\TipoChecada;
-use App\Enums\EstadoIncidencia;
 use App\Enums\TipoIncidencia;
+use App\Filament\Resources\Empleados\EmpleadoResource;
+use App\Models\Empleado;
+use App\Models\Horario;
 use App\Models\Incidencia;
+use App\Models\Sucursal;
 use App\Models\User;
-use App\Services\GestionarIncidenciaService;
+use App\Services\EvaluarAsistenciaService;
 use App\Services\GenerarReporteAsistenciaService;
-use LogicException;
+use App\Services\GestionarIncidenciaService;
+use App\Services\RegistrarChecadaService;
 use App\Support\RolePermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use LogicException;
 use Tests\TestCase;
 
 class EmpleadoTest extends TestCase
@@ -48,7 +49,7 @@ class EmpleadoTest extends TestCase
 
     public function test_roles_de_rh_pueden_acceder_al_catalogo_de_empleados(): void
     {
-        $resource = \App\Filament\Resources\Empleados\EmpleadoResource::class;
+        $resource = EmpleadoResource::class;
 
         $this->assertTrue(RolePermissions::canAccessResource($resource, RolePermissions::ROLE_RH));
         $this->assertTrue(RolePermissions::canAccessResource($resource, RolePermissions::ROLE_NOMINA));
@@ -177,10 +178,54 @@ class EmpleadoTest extends TestCase
             ->sole();
 
         $this->assertSame('retardo', $resultado['estado']);
-        $this->assertSame(15, $resultado['minutos_retardo']);
-        $this->assertSame(5, $resultado['minutos_comida_excedidos']);
+        $this->assertTrue($resultado['es_retardo']);
+        $this->assertSame(30, $resultado['minutos_retardo']);
+        $this->assertSame(15, $resultado['minutos_comida_excedidos']);
         $this->assertSame(15, $resultado['minutos_salida_anticipada']);
         $this->assertSame(495, $resultado['minutos_efectivos']);
+    }
+
+    public function test_retardo_se_acumula_aunque_falte_la_salida(): void
+    {
+        $sucursal = Sucursal::create([
+            'nombre' => 'MADCIM HUATULCO',
+            'codigo' => 'HUA',
+            'activa' => true,
+        ]);
+        $horario = Horario::create([
+            'nombre' => 'Horario con tolerancia',
+            'sucursal_id' => $sucursal->id,
+            'hora_entrada' => '08:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado = Empleado::create([
+            'numero_empleado' => 'RH-RET-001',
+            'nombre' => 'Empleado',
+            'apellido_paterno' => 'Retardo',
+            'sucursal_id' => $sucursal->id,
+            'horario_id' => $horario->id,
+            'fecha_ingreso' => '2026-10-20',
+            'estatus' => 'activo',
+        ]);
+
+        app(RegistrarChecadaService::class)->registrar([
+            'empleado_id' => $empleado->id,
+            'sucursal_id' => $sucursal->id,
+            'tipo' => TipoChecada::Entrada,
+            'metodo' => MetodoChecada::Manual,
+            'registrada_en' => '2026-10-20 08:15:00',
+        ]);
+
+        $fila = app(EvaluarAsistenciaService::class)->evaluar('2026-10-20', $sucursal->id)->sole();
+        $reporte = app(GenerarReporteAsistenciaService::class)->generar('2026-10-20', '2026-10-20', $sucursal->id)->sole();
+
+        $this->assertSame('sin_salida', $fila['estado']);
+        $this->assertTrue($fila['es_retardo']);
+        $this->assertSame(15, $fila['minutos_retardo']);
+        $this->assertSame(1, $reporte['retardos']);
     }
 
     public function test_incidente_pendiente_puede_aprobarse_y_queda_bloqueado(): void
@@ -224,7 +269,7 @@ class EmpleadoTest extends TestCase
         $this->assertSame(EstadoIncidencia::Aprobada, $aprobada->estatus);
         $this->assertSame($usuario->id, $aprobada->autorizada_por_id);
 
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $aprobada->update(['motivo' => 'Modificación no permitida']);
     }
 

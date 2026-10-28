@@ -8,12 +8,11 @@ use App\Filament\Clusters\RecursosHumanos\Resources\Incidencias\Pages\EditIncide
 use App\Filament\Clusters\RecursosHumanos\Resources\Incidencias\Pages\ListIncidencias;
 use App\Filament\Clusters\RecursosHumanos\Resources\Incidencias\Schemas\IncidenciaForm;
 use App\Filament\Clusters\RecursosHumanos\Resources\Incidencias\Tables\IncidenciasTable;
-use App\Models\Incidencia;
 use App\Filament\Concerns\HasRoleResourceAccess;
+use App\Models\Incidencia;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class IncidenciaResource extends Resource
@@ -26,7 +25,7 @@ class IncidenciaResource extends Resource
 
     protected static ?string $cluster = RecursosHumanosCluster::class;
 
-    protected static ?string $recordTitleAttribute = 'tipo';
+    protected static ?string $recordTitleAttribute = 'motivo';
 
     protected static ?string $navigationLabel = 'Incidencias';
 

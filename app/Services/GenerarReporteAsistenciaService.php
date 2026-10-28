@@ -12,20 +12,38 @@ class GenerarReporteAsistenciaService
 {
     public function __construct(
         private readonly EvaluarAsistenciaService $evaluarAsistencia,
-    ) {
-    }
+    ) {}
 
     public function generar(Carbon|string $fechaInicio, Carbon|string $fechaFin, ?int $sucursalId = null, ?int $empleadoId = null): Collection
     {
         $inicio = $fechaInicio instanceof Carbon ? $fechaInicio->copy()->startOfDay() : Carbon::parse($fechaInicio)->startOfDay();
         $fin = $fechaFin instanceof Carbon ? $fechaFin->copy()->startOfDay() : Carbon::parse($fechaFin)->startOfDay();
         $acumulado = collect();
+        app(SincronizarIncidenciasAsistenciaService::class)->sincronizar($inicio, $fin, $sucursalId);
+        $incidencias = Incidencia::query()
+            ->whereIn('estatus', [EstadoIncidencia::Aprobada, EstadoIncidencia::Rechazada])
+            ->whereDate('fecha_inicio', '<=', $fin)
+            ->where(function ($query) use ($inicio): void {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $inicio);
+            })
+            ->when($sucursalId, fn ($query) => $query->where('sucursal_id', $sucursalId))
+            ->when($empleadoId, fn ($query) => $query->where('empleado_id', $empleadoId))
+            ->get();
 
         for ($fecha = $inicio->copy(); $fecha->lte($fin); $fecha->addDay()) {
             $filas = $this->evaluarAsistencia->evaluar($fecha, $sucursalId)
                 ->when($empleadoId, fn (Collection $rows): Collection => $rows->where('empleado_id', $empleadoId));
 
             foreach ($filas as $fila) {
+                $incidenciasDelDia = $incidencias
+                    ->where('empleado_id', $fila['empleado_id'])
+                    ->filter(fn (Incidencia $incidencia): bool => $incidencia->fecha_inicio->startOfDay()->lte($fecha)
+                        && ($incidencia->fecha_fin === null || $incidencia->fecha_fin->startOfDay()->gte($fecha)));
+
+                foreach ($incidenciasDelDia as $incidencia) {
+                    $fila = $this->aplicarIncidencia($fila, $incidencia);
+                }
+
                 $actual = $acumulado->get($fila['empleado_id'], [
                     'empleado_id' => $fila['empleado_id'],
                     'numero_empleado' => $fila['numero_empleado'],
@@ -56,7 +74,7 @@ class GenerarReporteAsistenciaService
                     $actual['puntuales']++;
                 }
 
-                if ($fila['estado'] === 'retardo') {
+                if ($fila['es_retardo']) {
                     $actual['retardos']++;
                 }
 
@@ -72,35 +90,54 @@ class GenerarReporteAsistenciaService
                 $actual['minutos_comida_excedidos'] += $fila['minutos_comida_excedidos'];
                 $actual['minutos_salida_anticipada'] += $fila['minutos_salida_anticipada'];
                 $actual['minutos_efectivos'] += $fila['minutos_efectivos'];
+                $actual['horas_extra_autorizadas'] += $fila['horas_extra_autorizadas'] ?? 0;
                 $acumulado->put($fila['empleado_id'], $actual);
             }
         }
 
-        $incidencias = Incidencia::query()
-            ->where('estatus', EstadoIncidencia::Aprobada)
-            ->whereDate('fecha_inicio', '<=', $fin)
-            ->where(function ($query) use ($inicio): void {
-                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $inicio);
-            })
-            ->when($sucursalId, fn ($query) => $query->where('sucursal_id', $sucursalId))
-            ->when($empleadoId, fn ($query) => $query->where('empleado_id', $empleadoId))
-            ->get();
+        return $acumulado->values();
+    }
 
-        foreach ($incidencias as $incidencia) {
-            if (!$acumulado->has($incidencia->empleado_id)) {
-                continue;
-            }
+    /** @param array<string, mixed> $fila */
+    private function aplicarIncidencia(array $fila, Incidencia $incidencia): array
+    {
+        $fila['faltas'] ??= 0;
+        $fila['horas_extra_autorizadas'] ??= 0;
+        $dias = max(1, (int) ($incidencia->dias ?? 1));
 
-            $fila = $acumulado->get($incidencia->empleado_id);
-            if ($incidencia->tipo === TipoIncidencia::HoraExtra) {
-                $fila['horas_extra_autorizadas'] += (int) ($incidencia->minutos ?? 0);
-            }
-            if ($incidencia->tipo === TipoIncidencia::FaltaJustificada) {
-                $fila['faltas'] = max(0, $fila['faltas'] - (int) ($incidencia->dias ?? 1));
-            }
-            $acumulado->put($incidencia->empleado_id, $fila);
+        if ($incidencia->estatus === EstadoIncidencia::Aprobada && $incidencia->tipo === TipoIncidencia::HoraExtra) {
+            $fila['horas_extra_autorizadas'] += (int) ($incidencia->minutos ?? 0);
         }
 
-        return $acumulado->values();
+        if ($incidencia->estatus === EstadoIncidencia::Aprobada && in_array($incidencia->tipo, [
+            TipoIncidencia::FaltaJustificada,
+            TipoIncidencia::PermisoConGoce,
+            TipoIncidencia::PermisoSinGoce,
+        ], true)) {
+            $fila['faltas'] = max(0, $fila['faltas'] - $dias);
+        }
+
+        if ($incidencia->tipo === TipoIncidencia::RetardoAutorizado && $incidencia->estatus === EstadoIncidencia::Rechazada) {
+            $fila['entrada'] = null;
+            $fila['estado'] = 'ausente';
+            $fila['estado_label'] = 'Falta por retardo no autorizado';
+            $fila['minutos_retardo'] = 0;
+            $fila['es_retardo'] = false;
+            $fila['faltas']++;
+        } elseif ($incidencia->tipo === TipoIncidencia::RetardoAutorizado && ! $incidencia->afecta_nomina) {
+            $fila['minutos_retardo'] = max(0, $fila['minutos_retardo'] - $fila['minutos_retardo_entrada']);
+            $fila['es_retardo'] = $fila['minutos_retardo'] > 0;
+        }
+
+        if ($incidencia->tipo === TipoIncidencia::ComidaExcedida
+            && $incidencia->estatus === EstadoIncidencia::Aprobada
+            && ! $incidencia->afecta_nomina) {
+            $minutos = (int) ($incidencia->minutos ?? 0);
+            $fila['minutos_retardo'] = max(0, $fila['minutos_retardo'] - $minutos);
+            $fila['minutos_comida_excedidos'] = max(0, $fila['minutos_comida_excedidos'] - $minutos);
+            $fila['es_retardo'] = $fila['minutos_retardo'] > 0;
+        }
+
+        return $fila;
     }
 }

@@ -6,12 +6,12 @@ use App\Enums\TipoIncidencia;
 use App\Models\Empleado;
 use App\Models\Sucursal;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Hidden;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -76,8 +76,9 @@ class IncidenciaForm
                         ->rows(3)
                         ->columnSpanFull(),
                     Toggle::make('afecta_nomina')
-                        ->label('Afecta nómina')
-                        ->helperText('Debe revisarse y aprobarse antes de enviarse a nómina.'),
+                        ->label('Descontar en nómina')
+                        ->default(false)
+                        ->helperText('Para un retardo autorizado, activa esta opción para conservar el descuento de minutos. En permisos o faltas, define si son sin goce de sueldo.'),
                     Hidden::make('estatus')->default('pendiente'),
                     Hidden::make('solicitada_por_id')->default(fn (): ?int => auth()->id()),
                 ])->columns(2),

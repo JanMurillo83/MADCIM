@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class GestionarIncidenciaService
 {
-    public function aprobar(Incidencia $incidencia, int $usuarioId, ?string $comentario = null): Incidencia
+    public function aprobar(Incidencia $incidencia, int $usuarioId, ?string $comentario = null, ?bool $afectaNomina = null): Incidencia
     {
         $this->validarAutorizador($usuarioId);
 
@@ -23,12 +23,17 @@ class GestionarIncidenciaService
             ]);
         }
 
-        $incidencia->forceFill([
+        $datos = [
             'estatus' => EstadoIncidencia::Aprobada,
             'autorizada_por_id' => $usuarioId,
             'autorizada_en' => now(),
             'comentario_autorizacion' => $comentario,
-        ])->save();
+        ];
+        if ($afectaNomina !== null) {
+            $datos['afecta_nomina'] = $afectaNomina;
+        }
+
+        $incidencia->forceFill($datos)->save();
 
         return $incidencia->refresh();
     }
@@ -63,7 +68,7 @@ class GestionarIncidenciaService
     {
         $empleado = Empleado::query()->find($empleadoId);
 
-        if (!$empleado || $empleado->estatus !== 'activo') {
+        if (! $empleado || $empleado->estatus !== 'activo') {
             throw ValidationException::withMessages([
                 'empleado_id' => 'El empleado debe existir y estar activo.',
             ]);
@@ -92,7 +97,7 @@ class GestionarIncidenciaService
     {
         $usuario = User::query()->find($usuarioId);
 
-        if (!$usuario || !in_array($usuario->role, [
+        if (! $usuario || ! in_array($usuario->role, [
             RolePermissions::ROLE_ADMIN,
             RolePermissions::ROLE_SUPERVISOR,
             RolePermissions::ROLE_RH,

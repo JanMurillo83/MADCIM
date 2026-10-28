@@ -29,23 +29,34 @@ class EvaluarAsistenciaService
     private function evaluarEmpleado(Empleado $empleado, Carbon $fecha): array
     {
         $horario = $empleado->horario;
+        $limiteChecadas = $fecha->copy()->endOfDay();
+        if ($horario && $horario->hora_salida && $horario->hora_entrada && $horario->hora_salida <= $horario->hora_entrada) {
+            $limiteChecadas = $fecha->copy()->addDay()->setTimeFromTimeString($horario->hora_salida)->addHours(2);
+        }
+
         $checadas = Checada::query()
             ->where('empleado_id', $empleado->id)
-            ->whereDate('registrada_en', $fecha)
+            ->whereBetween('registrada_en', [$fecha->copy()->startOfDay(), $limiteChecadas])
             ->orderBy('registrada_en')
-            ->get()
-            ->keyBy(fn (Checada $checada): string => $checada->tipo->value);
+            ->get();
+        $clasificacion = $horario
+            ? app(ClasificarMarcacionesService::class)->clasificar($checadas, $horario, $fecha)
+            : ['movimientos' => [], 'requiere_revision' => false];
+        $movimientos = $clasificacion['movimientos'];
 
         $base = [
             'empleado_id' => $empleado->id,
             'numero_empleado' => $empleado->numero_empleado,
             'nombre' => $empleado->nombre_completo,
             'sucursal' => $empleado->sucursal?->nombre ?? 'Sin sucursal',
-            'entrada' => $checadas->get('entrada')?->registrada_en,
-            'salida_comida' => $checadas->get('salida_comida')?->registrada_en,
-            'regreso_comida' => $checadas->get('regreso_comida')?->registrada_en,
-            'salida' => $checadas->get('salida')?->registrada_en,
+            'entrada' => ($movimientos['entrada'] ?? null)?->registrada_en,
+            'salida_comida' => ($movimientos['salida_comida'] ?? null)?->registrada_en,
+            'regreso_comida' => ($movimientos['regreso_comida'] ?? null)?->registrada_en,
+            'salida' => ($movimientos['salida'] ?? null)?->registrada_en,
+            'requiere_revision' => $clasificacion['requiere_revision'],
             'minutos_retardo' => 0,
+            'minutos_retardo_entrada' => 0,
+            'es_retardo' => false,
             'minutos_comida_excedidos' => 0,
             'minutos_salida_anticipada' => 0,
             'minutos_efectivos' => 0,
@@ -53,7 +64,7 @@ class EvaluarAsistenciaService
             'estado_label' => 'Sin horario',
         ];
 
-        if (!$horario) {
+        if (! $horario) {
             return $base;
         }
 
@@ -67,7 +78,15 @@ class EvaluarAsistenciaService
 
         $entrada = $base['entrada'];
 
-        if (!$entrada) {
+        if (! $entrada) {
+            if ($base['requiere_revision']) {
+                return [
+                    ...$base,
+                    'estado' => 'revision',
+                    'estado_label' => 'Requiere revisión',
+                ];
+            }
+
             return [
                 ...$base,
                 'estado' => 'ausente',
@@ -80,6 +99,7 @@ class EvaluarAsistenciaService
         $tolerancia = (int) $horario->tolerancia_entrada;
         $estado = 'puntual';
         $estadoLabel = 'Puntual';
+        $esRetardo = false;
 
         if ($minutosDesdeEntrada > 0 && $minutosDesdeEntrada <= $tolerancia) {
             $estado = 'tolerancia';
@@ -87,6 +107,7 @@ class EvaluarAsistenciaService
         } elseif ($minutosDesdeEntrada > $tolerancia) {
             $estado = 'retardo';
             $estadoLabel = 'Retardo';
+            $esRetardo = true;
         }
 
         $salidaComida = $base['salida_comida'];
@@ -95,11 +116,16 @@ class EvaluarAsistenciaService
 
         if ($salidaComida && $regresoComida) {
             $duracionComida = (int) $salidaComida->diffInMinutes($regresoComida);
-            $limiteComida = (int) $horario->duracion_comida + (int) $horario->tolerancia_regreso_comida;
-            $minutosComidaExcedidos = (int) max(0, $duracionComida - $limiteComida);
+            $minutosComidaExcedidos = (int) max(0, $duracionComida - (int) $horario->duracion_comida);
+        }
+        $salida = $base['salida'];
+        $minutosRetardo = ($esRetardo ? $minutosDesdeEntrada : 0) + $minutosComidaExcedidos;
+        $esRetardo = $esRetardo || $minutosComidaExcedidos > 0;
+        if ($esRetardo && $salida) {
+            $estado = 'retardo';
+            $estadoLabel = 'Retardo';
         }
 
-        $salida = $base['salida'];
         $minutosSalidaAnticipada = 0;
         if ($salida) {
             $horaSalida = $this->momento($fecha, $horario->hora_salida);
@@ -117,7 +143,9 @@ class EvaluarAsistenciaService
 
         return [
             ...$base,
-            'minutos_retardo' => $minutosDesdeEntrada,
+            'minutos_retardo' => $minutosRetardo,
+            'minutos_retardo_entrada' => $esRetardo ? $minutosDesdeEntrada : 0,
+            'es_retardo' => $esRetardo,
             'minutos_comida_excedidos' => $minutosComidaExcedidos,
             'minutos_salida_anticipada' => $minutosSalidaAnticipada,
             'minutos_efectivos' => $minutosEfectivos,

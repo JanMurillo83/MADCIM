@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Checada;
 use App\Models\DispositivoBiometrico;
 use App\Models\Empleado;
 use App\Models\EmpleadoDispositivoId;
-use App\Models\Sucursal;
 use App\Models\EventoAdms;
+use App\Models\Horario;
+use App\Models\Sucursal;
+use App\Services\EvaluarAsistenciaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -116,6 +119,197 @@ class AdmsIntegrationTest extends TestCase
         $this->assertDatabaseHas('eventos_adms', ['estado' => 'procesado']);
         $this->assertDatabaseHas('eventos_adms', ['estado' => 'rechazado']);
         $this->assertDatabaseCount('checadas', 1);
+    }
+
+    public function test_conserva_y_clasifica_cuatro_marcaciones_biometricas(): void
+    {
+        [$dispositivo, $empleado] = $this->configurarDispositivo('ADMS-007', '900007');
+        $horario = Horario::create([
+            'nombre' => 'Horario biométrico',
+            'sucursal_id' => $empleado->sucursal_id,
+            'hora_entrada' => '08:00',
+            'hora_salida_comida' => '14:00',
+            'hora_regreso_comida' => '15:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado->update(['horario_id' => $horario->id]);
+
+        foreach ([
+            'PIN=900007	TIME=2026-10-21 08:00:00	STATUS=0',
+            'PIN=900007	TIME=2026-10-21 14:00:00	STATUS=1',
+            'PIN=900007	TIME=2026-10-21 15:00:00	STATUS=0',
+            'PIN=900007	TIME=2026-10-21 18:00:00	STATUS=1',
+        ] as $linea) {
+            $this->postAdms($dispositivo->numero_serie, $linea)->assertOk()->assertContent('OK');
+        }
+
+        $this->assertDatabaseCount('checadas', 4);
+        $this->assertDatabaseCount('eventos_adms', 4);
+
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-21', $empleado->sucursal_id)
+            ->sole();
+
+        $this->assertSame('08:00', $resultado['entrada']->format('H:i'));
+        $this->assertSame('14:00', $resultado['salida_comida']->format('H:i'));
+        $this->assertSame('15:00', $resultado['regreso_comida']->format('H:i'));
+        $this->assertSame('18:00', $resultado['salida']->format('H:i'));
+        $this->assertFalse($resultado['requiere_revision']);
+    }
+
+    public function test_conserva_y_clasifica_marcaciones_sin_status(): void
+    {
+        [$dispositivo, $empleado] = $this->configurarDispositivo('ADMS-STATUSLESS', '1001');
+        $horario = Horario::create([
+            'nombre' => 'Horario sin status',
+            'sucursal_id' => $empleado->sucursal_id,
+            'hora_entrada' => '08:00',
+            'hora_salida_comida' => '14:00',
+            'hora_regreso_comida' => '15:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado->update(['horario_id' => $horario->id]);
+
+        foreach (['08:00', '14:00', '15:00', '18:00'] as $hora) {
+            $this->postAdms(
+                $dispositivo->numero_serie,
+                "PIN=1001	TIME=2026-10-21 {$hora}:00",
+            )->assertOk()->assertContent('OK');
+        }
+
+        $evento = EventoAdms::query()->where('identificador', '1001')->firstOrFail();
+        $this->assertSame('PIN=1001	TIME=2026-10-21 08:00:00', $evento->payload_original);
+        $this->assertSame('2026-10-21 08:00:00', $evento->registrada_en->format('Y-m-d H:i:s'));
+        $this->assertDatabaseCount('checadas', 4);
+        $this->assertDatabaseCount('eventos_adms', 4);
+
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-21', $empleado->sucursal_id)
+            ->sole();
+
+        $this->assertSame('08:00', $resultado['entrada']->format('H:i'));
+        $this->assertSame('14:00', $resultado['salida_comida']->format('H:i'));
+        $this->assertSame('15:00', $resultado['regreso_comida']->format('H:i'));
+        $this->assertSame('18:00', $resultado['salida']->format('H:i'));
+    }
+
+    public function test_recalcula_marcaciones_biometricas_fuera_de_orden_sin_duplicarlas(): void
+    {
+        [$dispositivo, $empleado] = $this->configurarDispositivo('ADMS-008', '900008');
+        $horario = Horario::create([
+            'nombre' => 'Horario fuera de orden',
+            'sucursal_id' => $empleado->sucursal_id,
+            'hora_entrada' => '08:00',
+            'hora_salida_comida' => '14:00',
+            'hora_regreso_comida' => '15:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado->update(['horario_id' => $horario->id]);
+
+        foreach ([
+            'PIN=900008	TIME=2026-10-21 18:00:00	STATUS=1',
+            'PIN=900008	TIME=2026-10-21 08:00:00	STATUS=0',
+            'PIN=900008	TIME=2026-10-21 15:00:00	STATUS=0',
+            'PIN=900008	TIME=2026-10-21 14:00:00	STATUS=1',
+        ] as $linea) {
+            $this->postAdms($dispositivo->numero_serie, $linea)->assertOk();
+        }
+
+        $this->postAdms($dispositivo->numero_serie, 'PIN=900008	TIME=2026-10-21 14:00:00	STATUS=1')
+            ->assertOk();
+
+        $this->assertDatabaseCount('checadas', 4);
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-21', $empleado->sucursal_id)
+            ->sole();
+
+        $this->assertSame('14:00', $resultado['salida_comida']->format('H:i'));
+        $this->assertSame('15:00', $resultado['regreso_comida']->format('H:i'));
+        $this->assertSame('18:00', $resultado['salida']->format('H:i'));
+    }
+
+    public function test_marcaciones_faltantes_se_conservan_y_quedan_en_revision(): void
+    {
+        [$dispositivo, $empleado] = $this->configurarDispositivo('ADMS-009', '900009');
+        $horario = Horario::create([
+            'nombre' => 'Horario con comida incompleta',
+            'sucursal_id' => $empleado->sucursal_id,
+            'hora_entrada' => '08:00',
+            'hora_salida_comida' => '14:00',
+            'hora_regreso_comida' => '15:00',
+            'hora_salida' => '18:00',
+            'tolerancia_entrada' => 10,
+            'tolerancia_regreso_comida' => 10,
+            'duracion_comida' => 60,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado->update(['horario_id' => $horario->id]);
+
+        $this->postAdms($dispositivo->numero_serie, 'PIN=900009	TIME=2026-10-21 14:00:00	STATUS=1')->assertOk();
+        $this->postAdms($dispositivo->numero_serie, 'PIN=900009	TIME=2026-10-21 18:00:00	STATUS=1')->assertOk();
+
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-21', $empleado->sucursal_id)
+            ->sole();
+
+        $this->assertSame('revision', $resultado['estado']);
+        $this->assertTrue($resultado['requiere_revision']);
+        $this->assertDatabaseCount('checadas', 2);
+    }
+
+    public function test_clasifica_una_jornada_nocturna_con_salida_al_dia_siguiente(): void
+    {
+        [$dispositivo, $empleado] = $this->configurarDispositivo('ADMS-010', '900010');
+        $horario = Horario::create([
+            'nombre' => 'Horario nocturno',
+            'sucursal_id' => $empleado->sucursal_id,
+            'hora_entrada' => '22:00',
+            'hora_salida' => '06:00',
+            'tolerancia_entrada' => 10,
+            'dia_descanso' => 0,
+            'activo' => true,
+        ]);
+        $empleado->update(['horario_id' => $horario->id]);
+
+        $this->postAdms($dispositivo->numero_serie, 'PIN=900010	TIME=2026-10-21 22:00:00	STATUS=0')->assertOk();
+        $this->postAdms($dispositivo->numero_serie, 'PIN=900010	TIME=2026-10-22 06:00:00	STATUS=1')->assertOk();
+
+        $resultado = app(EvaluarAsistenciaService::class)
+            ->evaluar('2026-10-21', $empleado->sucursal_id)
+            ->sole();
+
+        $this->assertSame('22:00', $resultado['entrada']->format('H:i'));
+        $this->assertSame('06:00', $resultado['salida']->format('H:i'));
+        $this->assertCount(2, Checada::query()->where('empleado_id', $empleado->id)->get());
+    }
+
+    public function test_conserva_marcaciones_de_empleados_distintos(): void
+    {
+        [$dispositivoUno, $empleadoUno] = $this->configurarDispositivo('ADMS-011', '900011');
+        [$dispositivoDos, $empleadoDos] = $this->configurarDispositivo('ADMS-012', '900012');
+
+        $this->postAdms($dispositivoUno->numero_serie, 'PIN=900011	TIME=2026-10-21 08:00:00	STATUS=0')->assertOk();
+        $this->postAdms($dispositivoDos->numero_serie, 'PIN=900012	TIME=2026-10-21 08:05:00	STATUS=0')->assertOk();
+
+        $this->assertDatabaseHas('checadas', ['empleado_id' => $empleadoUno->id]);
+        $this->assertDatabaseHas('checadas', ['empleado_id' => $empleadoDos->id]);
+        $this->assertDatabaseCount('checadas', 2);
     }
 
     public function test_dispositivo_desconocido_y_serie_ausente_son_rechazados(): void

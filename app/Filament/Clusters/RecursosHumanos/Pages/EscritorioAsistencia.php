@@ -2,14 +2,15 @@
 
 namespace App\Filament\Clusters\RecursosHumanos\Pages;
 
+use App\Filament\Clusters\RecursosHumanos\RecursosHumanosCluster;
 use App\Filament\Concerns\HasRolePageAccess;
 use App\Filament\Concerns\RestringeSucursal;
-use App\Filament\Clusters\RecursosHumanos\RecursosHumanosCluster;
 use App\Services\EvaluarAsistenciaService;
-use Illuminate\Support\Collection;
-use Livewire\Attributes\Computed;
+use App\Services\SincronizarIncidenciasAsistenciaService;
 use BackedEnum;
 use Filament\Pages\Page;
+use Illuminate\Support\Collection;
+use Livewire\Attributes\Computed;
 
 class EscritorioAsistencia extends Page
 {
@@ -58,8 +59,15 @@ class EscritorioAsistencia extends Page
     #[Computed]
     public function resumen(): Collection
     {
+        $fecha = $this->fecha ?? now()->toDateString();
+        app(SincronizarIncidenciasAsistenciaService::class)->sincronizar(
+            $fecha,
+            $fecha,
+            $this->sucursalEfectiva() ?? $this->sucursal_id,
+        );
+
         return app(EvaluarAsistenciaService::class)->evaluar(
-            $this->fecha ?? now()->toDateString(),
+            $fecha,
             $this->sucursalEfectiva() ?? $this->sucursal_id,
         );
     }
@@ -71,7 +79,7 @@ class EscritorioAsistencia extends Page
             'programados' => $this->resumen->count(),
             'presentes' => $this->resumen->whereNotIn('estado', ['ausente', 'descanso', 'sin_horario'])->count(),
             'puntuales' => $this->resumen->whereIn('estado', ['puntual', 'tolerancia'])->count(),
-            'retardos' => $this->resumen->where('estado', 'retardo')->count(),
+            'retardos' => $this->resumen->where('es_retardo', true)->count(),
             'ausentes' => $this->resumen->where('estado', 'ausente')->count(),
             'sin_salida' => $this->resumen->where('estado', 'sin_salida')->count(),
         ];

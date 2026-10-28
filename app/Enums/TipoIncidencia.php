@@ -12,6 +12,7 @@ enum TipoIncidencia: string
     case FaltaJustificada = 'falta_justificada';
     case DescansoLaborado = 'descanso_laborado';
     case SalidaAutorizada = 'salida_autorizada';
+    case ComidaExcedida = 'comida_excedida';
 
     public function label(): string
     {
@@ -24,6 +25,7 @@ enum TipoIncidencia: string
             self::FaltaJustificada => 'Falta justificada',
             self::DescansoLaborado => 'Descanso laborado',
             self::SalidaAutorizada => 'Salida autorizada',
+            self::ComidaExcedida => 'Exceso de comida',
         };
     }
 
