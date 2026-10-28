@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Configuracion\Schemas;
 
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
@@ -83,6 +84,45 @@ class ConfiguracionForm
                                     ->directory('configuracion')
                                     ->image()
                                     ->downloadable()
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(2)
+                            ->columnSpanFull(),
+                        Tab::make('PAC PRODIGIA')
+                            ->schema([
+                                TextInput::make('pac_contract')
+                                    ->label('Contrato (UUID)')
+                                    ->maxLength(100)
+                                    ->columnSpanFull(),
+                                TextInput::make('pac_user')
+                                    ->label('Usuario PAC')
+                                    ->maxLength(100),
+                                TextInput::make('pac_password')
+                                    ->label('Contraseña PAC')
+                                    ->password()
+                                    ->revealable()
+                                    ->maxLength(200)
+                                    ->afterStateHydrated(function (TextInput $component): void {
+                                        $component->state('');
+                                    })
+                                    ->dehydrated(fn (?string $state): bool => filled($state))
+                                    ->helperText('Déjala vacía para conservar la contraseña guardada.'),
+                                TextInput::make('pac_timbrado_endpoint')
+                                    ->label('Endpoint para timbrar')
+                                    ->url()
+                                    ->maxLength(2048)
+                                    ->default('https://timbrado.pade.mx/servicio/rest/timbrado40/timbrarConCSD')
+                                    ->columnSpanFull(),
+                                TextInput::make('pac_cancelacion_endpoint')
+                                    ->label('Endpoint para cancelar')
+                                    ->url()
+                                    ->maxLength(2048)
+                                    ->default('https://timbrado.pade.mx/servicio/rest/integracion/cancelarCfdiConOpciones')
+                                    ->columnSpanFull(),
+                                Toggle::make('pac_modo_prueba')
+                                    ->label('Modo de pruebas')
+                                    ->default(true)
+                                    ->helperText('Activado: pruebas. Desactivado: producción.')
                                     ->columnSpanFull(),
                             ])
                             ->columns(2)

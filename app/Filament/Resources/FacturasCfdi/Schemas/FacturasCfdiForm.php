@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\FacturasCfdi\Schemas;
 
 use App\Models\Clientes;
+use App\Models\Configuracion;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
 use App\Models\Sucursal;
+use App\Services\FacturaCfdiDatosFiscales;
+use App\Services\FacturaCfdiNotasService;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -19,21 +22,63 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class FacturasCfdiForm
 {
+    /**
+     * @return array<string, string>
+     */
+    private static function opcionesCatalogoSat(string $tabla): array
+    {
+        return DB::table($tabla)
+            ->orderBy('clave')
+            ->get(['clave', 'descripcion'])
+            ->mapWithKeys(static fn (object $registro): array => [
+                $registro->clave => "{$registro->clave} - {$registro->descripcion}",
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function opcionesUsoCfdi(string $regimenFiscalReceptor): array
+    {
+        $query = DB::table('sat_uso_cfdi');
+
+        if ($regimenFiscalReceptor === '616') {
+            $query->where('clave', 'S01');
+        }
+
+        return $query
+            ->orderBy('clave')
+            ->get(['clave', 'descripcion'])
+            ->mapWithKeys(static fn (object $registro): array => [
+                $registro->clave => "{$registro->clave} - {$registro->descripcion}",
+            ])
+            ->all();
+    }
+
     private static function recalculatePartidaTotales(Get $get, Set $set): void
     {
         $cantidad = (float) $get('cantidad');
         $valorUnitario = (float) $get('valor_unitario');
         $subtotal = $cantidad * $valorUnitario;
-        $impuestos = $subtotal * 0.16; // IVA 16%
+        $producto = filled($get('item')) ? Productos::query()->find($get('item')) : null;
+        $impuesto = (string) ($producto?->impuesto ?: '002');
+        $tipoFactor = ucfirst(strtolower((string) ($producto?->tipo_factor ?: 'Tasa')));
+        $tasaConfigurada = $producto?->tasa_o_cuota;
+        $tasa = is_numeric($tasaConfigurada) && (float) $tasaConfigurada >= 0
+            ? (float) $tasaConfigurada
+            : ($impuesto === '002' && $tipoFactor === 'Tasa' ? 0.16 : 0.0);
+        $impuestos = $tipoFactor === 'Exento' ? 0.0 : $subtotal * $tasa;
 
         $set('subtotal', $subtotal);
         $set('impuestos', $impuestos);
         $set('total', $subtotal + $impuestos);
+        $set('objeto_imp', $producto?->objeto_imp ?: ($impuestos > 0 ? '02' : '01'));
     }
 
     private static function recalculateDocumentoTotales(Get $get, Set $set): void
@@ -43,10 +88,11 @@ class FacturasCfdiForm
         $impuestos = 0.0;
         $total = 0.0;
 
-        if (!is_array($partidas)) {
+        if (! is_array($partidas)) {
             $set('../../subtotal', 0.0);
             $set('../../impuestos_total', 0.0);
             $set('../../total', 0.0);
+
             return;
         }
 
@@ -59,6 +105,67 @@ class FacturasCfdiForm
         $set('../../subtotal', $subtotal);
         $set('../../impuestos_total', $impuestos);
         $set('../../total', $total);
+    }
+
+    private static function recalculateFormTotales(array $partidas, Set $set): void
+    {
+        $subtotal = 0.0;
+        $impuestos = 0.0;
+        $total = 0.0;
+
+        foreach ($partidas as $partida) {
+            $subtotal += (float) ($partida['subtotal'] ?? 0);
+            $impuestos += (float) ($partida['impuestos'] ?? 0);
+            $total += (float) ($partida['total'] ?? 0);
+        }
+
+        $set('subtotal', $subtotal);
+        $set('impuestos_total', $impuestos);
+        $set('total', $total);
+    }
+
+    private static function actualizarPartidasDesdeNotas(Get $get, Set $set): void
+    {
+        $partidasNotas = app(FacturaCfdiNotasService::class)->construirPartidas(
+            (array) $get('notas_venta_ids'),
+            (array) $get('notas_renta_ids'),
+            filled($get('cliente_id')) ? (int) $get('cliente_id') : null,
+            filled($get('sucursal_id')) ? (int) $get('sucursal_id') : null,
+        );
+
+        $partidasManuales = collect((array) $get('partidas'))
+            ->filter(static function (mixed $partida): bool {
+                if (! is_array($partida)) {
+                    return false;
+                }
+
+                $identificador = (string) ($partida['no_identificacion'] ?? '');
+                $tieneProducto = filled($partida['item'] ?? null);
+
+                return ! str_starts_with($identificador, 'NVV:')
+                    && ! str_starts_with($identificador, 'NVR:')
+                    && $tieneProducto;
+            })
+            ->values()
+            ->all();
+
+        $partidas = [...$partidasNotas, ...$partidasManuales];
+        $set('partidas', $partidas);
+        self::recalculateFormTotales($partidas, $set);
+    }
+
+    private static function limpiarNotasYPartidas(Get $get, Set $set): void
+    {
+        if ($get('notas_venta_ids') === null && $get('notas_renta_ids') === null) {
+            return;
+        }
+
+        $set('notas_venta_ids', []);
+        $set('notas_renta_ids', []);
+        $set('partidas', []);
+        $set('subtotal', 0);
+        $set('impuestos_total', 0);
+        $set('total', 0);
     }
 
     public static function configure(Schema $schema): Schema
@@ -94,8 +201,9 @@ class FacturasCfdiForm
                             ->live(onBlur: true)
                             ->options(['MXN' => 'MXN', 'USD' => 'USD'])
                             ->afterStateUpdated(function (Get $get, Set $set) {
-                                if ($get('moneda') == 'MXN')
+                                if ($get('moneda') == 'MXN') {
                                     $set('tipo_cambio', 1.0);
+                                }
                             }),
                         TextInput::make('tipo_cambio')
                             ->required()
@@ -106,7 +214,7 @@ class FacturasCfdiForm
                             ->default(1.0),
                         TextInput::make('estatus')
                             ->required()
-                            ->default('Activa')
+                            ->default('Borrador')
                             ->visible(false),
                         Select::make('documento_origen_id')
                             ->label('Documento origen')
@@ -118,7 +226,23 @@ class FacturasCfdiForm
                             ->label('Cliente')
                             ->relationship('cliente', 'nombre')
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Get $get, Set $set): void {
+                                self::limpiarNotasYPartidas($get, $set);
+                                $cliente = filled($state) ? Clientes::find($state) : null;
+                                $datosFiscales = app(FacturaCfdiDatosFiscales::class)
+                                    ->datosReceptor($cliente);
+
+                                foreach ($datosFiscales as $campo => $valor) {
+                                    $set($campo, $valor);
+                                }
+
+                                $set(
+                                    'uso_cfdi',
+                                    ($datosFiscales['regimen_fiscal_receptor'] ?? null) === '616' ? 'S01' : 'G01',
+                                );
+                            }),
                         Select::make('sucursal_id')
                             ->label('Sucursal')
                             ->required()
@@ -128,24 +252,26 @@ class FacturasCfdiForm
                             ->searchable()
                             ->preload()
                             ->default(fn () => auth()->user()?->sucursal_id)
-                            ->disabled(fn () => !(auth()->user()?->isAdmin() ?? false))
-                            ->dehydrated(),
+                            ->disabled(fn () => ! (auth()->user()?->isAdmin() ?? false))
+                            ->dehydrated()
+                            ->live()
+                            ->afterStateUpdated(fn (Get $get, Set $set) => self::limpiarNotasYPartidas($get, $set)),
                         Hidden::make('user_id')
                             ->default(fn () => Auth::id()),
                         Placeholder::make('direccion_cliente')
                             ->label('Direccion cliente')
                             ->content(function (Get $get) {
                                 $clienteId = $get('cliente_id');
-                                if (!$clienteId) {
+                                if (! $clienteId) {
                                     return 'Selecciona un cliente.';
                                 }
 
                                 $cliente = Clientes::find($clienteId);
-                                if (!$cliente) {
+                                if (! $cliente) {
                                     return 'Cliente no encontrado.';
                                 }
 
-                                $exteriorInterior = trim($cliente->exterior . ' ' . $cliente->interior);
+                                $exteriorInterior = trim($cliente->exterior.' '.$cliente->interior);
                                 $partes = [
                                     $cliente->calle,
                                     $exteriorInterior ?: null,
@@ -153,13 +279,43 @@ class FacturasCfdiForm
                                     $cliente->municipio,
                                     $cliente->estado,
                                     $cliente->pais,
-                                    $cliente->codigo ? 'CP ' . $cliente->codigo : null,
+                                    $cliente->codigo ? 'CP '.$cliente->codigo : null,
                                 ];
 
                                 return implode(', ', array_filter($partes));
                             }),
                     ])
                     ->columns(5),
+                Section::make('Notas')
+                    ->description('Selecciona notas disponibles del mismo cliente y sucursal para cargar sus partidas.')
+                    ->schema([
+                        Select::make('notas_venta_ids')
+                            ->label('Notas de venta')
+                            ->multiple()
+                            ->default([])
+                            ->searchable()
+                            ->options(fn (Get $get): array => app(FacturaCfdiNotasService::class)
+                                ->opcionesNotasVenta(
+                                    filled($get('cliente_id')) ? (int) $get('cliente_id') : null,
+                                    filled($get('sucursal_id')) ? (int) $get('sucursal_id') : null,
+                                ))
+                            ->live()
+                            ->afterStateUpdated(fn (Get $get, Set $set) => self::actualizarPartidasDesdeNotas($get, $set)),
+                        Select::make('notas_renta_ids')
+                            ->label('Notas de renta')
+                            ->multiple()
+                            ->default([])
+                            ->searchable()
+                            ->options(fn (Get $get): array => app(FacturaCfdiNotasService::class)
+                                ->opcionesNotasRenta(
+                                    filled($get('cliente_id')) ? (int) $get('cliente_id') : null,
+                                    filled($get('sucursal_id')) ? (int) $get('sucursal_id') : null,
+                                ))
+                            ->live()
+                            ->afterStateUpdated(fn (Get $get, Set $set) => self::actualizarPartidasDesdeNotas($get, $set)),
+                    ])
+                    ->columns(2)
+                    ->visibleOn('create'),
                 Section::make('Partidas')
                     ->schema([
                         Repeater::make('partidas')
@@ -203,11 +359,23 @@ class FacturasCfdiForm
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
+                                        $set('clave_prod_serv', $producto->clave_prod_serv);
+                                        $set('clave_unidad', $producto->clave_unidad);
+                                        $set('unidad', $producto->unidad_sat);
+                                        $set('objeto_imp', $producto->objeto_imp ?? ((float) $producto->impuesto > 0 ? '02' : '01'));
+                                        $set('no_identificacion', null);
+                                        $set('descuento', 0);
                                         $set('valor_unitario', $producto->precio_venta);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),
                                 Hidden::make('descripcion'),
+                                Hidden::make('clave_prod_serv'),
+                                Hidden::make('no_identificacion'),
+                                Hidden::make('clave_unidad'),
+                                Hidden::make('unidad'),
+                                Hidden::make('objeto_imp'),
+                                Hidden::make('descuento')->default(0),
                                 TextInput::make('valor_unitario')
                                     ->columnSpan(1)
                                     ->label('Precio')
@@ -262,110 +430,63 @@ class FacturasCfdiForm
                             ->label('Uso CFDI')
                             ->required()
                             ->searchable()
-                            ->options([
-                                'G01' => 'G01 - Adquisición de mercancías',
-                                'G02' => 'G02 - Devoluciones, descuentos o bonificaciones',
-                                'G03' => 'G03 - Gastos en general',
-                                'I01' => 'I01 - Construcciones',
-                                'I02' => 'I02 - Mobilario y equipo de oficina por inversiones',
-                                'I03' => 'I03 - Equipo de transporte',
-                                'I04' => 'I04 - Equipo de computo y accesorios',
-                                'I05' => 'I05 - Dados, troqueles, moldes, matrices y herramental',
-                                'I06' => 'I06 - Comunicaciones telefónicas',
-                                'I07' => 'I07 - Comunicaciones satelitales',
-                                'I08' => 'I08 - Otra maquinaria y equipo',
-                                'D01' => 'D01 - Honorarios médicos, dentales y gastos hospitalarios',
-                                'D02' => 'D02 - Gastos médicos por incapacidad o discapacidad',
-                                'D03' => 'D03 - Gastos funerales',
-                                'D04' => 'D04 - Donativos',
-                                'D05' => 'D05 - Intereses reales efectivamente pagados por créditos hipotecarios',
-                                'D06' => 'D06 - Aportaciones voluntarias al SAR',
-                                'D07' => 'D07 - Primas por seguros de gastos médicos',
-                                'D08' => 'D08 - Gastos de transportación escolar obligatoria',
-                                'D09' => 'D09 - Depósitos en cuentas para el ahorro',
-                                'D10' => 'D10 - Pagos por servicios educativos',
-                                'S01' => 'S01 - Sin efectos fiscales',
-                                'CP01' => 'CP01 - Pagos',
-                                'CN01' => 'CN01 - Nómina',
-                            ])
-                            ->default('G01'),
+                            ->options(fn (Get $get): array => self::opcionesUsoCfdi(
+                                (string) $get('regimen_fiscal_receptor'),
+                            ))
+                            ->default(fn (Get $get): string => $get('regimen_fiscal_receptor') === '616'
+                                ? 'S01'
+                                : 'G01'),
                         Select::make('forma_pago')
                             ->label('Forma de Pago')
                             ->required()
                             ->searchable()
-                            ->options([
-                                '01' => '01 - Efectivo',
-                                '02' => '02 - Cheque nominativo',
-                                '03' => '03 - Transferencia electrónica de fondos',
-                                '04' => '04 - Tarjeta de crédito',
-                                '05' => '05 - Monedero electrónico',
-                                '06' => '06 - Dinero electrónico',
-                                '08' => '08 - Vales de despensa',
-                                '12' => '12 - Dación en pago',
-                                '13' => '13 - Pago por subrogación',
-                                '14' => '14 - Pago por consignación',
-                                '15' => '15 - Condonación',
-                                '17' => '17 - Compensación',
-                                '23' => '23 - Novación',
-                                '24' => '24 - Confusión',
-                                '25' => '25 - Remisión de deuda',
-                                '26' => '26 - Prescripción o caducidad',
-                                '27' => '27 - A satisfacción del acreedor',
-                                '28' => '28 - Tarjeta de débito',
-                                '29' => '29 - Tarjeta de servicios',
-                                '30' => '30 - Aplicación de anticipos',
-                                '31' => '31 - Intermediario pagos',
-                                '99' => '99 - Por definir',
-                            ])
+                            ->options(fn (): array => self::opcionesCatalogoSat('sat_forma_pago'))
                             ->default('01'),
                         Select::make('metodo_pago')
                             ->label('Método de Pago')
                             ->required()
                             ->searchable()
-                            ->options([
-                                'PUE' => 'PUE - Pago en una sola exhibición',
-                                'PPD' => 'PPD - Pago en parcialidades o diferido',
-                            ])
+                            ->options(fn (): array => self::opcionesCatalogoSat('sat_metodo_pago'))
                             ->default('PUE'),
                         Select::make('regimen_fiscal_receptor')
                             ->label('Régimen Fiscal Receptor')
                             ->required()
                             ->searchable()
-                            ->options([
-                                '601' => '601 - General de Ley Personas Morales',
-                                '603' => '603 - Personas Morales con Fines no Lucrativos',
-                                '605' => '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios',
-                                '606' => '606 - Arrendamiento',
-                                '607' => '607 - Régimen de Enajenación o Adquisición de Bienes',
-                                '608' => '608 - Demás ingresos',
-                                '610' => '610 - Residentes en el Extranjero sin Establecimiento Permanente en México',
-                                '611' => '611 - Ingresos por Dividendos (socios y accionistas)',
-                                '612' => '612 - Personas Físicas con Actividades Empresariales y Profesionales',
-                                '614' => '614 - Ingresos por intereses',
-                                '615' => '615 - Régimen de los ingresos por obtención de premios',
-                                '616' => '616 - Sin obligaciones fiscales',
-                                '620' => '620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos',
-                                '621' => '621 - Incorporación Fiscal',
-                                '622' => '622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras',
-                                '623' => '623 - Opcional para Grupos de Sociedades',
-                                '624' => '624 - Coordinados',
-                                '625' => '625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas',
-                                '626' => '626 - Régimen Simplificado de Confianza',
-                            ])
-                            ->default('616'),
+                            ->options(fn (): array => self::opcionesCatalogoSat('sat_regimen_fiscal'))
+                            ->default('616')
+                            ->live()
+                            ->disabled(fn (Get $get): bool => filled($get('cliente_id')))
+                            ->dehydrated(),
+                        TextInput::make('nombre_emisor')
+                            ->label('Razón Social Emisor')
+                            ->maxLength(255)
+                            ->default(fn () => Configuracion::query()->value('razon_social'))
+                            ->readOnly(fn (): bool => filled(Configuracion::query()->value('razon_social')))
+                            ->columnSpan(2),
                         TextInput::make('rfc_emisor')
                             ->label('RFC Emisor')
                             ->maxLength(13)
+                            ->default(fn () => Configuracion::query()->value('rfc'))
+                            ->readOnly(fn (): bool => filled(Configuracion::query()->value('rfc')))
                             ->columnSpan(1),
+                        Select::make('regimen_fiscal_emisor')
+                            ->label('Régimen Fiscal Emisor')
+                            ->searchable()
+                            ->options(fn (): array => self::opcionesCatalogoSat('sat_regimen_fiscal'))
+                            ->default(fn () => Configuracion::query()->value('regimen'))
+                            ->disabled(fn (): bool => filled(Configuracion::query()->value('regimen')))
+                            ->dehydrated(),
                         TextInput::make('rfc_receptor')
                             ->label('RFC Receptor')
                             ->required()
                             ->maxLength(13)
+                            ->readOnly(fn (Get $get): bool => filled($get('cliente_id')))
                             ->columnSpan(1),
                         TextInput::make('razon_social_receptor')
                             ->label('Razón Social Receptor')
                             ->required()
                             ->maxLength(255)
+                            ->readOnly(fn (Get $get): bool => filled($get('cliente_id')))
                             ->columnSpan(2),
                         TextInput::make('cfdi_uuid')
                             ->label('UUID')

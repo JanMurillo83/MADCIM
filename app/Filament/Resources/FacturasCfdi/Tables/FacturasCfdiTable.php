@@ -2,24 +2,23 @@
 
 namespace App\Filament\Resources\FacturasCfdi\Tables;
 
-use App\Enums\TipoNotaRenta;
-use App\Models\FacturaCfdiPartidas;
+use App\Filament\Resources\FacturasCfdi\FacturasCfdiResource;
 use App\Models\FacturasCfdi;
-use App\Models\NotasVentaRenta;
-use App\Models\NotasVentaVenta;
-use App\Models\Pagos;
-use App\Models\Productos;
+use App\Services\FacturaCfdiPacService;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
-use Filament\Notifications\Notification;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use App\Filament\Resources\FacturasCfdi\FacturasCfdiResource;
+use Illuminate\Support\Facades\DB;
 
 class FacturasCfdiTable
 {
@@ -79,6 +78,12 @@ class FacturasCfdiTable
                 TextColumn::make('cfdi_uuid')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('cfdi_estatus_sat')
+                    ->label('Estatus SAT')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('cfdi_estatus_cancelacion')
+                    ->label('Cancelación SAT')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('documentoOrigen.folio')
                     ->label('Documento origen')
                     ->searchable()
@@ -93,243 +98,95 @@ class FacturasCfdiTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordActions([
-                EditAction::make(),
-                Action::make('importar_notas')
-                    ->label('Importar notas')
-                    ->icon('fas-file-import')
-                    ->color('info')
-                    ->visible(fn (FacturasCfdi $record): bool => (int) ($record->cliente_id ?? 0) > 0)
-                    ->modalHeading(fn (FacturasCfdi $record): string => "Importar notas - {$record->serie}{$record->folio}")
-                    ->modalDescription('Selecciona una o varias notas de venta/renta del mismo cliente para agregar sus partidas a la factura.')
-                    ->modalWidth('5xl')
-                    ->form([
-                        Select::make('notas_venta_ids')
-                            ->label('Notas de venta')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->options(function (FacturasCfdi $record) {
-                                if (!$record->cliente_id) {
-                                    return [];
-                                }
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->modalWidth('full')
+                        ->visible(fn (FacturasCfdi $record): bool => self::esBorrador($record))
+                        ->authorize(fn (FacturasCfdi $record): bool => self::esBorrador($record)),
+                    ViewAction::make()
+                        ->label('Consultar')
+                        ->modalWidth('full')
+                        ->visible(fn (FacturasCfdi $record): bool => ! self::esBorrador($record))
+                        ->authorize(fn (FacturasCfdi $record): bool => ! self::esBorrador($record)),
+                    Action::make('representacion_impresa')
+                        ->label('Imprimir PDF')
+                        ->icon('heroicon-o-printer')
+                        ->url(fn (FacturasCfdi $record): string => route('facturas-cfdi.representacion-impresa', $record))
+                        ->openUrlInNewTab()
+                        ->visible(fn (FacturasCfdi $record): bool => filled($record->cfdi_uuid) && filled($record->cfdi_xml)),
+                    Action::make('descargar_xml')
+                        ->label('Descargar XML')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->url(fn (FacturasCfdi $record): string => route('facturas-cfdi.xml', $record))
+                        ->visible(fn (FacturasCfdi $record): bool => filled($record->cfdi_uuid) && filled($record->cfdi_xml)),
+                    Action::make('timbrar_cfdi')
+                        ->label('Timbrar / Reintentar')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Timbrar factura CFDI')
+                        ->modalDescription('Se enviará el comprobante a PRODIGIA para intentar obtener el timbre fiscal.')
+                        ->visible(fn (FacturasCfdi $record): bool => blank($record->cfdi_uuid)
+                            && $record->estatus !== 'Cancelada')
+                        ->action(function (FacturasCfdi $record): void {
+                            $resultado = app(FacturaCfdiPacService::class)->timbrar($record);
 
-                                return NotasVentaVenta::query()
-                                    ->where('cliente_id', $record->cliente_id)
-                                    ->where('sucursal_id', $record->sucursal_id)
-                                    ->where('estatus', '!=', 'Cancelada')
-                                    ->orderByDesc('fecha_emision')
-                                    ->get()
-                                    ->mapWithKeys(function (NotasVentaVenta $nota) {
-                                        $label = trim(($nota->serie ?? '') . ($nota->folio ?? ''));
-                                        $label .= ' | ' . optional($nota->fecha_emision)->format('Y-m-d');
-                                        $label .= ' | $' . number_format((float) $nota->total, 2);
+                            self::notificarResultado($resultado, 'Factura timbrada', 'No se pudo timbrar');
+                        }),
+                    Action::make('cancelar_sin_timbrar')
+                        ->label('Cancelar factura')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Cancelar factura sin timbre')
+                        ->modalDescription('Se cancelará la factura localmente, sin enviar una solicitud a PRODIGIA. Las notas de origen quedarán disponibles nuevamente.')
+                        ->visible(fn (FacturasCfdi $record): bool => blank($record->cfdi_uuid)
+                            && $record->estatus !== 'Cancelada')
+                        ->action(function (FacturasCfdi $record): void {
+                            $resultado = app(FacturaCfdiPacService::class)->cancelarSinTimbrar($record);
 
-                                        return [$nota->id => $label];
-                                    })
-                                    ->all();
-                            }),
-                        Select::make('notas_renta_ids')
-                            ->label('Notas de renta')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
-                            ->options(function (FacturasCfdi $record) {
-                                if (!$record->cliente_id) {
-                                    return [];
-                                }
+                            self::notificarResultado($resultado, 'Factura cancelada', 'No se pudo cancelar');
+                        }),
+                    Action::make('cancelar_cfdi')
+                        ->label('Cancelar CFDI')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Solicitar cancelación del CFDI')
+                        ->modalDescription('La solicitud se enviará a PRODIGIA. El estado del CFDI no se marcará como cancelado hasta recibir confirmación.')
+                        ->visible(fn (FacturasCfdi $record): bool => filled($record->cfdi_uuid)
+                            && blank($record->cfdi_fecha_cancelacion)
+                            && $record->cfdi_estatus_cancelacion !== 'Solicitud enviada')
+                        ->form([
+                            Select::make('motivo')
+                                ->label('Motivo de cancelación')
+                                ->required()
+                                ->live()
+                                ->options(fn (): array => DB::table('sat_motivo_cancelacion')
+                                    ->orderBy('clave')
+                                    ->pluck('descripcion', 'clave')
+                                    ->all()),
+                            TextInput::make('folio_sustitucion')
+                                ->label('UUID del CFDI sustituto')
+                                ->maxLength(36)
+                                ->rules(['uuid'])
+                                ->visible(fn (Get $get): bool => $get('motivo') === '01')
+                                ->required(fn (Get $get): bool => $get('motivo') === '01'),
+                        ])
+                        ->action(function (FacturasCfdi $record, array $data): void {
+                            $resultado = app(FacturaCfdiPacService::class)->cancelar(
+                                $record,
+                                (string) $data['motivo'],
+                                (string) ($data['folio_sustitucion'] ?? ''),
+                            );
 
-                                return NotasVentaRenta::query()
-                                    ->where('cliente_id', $record->cliente_id)
-                                    ->where('sucursal_id', $record->sucursal_id)
-                                    ->where('estatus', '!=', 'Cancelada')
-                                    ->orderByDesc('fecha_emision')
-                                    ->get()
-                                    ->mapWithKeys(function (NotasVentaRenta $nota) {
-                                        $label = trim(($nota->serie ?? '') . ($nota->folio ?? ''));
-                                        $label .= ' | ' . optional($nota->fecha_emision)->format('Y-m-d');
-                                        $label .= ' | $' . number_format((float) $nota->total, 2);
-
-                                        return [$nota->id => $label];
-                                    })
-                                    ->all();
-                            }),
-                    ])
-                    ->action(function (FacturasCfdi $record, array $data): void {
-                        if (!$record->cliente_id) {
-                            Notification::make()
-                                ->title('No se puede importar')
-                                ->body('La factura no tiene cliente asignado.')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        if (!$record->sucursal_id) {
-                            Notification::make()
-                                ->title('Falta la sucursal de la factura')
-                                ->body('Asigna una sucursal a la factura antes de importar notas.')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        $notasVentaIds = array_values(array_filter(array_map('intval', (array) ($data['notas_venta_ids'] ?? []))));
-                        $notasRentaIds = array_values(array_filter(array_map('intval', (array) ($data['notas_renta_ids'] ?? []))));
-
-                        if (empty($notasVentaIds) && empty($notasRentaIds)) {
-                            Notification::make()
-                                ->title('Sin selección')
-                                ->body('Selecciona al menos una nota de venta o de renta.')
-                                ->warning()
-                                ->send();
-
-                            return;
-                        }
-
-                        $insertadas = 0;
-                        $omitidas = 0;
-
-                        DB::transaction(function () use ($record, $notasVentaIds, $notasRentaIds, &$insertadas, &$omitidas) {
-                            $productosCache = [];
-                            $resolverProducto = function (mixed $item) use (&$productosCache): ?Productos {
-                                if ($item === null || $item === '') {
-                                    return null;
-                                }
-
-                                $key = (string) $item;
-
-                                if (!array_key_exists($key, $productosCache)) {
-                                    $productosCache[$key] = Productos::find($item);
-                                }
-
-                                return $productosCache[$key];
-                            };
-
-                            $existentes = FacturaCfdiPartidas::query()
-                                ->where('factura_cfdi_id', $record->id)
-                                ->whereNotNull('no_identificacion')
-                                ->pluck('no_identificacion')
-                                ->all();
-
-                            $identificadoresExistentes = array_fill_keys($existentes, true);
-
-                            $notasVenta = NotasVentaVenta::query()
-                                ->with('partidas')
-                                ->where('cliente_id', $record->cliente_id)
-                                ->where('sucursal_id', $record->sucursal_id)
-                                ->where('estatus', '!=', 'Cancelada')
-                                ->whereIn('id', $notasVentaIds)
-                                ->get();
-
-                            foreach ($notasVenta as $nota) {
-                                foreach ($nota->partidas as $partida) {
-                                    $identificador = "NVV:{$nota->id}:{$partida->id}";
-
-                                    if (isset($identificadoresExistentes[$identificador])) {
-                                        $omitidas++;
-                                        continue;
-                                    }
-
-                                    $producto = $resolverProducto($partida->item);
-                                    $cantidad = (float) $partida->cantidad;
-                                    $subtotalPartida = (float) $partida->subtotal;
-                                    $impuestosPartida = (float) $partida->impuestos;
-
-                                    FacturaCfdiPartidas::create([
-                                        'factura_cfdi_id' => $record->id,
-                                        'cantidad' => $cantidad,
-                                        'item' => (string) $partida->item,
-                                        'clave_prod_serv' => $producto?->clave_prod_serv,
-                                        'no_identificacion' => $identificador,
-                                        'clave_unidad' => $producto?->clave_unidad,
-                                        'unidad' => $producto?->unidad_sat,
-                                        'descripcion' => $partida->descripcion,
-                                        'objeto_imp' => $producto?->objeto_imp,
-                                        'valor_unitario' => (float) $partida->valor_unitario,
-                                        'subtotal' => (float) $partida->subtotal,
-                                        'descuento' => 0,
-                                        'impuestos' => (float) $partida->impuestos,
-                                        'total' => $subtotalPartida + $impuestosPartida,
-                                    ]);
-
-                                    $identificadoresExistentes[$identificador] = true;
-                                    $insertadas++;
-                                }
-                            }
-
-                            $notasRenta = NotasVentaRenta::query()
-                                ->with('partidas')
-                                ->where('cliente_id', $record->cliente_id)
-                                ->where('sucursal_id', $record->sucursal_id)
-                                ->where('estatus', '!=', 'Cancelada')
-                                ->whereIn('id', $notasRentaIds)
-                                ->get();
-
-                            foreach ($notasRenta as $nota) {
-                                foreach ($nota->partidas as $partida) {
-                                    $identificador = "NVR:{$nota->id}:{$partida->id}";
-
-                                    if (isset($identificadoresExistentes[$identificador])) {
-                                        $omitidas++;
-                                        continue;
-                                    }
-
-                                    $producto = $resolverProducto($partida->item);
-                                    $tipoRenta = TipoNotaRenta::tryFrom((string) $partida->tipo_nota_renta);
-                                    $cantidad = $tipoRenta?->esMaderaM2()
-                                        ? (float) $partida->metros_m2
-                                        : (float) $partida->cantidad;
-                                    $cantidad = $cantidad > 0 ? $cantidad : 1;
-                                    $subtotalPartida = (float) $partida->subtotal;
-                                    $impuestosPartida = (float) $partida->impuestos;
-
-                                    FacturaCfdiPartidas::create([
-                                        'factura_cfdi_id' => $record->id,
-                                        'cantidad' => $cantidad,
-                                        'item' => (string) $partida->item,
-                                        'clave_prod_serv' => $producto?->clave_prod_serv,
-                                        'no_identificacion' => $identificador,
-                                        'clave_unidad' => $producto?->clave_unidad,
-                                        'unidad' => $producto?->unidad_sat,
-                                        'descripcion' => $partida->descripcion,
-                                        'objeto_imp' => $producto?->objeto_imp,
-                                        'valor_unitario' => $subtotalPartida / $cantidad,
-                                        'subtotal' => $subtotalPartida,
-                                        'descuento' => 0,
-                                        'impuestos' => $impuestosPartida,
-                                        // El depósito de la nota de renta no es ingreso facturable.
-                                        'total' => $subtotalPartida + $impuestosPartida,
-                                    ]);
-
-                                    $identificadoresExistentes[$identificador] = true;
-                                    $insertadas++;
-                                }
-                            }
-
-                            $subtotal = (float) $record->partidas()->sum('subtotal');
-                            $impuestos = (float) $record->partidas()->sum('impuestos');
-                            $total = (float) $record->partidas()->sum('total');
-                            $pagado = (float) Pagos::query()
-                                ->where('documento_tipo', 'facturas_cfdi')
-                                ->where('documento_id', $record->id)
-                                ->sum('importe');
-
-                            $record->update([
-                                'subtotal' => $subtotal,
-                                'impuestos_total' => $impuestos,
-                                'total' => $total,
-                                'saldo_pendiente' => max(0, $total - $pagado),
-                            ]);
-                        });
-
-                        Notification::make()
-                            ->title('Notas importadas')
-                            ->body("Partidas agregadas: {$insertadas}. Omitidas por duplicado: {$omitidas}.")
-                            ->success()
-                            ->send();
-                    }),
+                            self::notificarResultado($resultado, 'Solicitud de cancelación enviada', 'No se pudo cancelar');
+                        }),
+                ])
+                    ->label('Acciones')
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->tooltip('Acciones de la factura'),
             ], RecordActionsPosition::BeforeColumns)
             ->headerActions([
                 Action::make('nuevo')
@@ -337,5 +194,28 @@ class FacturasCfdiTable
                     ->icon('fas-circle-plus')
                     ->url(fn (): string => FacturasCfdiResource::getUrl('create')),
             ], HeaderActionsPosition::Bottom);
+    }
+
+    /**
+     * @param  array{success: bool, message: string}  $resultado
+     */
+    private static function notificarResultado(array $resultado, string $tituloExito, string $tituloError): void
+    {
+        $notificacion = Notification::make()
+            ->title($resultado['success'] ? $tituloExito : $tituloError)
+            ->body($resultado['message']);
+
+        if ($resultado['success']) {
+            $notificacion->success()->send();
+
+            return;
+        }
+
+        $notificacion->danger()->send();
+    }
+
+    private static function esBorrador(FacturasCfdi $record): bool
+    {
+        return strtolower(trim((string) $record->estatus)) === 'borrador';
     }
 }

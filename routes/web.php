@@ -5,6 +5,7 @@ use App\Http\Controllers\CajaCierreTicketController;
 use App\Http\Controllers\CajaMovimientoTicketController;
 use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\DevolucionRentaController;
+use App\Http\Controllers\FacturaCfdiRepresentacionController;
 use App\Http\Controllers\NominaPdfController;
 use App\Http\Controllers\NotaDevolucionRentaPdfController;
 use App\Http\Controllers\NotaEnvioPdfController;
@@ -47,6 +48,11 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('/facturas-cfdi/{factura}/xml', [FacturaCfdiRepresentacionController::class, 'xml'])
+        ->name('facturas-cfdi.xml');
+    Route::get('/facturas-cfdi/{factura}/representacion-impresa', [FacturaCfdiRepresentacionController::class, 'pdf'])
+        ->name('facturas-cfdi.representacion-impresa');
+
     Route::get('/cotizaciones/{id}/pdf/ticket', [CotizacionPdfController::class, 'ticket'])
         ->name('cotizaciones.pdf.ticket');
     Route::get('/cotizaciones/{id}/pdf/carta', [CotizacionPdfController::class, 'carta'])

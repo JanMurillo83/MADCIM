@@ -30,6 +30,11 @@ class FacturaCfdiPartidas extends Model
         return $this->belongsTo(FacturasCfdi::class, 'factura_cfdi_id');
     }
 
+    public function producto(): BelongsTo
+    {
+        return $this->belongsTo(Productos::class, 'item');
+    }
+
     public function impuestos(): MorphMany
     {
         return $this->morphMany(CfdiPartidaImpuesto::class, 'partida');
