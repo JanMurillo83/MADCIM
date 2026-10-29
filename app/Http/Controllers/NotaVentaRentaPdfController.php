@@ -11,6 +11,7 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Services\CierreDevolucionRentaService;
+use App\Support\TicketPaperSize;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,8 +36,7 @@ class NotaVentaRentaPdfController extends Controller
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', $datos);
 
-        // Configurar tamaño de ticket (80mm x auto)
-        $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait'); // 80mm width
+        $pdf->setPaper([0, 0, 226.77, $this->altoTicket($notaVenta)], 'portrait');
 
         return $pdf->stream("nota-venta-renta-{$notaVenta->serie}-{$notaVenta->folio}-ticket.pdf");
     }
@@ -112,7 +112,7 @@ class NotaVentaRentaPdfController extends Controller
 
         $pdf = Pdf::loadView('pdf.notas-venta-renta.ticket', $datos);
 
-        $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait');
+        $pdf->setPaper([0, 0, 226.77, $this->altoTicket($notaVenta)], 'portrait');
 
         return $pdf->download("nota-venta-renta-{$notaVenta->serie}-{$notaVenta->folio}-ticket.pdf");
     }
@@ -241,6 +241,34 @@ class NotaVentaRentaPdfController extends Controller
             'configuracion' => Configuracion::first(),
             'conceptoM2' => $this->conceptoM2($notaVenta),
         ];
+    }
+
+    private function altoTicket(NotasVentaRenta $notaVenta): float
+    {
+        $altoFijo = 450;
+        if (($notaVenta->condicion_pago ?? '') === 'credito') {
+            $altoFijo += 40;
+        } else {
+            $altoFijo += max(0, $notaVenta->pagos->count() - 1) * 22;
+        }
+
+        $altoFijo += max(1, (int) ceil(mb_strlen(
+            'Recibi de MADERERIA MADCIM la MADERA o EQUIPO aquí especificada (o) en calidad de ARRENDAMIENTO por el tiempo especificado en este documento. Asi mismo me obligo a cuidarla (o) y devolverla (o) en buen estado en tiempo y forma, de lo contrario en caso de EXTRAVIARLA (o) o NO DEVOLVERLA (o) me OBLIGO a pagar el monto en dinero que cubra el valor de la MADERA o EQUIPO NO DEVUELTO.'
+        ) / 38)) * 11;
+
+        return TicketPaperSize::heightForItems(
+            $notaVenta->partidas,
+            $altoFijo,
+            charactersPerLine: 34,
+            lineHeight: 12,
+            rowSpacing: 22,
+            printedText: function ($partida) use ($notaVenta): string {
+                $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? 'equipo');
+                $etiqueta = $tipo?->label();
+
+                return (string) $partida->descripcion . ($etiqueta ? ' (' . $etiqueta . ')' : '');
+            },
+        );
     }
 
     private function conceptoM2(NotasVentaRenta $notaVenta): ?array

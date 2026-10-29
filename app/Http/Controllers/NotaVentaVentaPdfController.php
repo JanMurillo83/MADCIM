@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\NotasVentaVenta;
+use App\Support\TicketPaperSize;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class NotaVentaVentaPdfController extends Controller
@@ -18,8 +19,7 @@ class NotaVentaVentaPdfController extends Controller
             'notaVenta' => $notaVenta
         ]);
 
-        // Configurar tamaño de ticket (80mm x auto)
-        $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait'); // 80mm width
+        $pdf->setPaper([0, 0, 226.77, $this->altoTicket($notaVenta)], 'portrait');
 
         return $pdf->stream("nota-venta-venta-{$notaVenta->serie}-{$notaVenta->folio}-ticket.pdf");
     }
@@ -46,13 +46,13 @@ class NotaVentaVentaPdfController extends Controller
      */
     public function descargarTicket($id)
     {
-        $notaVenta = NotasVentaVenta::with(['cliente', 'partidas'])->findOrFail($id);
+        $notaVenta = NotasVentaVenta::with(['cliente', 'partidas', 'pagos'])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.notas-venta-venta.ticket', [
             'notaVenta' => $notaVenta
         ]);
 
-        $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait');
+        $pdf->setPaper([0, 0, 226.77, $this->altoTicket($notaVenta)], 'portrait');
 
         return $pdf->download("nota-venta-venta-{$notaVenta->serie}-{$notaVenta->folio}-ticket.pdf");
     }
@@ -71,5 +71,27 @@ class NotaVentaVentaPdfController extends Controller
         $pdf->setPaper('letter', 'portrait');
 
         return $pdf->download("nota-venta-venta-{$notaVenta->serie}-{$notaVenta->folio}-carta.pdf");
+    }
+
+    private function altoTicket(NotasVentaVenta $notaVenta): float
+    {
+        $altoFijo = 280;
+        if ($notaVenta->condicion_pago === 'credito') {
+            $altoFijo += 40;
+        } else {
+            $altoFijo += max(0, $notaVenta->pagos->count() - 1) * 22;
+        }
+
+        if ($notaVenta->observaciones) {
+            $altoFijo += max(1, (int) ceil(mb_strlen($notaVenta->observaciones) / 38)) * 11;
+        }
+
+        return TicketPaperSize::heightForItems(
+            $notaVenta->partidas,
+            $altoFijo,
+            charactersPerLine: 38,
+            lineHeight: 11,
+            rowSpacing: 18,
+        );
     }
 }
