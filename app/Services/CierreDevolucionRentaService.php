@@ -82,7 +82,7 @@ class CierreDevolucionRentaService
 
             NotaEnvio::query()
                 ->whereIn('nota_venta_renta_id', $notaIds)
-                ->update(['estado_renta' => 'Activa']);
+                ->update(['estado_renta' => 'Vigente']);
 
             if ($cierre->caja_movimiento_id) {
                 $movimiento = CajaMovimiento::find($cierre->caja_movimiento_id);

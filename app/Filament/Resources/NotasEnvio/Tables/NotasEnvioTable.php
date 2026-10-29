@@ -417,10 +417,13 @@ class NotasEnvioTable
                     ->icon('fas-times-circle')
                     ->color('danger')
                     ->visible(fn (NotaEnvio $record): bool => $record->estatus !== 'Cancelada'
-                        && !$record->partidas()->where('cantidad_devuelta', '>', 0)->exists())
+                        && !$record->partidas()->where(function ($query): void {
+                            $query->where('cantidad_devuelta', '>', 0)
+                                ->orWhereHas('registroRenta', fn ($registro) => $registro->where('cantidad_devuelta', '>', 0));
+                        })->exists())
                     ->requiresConfirmation()
                     ->modalHeading(fn (NotaEnvio $record) => 'Cancelar Envío Folio ' . $record->folio)
-                    ->modalDescription('¿Estás seguro de cancelar esta nota de envío? Se revertirán los movimientos de inventario y se marcarán los registros de renta como cancelados.')
+                    ->modalDescription('¿Estás seguro de cancelar esta nota de envío? Se revertirán sus movimientos de inventario y se retirarán de rentas los registros asociados a este envío.')
                     ->modalSubmitActionLabel('Sí, cancelar')
                     ->action(function (NotaEnvio $record) {
                         if ($record->estatus === 'Cancelada') {
@@ -429,7 +432,17 @@ class NotasEnvioTable
 
                         $referencia = $record->serie . $record->folio;
 
-                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $referencia) {
+                        $cancelada = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $referencia): bool {
+                            $partidaIds = $record->partidas()->lockForUpdate()->pluck('id');
+                            $registros = RegistroRenta::query()
+                                ->whereIn('nota_envio_partida_id', $partidaIds)
+                                ->lockForUpdate()
+                                ->get();
+
+                            if ($registros->contains(fn (RegistroRenta $registro): bool => (float) ($registro->cantidad_devuelta ?? 0) > 0)) {
+                                return false;
+                            }
+
                             // Revertir movimientos de inventario generados por este envío
                             $movimientos = MovimientoInventario::query()
                                 ->where('documento_referencia', $referencia)
@@ -445,13 +458,25 @@ class NotasEnvioTable
                                 );
                             }
 
-                            // Marcar únicamente los registros creados por este envío.
-                            RegistroRenta::whereIn('nota_envio_partida_id', $record->partidas()->pluck('id'))
-                                ->where('estado', 'Activo')
-                                ->update(['estado' => 'Cancelado']);
+                            // El enum de registro_rentas no admite el estado Cancelado.
+                            // Como este envío no tuvo devoluciones, se eliminan sus registros
+                            // de renta; las partidas y la nota cancelada conservan la trazabilidad.
+                            $registros->each(fn (RegistroRenta $registro) => $registro->delete());
+                            $record->partidas()->update(['estado' => 'Cancelada']);
 
                             $record->update(['estatus' => 'Cancelada']);
+
+                            return true;
                         });
+
+                        if (! $cancelada) {
+                            Notification::make()
+                                ->title('No se puede cancelar el envío')
+                                ->body('El envío ya tiene devoluciones registradas. Revise el detalle de las partidas antes de continuar.')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
 
                         Notification::make()
                             ->title('Envío cancelado')
