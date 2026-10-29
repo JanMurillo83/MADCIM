@@ -28,6 +28,8 @@ class FacturasCfdi extends Model
         'subtotal',
         'descuento',
         'impuestos_total',
+        'impuestos_retenidos_total',
+        'esquema_impuestos',
         'total',
         'tipo_comprobante',
         'exportacion',
@@ -66,6 +68,7 @@ class FacturasCfdi extends Model
         'fecha_emision' => 'datetime',
         'cfdi_fecha_timbrado' => 'datetime',
         'cfdi_fecha_cancelacion' => 'datetime',
+        'impuestos_retenidos_total' => 'decimal:8',
     ];
 
     public function cliente(): BelongsTo

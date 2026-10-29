@@ -19,6 +19,24 @@ class CreateNotasVentaVenta extends CreateRecord
 
     public ?array $notaGuardada = null;
 
+    public function mount(): void
+    {
+        parent::mount();
+        $partidas = session()->pull('cotizacion_partidas_venta');
+        $cotizacionId = session()->pull('cotizacion_origen_id');
+        $encabezadoCotizacion = session()->pull('cotizacion_encabezado', []);
+        $this->data = array_replace($this->data ?? [], $encabezadoCotizacion);
+        if (is_array($partidas) && $partidas !== []) {
+            $this->data = array_replace($this->data ?? [], ['partidas' => $partidas]);
+        }
+        if ($cotizacionId) {
+            $this->data['documento_origen_id'] = $cotizacionId;
+        }
+        if (is_array($partidas) || $cotizacionId) {
+            $this->form->fill($this->data);
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -119,6 +137,11 @@ class CreateNotasVentaVenta extends CreateRecord
     protected function afterCreate(): void
     {
         $record = $this->record;
+        if ($record->documento_origen_id) {
+            \App\Models\Cotizaciones::whereKey($record->documento_origen_id)
+                ->where('estatus', 'Activa')
+                ->update(['estatus' => 'Convertida']);
+        }
         $referencia = $record->serie . $record->folio;
 
         foreach ($record->partidas as $partida) {

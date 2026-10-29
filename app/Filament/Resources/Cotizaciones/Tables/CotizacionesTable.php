@@ -2,12 +2,10 @@
 
 namespace App\Filament\Resources\Cotizaciones\Tables;
 
-use App\Services\DocumentoConversionService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
-use Filament\Notifications\Notification;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
@@ -33,6 +31,10 @@ class CotizacionesTable
                     ->label('Cliente')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('tipo_cotizacion')
+                    ->label('Tipo')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state === 'renta' ? 'Renta' : 'Venta'),
                 TextColumn::make('fecha_emision')
                     ->date('d-m-Y')
                     ->sortable(),
@@ -100,44 +102,12 @@ class CotizacionesTable
                     ->color('info')
                     ->url(fn ($record) => route('cotizaciones.pdf.carta', $record->id))
                     ->openUrlInNewTab(),
-                Action::make('convertir_nota_renta')
-                    ->label('Convertir a Nota Venta Renta')
+                Action::make('convertir')
+                    ->label(fn ($record) => $record->tipo_cotizacion === 'renta' ? 'Capturar Nota de Renta' : 'Capturar Nota de Venta')
                     ->icon('fas-arrow-right')
                     ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Convertir a Nota de Venta (Renta)')
-                    ->modalDescription('¿Estás seguro de convertir esta cotización a una Nota de Venta de Renta?')
-                    ->modalSubmitActionLabel('Sí, convertir')
-                    ->visible(fn ($record) => $record->estatus === 'Activa')
-                    ->action(function ($record) {
-                        $service = app(DocumentoConversionService::class);
-                        $notaVenta = $service->cotizacionToNotaVentaRenta($record);
-
-                        Notification::make()
-                            ->title('Conversión exitosa')
-                            ->body("Se creó la Nota de Venta Renta: {$notaVenta->serie}-{$notaVenta->folio}")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('convertir_nota_venta')
-                    ->label('Convertir a Nota Venta Venta')
-                    ->icon('fas-arrow-right')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->modalHeading('Convertir a Nota de Venta (Venta)')
-                    ->modalDescription('¿Estás seguro de convertir esta cotización a una Nota de Venta de Venta?')
-                    ->modalSubmitActionLabel('Sí, convertir')
-                    ->visible(fn ($record) => $record->estatus === 'Activa')
-                    ->action(function ($record) {
-                        $service = app(DocumentoConversionService::class);
-                        $notaVenta = $service->cotizacionToNotaVentaVenta($record);
-
-                        Notification::make()
-                            ->title('Conversión exitosa')
-                            ->body("Se creó la Nota de Venta Venta: {$notaVenta->serie}-{$notaVenta->folio}")
-                            ->success()
-                            ->send();
-                    }),
+                    ->url(fn ($record) => route('cotizaciones.convertir', $record))
+                    ->visible(fn ($record) => $record->estatus === 'Activa'),
                 Action::make('cancelar')
                     ->label('Cancelar Cotización')
                     ->icon('fas-times-circle')

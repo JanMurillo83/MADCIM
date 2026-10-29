@@ -47,8 +47,14 @@ class FacturasCfdiTable
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('impuestos_total')
+                    ->label('IVA trasladado')
                     ->numeric()
                     ->sortable(),
+                TextColumn::make('impuestos_retenidos_total')
+                    ->label('IVA retenido')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(),
                 TextColumn::make('total')
                     ->numeric()
                     ->sortable(),

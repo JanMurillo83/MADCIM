@@ -16,6 +16,12 @@ class CotizacionPartidas extends Model
         'subtotal',
         'impuestos',
         'total',
+        'tipo_nota_renta',
+        'tipo_renta',
+        'duracion_renta',
+        'dias_renta',
+        'metros_m2',
+        'deposito',
     ];
 
     public function documento(): BelongsTo

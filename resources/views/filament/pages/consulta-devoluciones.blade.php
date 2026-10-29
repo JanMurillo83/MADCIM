@@ -40,6 +40,7 @@
                     $direccionNombre = $direccion
                         ? $direccion->nombre_direccion . ' - ' . $direccion->direccion_completa
                         : ($itemReferencia->cliente_direccion ?? 'Sin dirección asignada');
+                    $sucursalNombre = $itemReferencia->notaVentaRenta?->sucursal?->nombre ?? 'Sin sucursal';
                     $subtotalCantidad = $itemsGrupo->sum('cantidad');
                     $subtotalDevuelto = $itemsGrupo->sum('cantidad_devuelta');
                     $subtotalPendiente = max(0, $subtotalCantidad - $subtotalDevuelto);
@@ -58,6 +59,7 @@
                                 <x-heroicon-o-map-pin class="mr-1 inline-block h-4 w-4" />
                                 {{ $direccionNombre }}
                             </h3>
+                            <p class="mt-1 text-xs font-semibold text-primary-700 dark:text-primary-300">Sucursal: {{ $sucursalNombre }}</p>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 {{ $subtotalCantidad }} productos enviados |
                                 Devueltos: {{ $subtotalDevuelto }} |
@@ -77,7 +79,7 @@
                                     Devolución
                                 </x-filament::button>
                                 <x-filament::button
-                                    wire:click="cerrarObra({{ $itemReferencia->cliente_id }}, {{ $itemReferencia->notaVentaRenta?->direccion_entrega_id ?? 0 }})"
+                                    wire:click="cerrarObra({{ $itemReferencia->cliente_id }}, {{ $itemReferencia->notaVentaRenta?->direccion_entrega_id ?? 0 }}, {{ $itemReferencia->notaVentaRenta?->sucursal_id ?? 0 }})"
                                     icon="heroicon-o-check-circle"
                                     color="danger">
                                     Cerrar Obra

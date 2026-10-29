@@ -4,6 +4,7 @@ use App\Http\Controllers\AdmsController;
 use App\Http\Controllers\CajaCierreTicketController;
 use App\Http\Controllers\CajaMovimientoTicketController;
 use App\Http\Controllers\CotizacionPdfController;
+use App\Http\Controllers\CotizacionConversionController;
 use App\Http\Controllers\DevolucionRentaController;
 use App\Http\Controllers\FacturaCfdiRepresentacionController;
 use App\Http\Controllers\NominaPdfController;
@@ -30,6 +31,8 @@ Route::post('/iclock/devicecmd', [AdmsController::class, 'deviceCmd'])
 
 // Rutas para impresión de cotizaciones
 Route::middleware(['auth'])->group(function () {
+    Route::get('/cotizaciones/{cotizacion}/convertir', CotizacionConversionController::class)
+        ->name('cotizaciones.convertir');
     Route::get('/nomina-semanal/{periodo}/pdf', [NominaPdfController::class, 'nomina'])
         ->name('nomina-semanal.pdf');
     Route::get('/nomina-semanal/{periodo}/pdf/preview', [NominaPdfController::class, 'previewNomina'])

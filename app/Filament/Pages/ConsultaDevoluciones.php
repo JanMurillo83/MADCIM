@@ -39,20 +39,38 @@ class ConsultaDevoluciones extends Page implements HasActions
     public ?int $direccion_entrega_id = null;
     public ?int $clienteCierreId = null;
     public ?int $direccionCierreId = null;
+    public ?int $sucursalCierreId = null;
 
     #[Computed]
     public function clientes(): Collection
     {
+        $notaIdsConCierre = CierreDevolucionRenta::query()
+            ->whereIn('estatus', ['Pendiente', 'PendienteCaja', 'Procesado'])
+            ->pluck('nota_ids')
+            ->flatten()
+            ->map(fn ($id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         return Clientes::query()
-            ->where(function ($query) {
-                $query->whereHas('notasVentaRenta', function ($notaQuery) {
-                    $notaQuery
-                        ->whereNotIn('estatus', ['Cancelada', 'Devuelta', 'Vendida'])
+            ->where(function ($query) use ($notaIdsConCierre): void {
+                $query->where(function ($query): void {
+                    $query->whereHas('notasVentaRenta', function ($notaQuery): void {
+                        $notaQuery
+                            ->whereNotIn('estatus', ['Cancelada', 'Devuelta', 'Vendida'])
                             ->whereHas('registrosRenta')
                             ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']));
-                })->orWhereIn('id', CierreDevolucionRenta::query()
-                    ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
-                    ->select('cliente_id'));
+                    })->orWhereIn('id', CierreDevolucionRenta::query()
+                        ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
+                        ->select('cliente_id'));
+                })->orWhereHas('notasVentaRenta', function ($notaQuery) use ($notaIdsConCierre): void {
+                    $notaQuery->whereIn('estatus', ['Devuelta', 'Vendida'])
+                        ->whereHas('registrosRenta')
+                        ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']))
+                        ->when($notaIdsConCierre !== [], fn ($query) => $query->whereNotIn('id', $notaIdsConCierre));
+                });
             })
             ->orderBy('nombre')
             ->get()
@@ -80,10 +98,11 @@ class ConsultaDevoluciones extends Page implements HasActions
         $this->direccion_entrega_id = null;
     }
 
-    public function cerrarObra(int $clienteId, int $direccionEntregaId): void
+    public function cerrarObra(int $clienteId, int $direccionEntregaId, int $sucursalId): void
     {
         $this->clienteCierreId = $clienteId;
         $this->direccionCierreId = $direccionEntregaId;
+        $this->sucursalCierreId = $sucursalId;
         $this->mountAction('confirmarCierreObra');
     }
 
@@ -96,18 +115,24 @@ class ConsultaDevoluciones extends Page implements HasActions
             ->form(function (): array {
                 $nota = NotasVentaRenta::query()
                     ->where('cliente_id', $this->clienteCierreId)
-                    ->where('direccion_entrega_id', $this->direccionCierreId)
+                    ->when($this->direccionCierreId > 0,
+                        fn ($query) => $query->where('direccion_entrega_id', $this->direccionCierreId),
+                        fn ($query) => $query->whereNull('direccion_entrega_id'))
+                    ->where('sucursal_id', $this->sucursalCierreId)
                     ->where('estatus', '!=', 'Cancelada')
                     ->orderBy('id')
                     ->first();
 
                 $resumenData = $nota
-                    ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota)
+                    ? app(CierreDevolucionRentaService::class)->obtenerResumenPorObra($nota, $this->sucursalCierreId)
                     : ['rows' => [], 'totales' => []];
                 $totales = $resumenData['totales'];
                 $totalNotas = (float) NotasVentaRenta::query()
                     ->where('cliente_id', $this->clienteCierreId)
-                    ->where('direccion_entrega_id', $this->direccionCierreId)
+                    ->when($this->direccionCierreId > 0,
+                        fn ($query) => $query->where('direccion_entrega_id', $this->direccionCierreId),
+                        fn ($query) => $query->whereNull('direccion_entrega_id'))
+                    ->where('sucursal_id', $this->sucursalCierreId)
                     ->where('estatus', '!=', 'Cancelada')
                         ->whereHas('notasEnvio', fn ($query) => $query->whereIn('estatus', ['Enviada', 'Entregada']))
                     ->sum('total');
@@ -153,6 +178,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                         $this->clienteCierreId,
                         $this->direccionCierreId,
                         userId: Auth::id(),
+                        sucursalId: $this->sucursalCierreId,
                     );
 
                     if (!empty($resultado['already_closed'])) {
@@ -203,6 +229,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                     Log::error('Falló el cierre de obra en Consulta de Devoluciones.', [
                         'cliente_id' => $this->clienteCierreId,
                         'direccion_entrega_id' => $this->direccionCierreId,
+                        'sucursal_id' => $this->sucursalCierreId,
                         'user_id' => Auth::id(),
                         'exception_class' => $exception::class,
                         'exception_message' => $exception->getMessage(),
@@ -225,6 +252,7 @@ class ConsultaDevoluciones extends Page implements HasActions
                 'producto',
                 'cliente',
                 'notaVentaRenta.direccionEntrega',
+                'notaVentaRenta.sucursal',
             ])
             ->when($this->cliente_id, fn ($query) => $query->where('cliente_id', $this->cliente_id))
             ->when($this->direccion_entrega_id, fn ($query) => $query->whereHas(
@@ -239,14 +267,19 @@ class ConsultaDevoluciones extends Page implements HasActions
             ->whereIn('estatus', ['Pendiente', 'PendienteCaja', 'Procesado'])
             ->when($this->cliente_id, fn ($query) => $query->where('cliente_id', $this->cliente_id))
             ->when($this->direccion_entrega_id, fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
-            ->get(['cliente_id', 'direccion_entrega_id', 'nota_ids', 'estatus']);
+            ->get(['cliente_id', 'direccion_entrega_id', 'sucursal_id', 'nota_ids', 'estatus']);
 
         $cierresPendientes = $cierres
             ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
-            ->mapWithKeys(fn ($cierre) => [$cierre->cliente_id . '-' . $cierre->direccion_entrega_id => true]);
+            ->mapWithKeys(fn ($cierre) => [$cierre->cliente_id . '-' . ($cierre->direccion_entrega_id ?? 0) . '-' . ($cierre->sucursal_id ?? 0) => true]);
 
         $notaIdsCerradas = $cierres
             ->where('estatus', 'Procesado')
+            ->flatMap(fn (CierreDevolucionRenta $cierre): array => $cierre->nota_ids ?? [])
+            ->map(fn ($notaId): int => (int) $notaId)
+            ->unique()
+            ->values();
+        $notaIdsConCierre = $cierres
             ->flatMap(fn (CierreDevolucionRenta $cierre): array => $cierre->nota_ids ?? [])
             ->map(fn ($notaId): int => (int) $notaId)
             ->unique()
@@ -257,10 +290,12 @@ class ConsultaDevoluciones extends Page implements HasActions
         }
 
         return $items
-            ->groupBy(fn ($item) => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0))
-            ->filter(function (Collection $grupo, string $clave) use ($cierresPendientes): bool {
+            ->groupBy(fn ($item) => $item->cliente_id . '-' . ($item->notaVentaRenta?->direccion_entrega_id ?? 0) . '-' . ($item->notaVentaRenta?->sucursal_id ?? 0))
+            ->filter(function (Collection $grupo, string $clave) use ($cierresPendientes, $notaIdsConCierre): bool {
                 return $grupo->contains(fn ($item) => (float) ($item->cantidad_devuelta ?? 0) < (float) $item->cantidad)
                     || $grupo->contains(fn ($item) => !in_array($item->notaVentaRenta?->estatus, ['Cancelada', 'Devuelta', 'Vendida'], true))
+                    || $grupo->contains(fn ($item) => in_array($item->notaVentaRenta?->estatus, ['Devuelta', 'Vendida'], true)
+                        && !$notaIdsConCierre->contains((int) $item->nota_venta_renta_id))
                     || $cierresPendientes->has($clave);
             })
             ->flatten(1)
@@ -273,7 +308,8 @@ class ConsultaDevoluciones extends Page implements HasActions
         return $this->items
             ->groupBy(function ($partida) {
                 $direccionId = $partida->notaVentaRenta?->direccion_entrega_id ?? 0;
-                return $partida->cliente_id . '-' . $direccionId;
+                $sucursalId = $partida->notaVentaRenta?->sucursal_id ?? 0;
+                return $partida->cliente_id . '-' . $direccionId . '-' . $sucursalId;
             })
             ->map(function (Collection $itemsDireccion) {
                 return $itemsDireccion->groupBy(fn ($item) => $item->producto_id ?? $item->observaciones ?? 'sin-producto')

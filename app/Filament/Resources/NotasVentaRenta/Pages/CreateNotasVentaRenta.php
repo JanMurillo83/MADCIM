@@ -20,7 +20,46 @@ class CreateNotasVentaRenta extends CreateRecord
 {
     protected static string $resource = NotasVentaRentaResource::class;
 
+    public const SESSION_PARTIDAS_COTIZADOR = 'cotizador_nota_renta_partidas';
+    public const SESSION_PARTIDAS_COTIZACION = 'cotizacion_partidas_renta';
+
     public ?string $notaGuardadaFolio = null;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        $partidas = session()->pull(self::SESSION_PARTIDAS_COTIZACION)
+            ?? session()->pull(self::SESSION_PARTIDAS_COTIZADOR);
+        $cotizacionId = session()->pull('cotizacion_origen_id');
+        $encabezadoCotizacion = session()->pull('cotizacion_encabezado', []);
+        if ($cotizacionId) {
+            $this->data['documento_origen_id'] = $cotizacionId;
+        }
+        if (!is_array($partidas) || $partidas === []) {
+            return;
+        }
+
+        $subtotal = array_sum(array_column($partidas, 'subtotal'));
+        $impuestos = array_sum(array_column($partidas, 'impuestos'));
+        $deposito = array_sum(array_column($partidas, 'deposito'));
+        $total = round($subtotal + $impuestos + $deposito, 2);
+
+        $this->data = array_replace($this->data ?? [], $encabezadoCotizacion, [
+            'tipo_nota_renta' => 'equipo',
+            'tipo_renta' => 'dia',
+            'duracion_renta' => 1,
+            'dias_renta' => 1,
+            'partidas' => $partidas,
+            'subtotal' => $subtotal,
+            'impuestos_total' => $impuestos,
+            'deposito' => $deposito,
+            'total' => $total,
+            'saldo_pendiente' => $total,
+        ]);
+
+        $this->form->fill($this->data);
+    }
 
     protected function getHeaderActions(): array
     {
@@ -315,6 +354,12 @@ class CreateNotasVentaRenta extends CreateRecord
             'total' => $total,
             'saldo_pendiente' => $total,
         ])->saveQuietly();
+
+        if ($record->documento_origen_id) {
+            \App\Models\Cotizaciones::whereKey($record->documento_origen_id)
+                ->where('estatus', 'Activa')
+                ->update(['estatus' => 'Convertida']);
+        }
 
         $this->notaGuardadaFolio = trim(($record->serie ?? '') . '-' . ($record->folio ?? $record->id), '-');
         $this->unmountAction(cancelParentActions: false);

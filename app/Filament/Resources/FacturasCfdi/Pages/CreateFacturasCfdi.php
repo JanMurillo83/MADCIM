@@ -47,6 +47,10 @@ class CreateFacturasCfdi extends CreateRecord
             (array) ($data['notas_renta_ids'] ?? []),
             static fn (mixed $id): bool => is_numeric($id) && (int) $id > 0,
         ));
+        $esquemaImpuestos = $notasRentaIds !== [] && $notasVentaIds === []
+            && ($data['esquema_impuestos'] ?? null) === 'persona_moral'
+            ? 'persona_moral'
+            : 'persona_fisica';
         unset($data['notas_venta_ids'], $data['notas_renta_ids']);
 
         $partidasNotas = app(FacturaCfdiNotasService::class)->construirPartidas(
@@ -64,7 +68,8 @@ class CreateFacturasCfdi extends CreateRecord
                 $identificador = (string) ($partida['no_identificacion'] ?? '');
 
                 return ! str_starts_with($identificador, 'NVV:')
-                    && ! str_starts_with($identificador, 'NVR:');
+                    && ! str_starts_with($identificador, 'NVR:')
+                    && ! FacturaCfdiNotasService::esConceptoDepositoGarantia($partida);
             })
             ->values()
             ->all();
@@ -84,6 +89,18 @@ class CreateFacturasCfdi extends CreateRecord
             static fn (array $partida): float => (float) ($partida['total'] ?? 0),
             $partidas,
         )), 2);
+        $retenidoTotal = $esquemaImpuestos === 'persona_moral'
+            ? round(array_sum(array_map(static function (array $partida): float {
+                if (! str_starts_with((string) ($partida['no_identificacion'] ?? ''), 'NVR:')
+                    || (float) ($partida['impuestos'] ?? 0) <= 0) {
+                    return 0.0;
+                }
+                return round((float) ($partida['subtotal'] ?? 0) * 0.106667, 2);
+            }, $partidas)), 2)
+            : 0.0;
+        $data['esquema_impuestos'] = $esquemaImpuestos;
+        $data['impuestos_retenidos_total'] = $retenidoTotal;
+        $data['total'] = round($data['total'] - $retenidoTotal, 2);
 
         $datosFiscales = app(FacturaCfdiDatosFiscales::class);
         $emisor = $datosFiscales->datosEmisor(Configuracion::query()->first());
@@ -113,6 +130,34 @@ class CreateFacturasCfdi extends CreateRecord
 
         if (! $facturaId) {
             return;
+        }
+
+        // El XML builder consume los impuestos SAT a nivel de concepto. Guarda el IVA trasladado
+        // de las partidas de renta y, cuando aplica, la retención de 10.6667% sobre su base.
+        $this->record->load('partidas');
+        foreach ($this->record->partidas as $partida) {
+            if (! str_starts_with((string) $partida->no_identificacion, 'NVR:')) {
+                continue;
+            }
+            $base = max(0, (float) $partida->subtotal - (float) $partida->descuento);
+            $iva = (float) $partida->impuestos;
+            if ($base <= 0 || $iva <= 0) {
+                continue;
+            }
+
+            $partida->impuestos()->delete();
+            $partida->impuestos()->create([
+                'tipo' => 'Traslado', 'impuesto' => '002', 'tipo_factor' => 'Tasa',
+                'tasa_o_cuota' => 0.160000, 'base' => $base, 'importe' => $iva,
+            ]);
+
+            if ($this->record->esquema_impuestos === 'persona_moral') {
+                $partida->impuestos()->create([
+                    'tipo' => 'Retencion', 'impuesto' => '002', 'tipo_factor' => 'Tasa',
+                    'tasa_o_cuota' => 0.106667, 'base' => $base,
+                    'importe' => round($base * 0.106667, 2),
+                ]);
+            }
         }
 
         DB::afterCommit(function () use ($facturaId): void {

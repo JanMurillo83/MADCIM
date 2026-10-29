@@ -117,6 +117,9 @@ class FacturaCfdiNotasService
 
         foreach ($notasRenta as $nota) {
             foreach ($nota->partidas as $partida) {
+                if ($this->esDepositoGarantia($partida->producto, (string) $partida->descripcion)) {
+                    continue;
+                }
                 $partidas[] = $this->mapearPartidaRenta($nota, $partida);
             }
         }
@@ -198,6 +201,24 @@ class FacturaCfdiNotasService
             ->unique()
             ->values()
             ->all();
+    }
+
+    public static function esConceptoDepositoGarantia(array $partida): bool
+    {
+        $producto = filled($partida['item'] ?? null)
+            ? \App\Models\Productos::query()->find($partida['item'])
+            : null;
+
+        return self::esDepositoGarantia($producto, (string) ($partida['descripcion'] ?? ''));
+    }
+
+    private static function esDepositoGarantia(?\App\Models\Productos $producto, string $descripcion): bool
+    {
+        $clave = mb_strtoupper(trim((string) $producto?->clave), 'UTF-8');
+        $texto = mb_strtoupper($descripcion, 'UTF-8');
+        $texto = strtr($texto, ['Ó' => 'O', 'Í' => 'I', 'Á' => 'A', 'É' => 'E', 'Ú' => 'U']);
+
+        return $clave === 'DEPOGARANTIA' || str_contains($texto, 'DEPOSITO EN GARANTIA');
     }
 
     /**

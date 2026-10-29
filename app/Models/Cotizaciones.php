@@ -20,12 +20,14 @@ class Cotizaciones extends Model
         'folio',
         'fecha_emision',
         'dias_renta',
+        'tipo_cotizacion',
         'fecha_vencimiento',
         'moneda',
         'tipo_cambio',
         'subtotal',
         'impuestos_total',
         'total',
+        'deposito',
         'estatus',
         'direccion_entrega',
         'observaciones',
@@ -43,6 +45,7 @@ class Cotizaciones extends Model
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_vencimiento' => 'date',
+        'deposito' => 'decimal:8',
     ];
 
     public function partidas(): HasMany

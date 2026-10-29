@@ -3,6 +3,9 @@
 namespace App\Filament\Resources\Cotizaciones\Schemas;
 
 use App\Models\Clientes;
+use App\Enums\TipoNotaRenta;
+use App\Services\RentaMaderaM2Service;
+use App\Support\Impuestos;
 use App\Models\DocumentoSerie;
 use App\Models\Productos;
 use App\Models\Sucursal;
@@ -72,12 +75,52 @@ class CotizacionesForm
     private static function recalculatePartidaTotales(Get $get, Set $set): void
     {
         $cantidad = (float) $get('cantidad');
-        $valorUnitario = (float) $get('valor_unitario');
-        $subtotal = $cantidad * $valorUnitario;
-        $impuestos = (float) ($get('impuestos') ?? 0);
+        if ($get('../../tipo_cotizacion') === 'renta') {
+            $tipo = TipoNotaRenta::tryFrom($get('tipo_nota_renta') ?? 'equipo') ?? TipoNotaRenta::Equipo;
+            if ($tipo->esMaderaM2()) {
+                $calculo = RentaMaderaM2Service::calcular($tipo, (float) ($get('metros_m2') ?? 0));
+                $productoId = RentaMaderaM2Service::productoRentaM2Id($tipo);
+                $producto = Productos::find($productoId);
+                $set('item', $productoId);
+                $set('descripcion', ($producto?->descripcion ?? 'Renta de madera') . ' - ' . (float) ($get('metros_m2') ?? 0) . ' M2');
+                $set('cantidad', 1);
+                $set('valor_unitario', $calculo['precio_renta_m2']);
+                $set('subtotal', $calculo['subtotal_renta']);
+                $set('impuestos', $calculo['iva_renta']);
+                $set('total', $calculo['total_renta']);
+                $set('deposito', $calculo['deposito']);
+                return;
+            }
+            $producto = Productos::find($get('item'));
+            if (!$producto) return;
+            $periodo = $get('tipo_renta') ?? 'dia';
+            $duracion = max(1, (int) ($get('duracion_renta') ?? 1));
+            $dias = max(1, min(30, (int) ($get('dias_renta') ?? 25)));
+            $precio = $tipo->esMadera() ? (float) $producto->precio_renta_dia : (float) match ($periodo) {
+                'semana' => $producto->precio_renta_semana,
+                'mes' => $producto->precio_renta_mes,
+                default => $producto->precio_renta_dia,
+            };
+            $cantidad = $tipo->esEquipo() ? 1 : $cantidad;
+            $total = round($cantidad * $precio * ($tipo->esEquipo() ? $duracion : 1), 2);
+            $desglose = Impuestos::desglosarIvaIncluido($total);
+            $set('cantidad', $cantidad);
+            $set('valor_unitario', $precio);
+            $set('subtotal', $desglose['subtotal']);
+            $set('impuestos', $desglose['iva']);
+            $set('total', $total);
+            $set('deposito', $tipo->esMadera() ? round($total * 0.5, 2) : 0);
+            return;
+        }
 
-        $set('subtotal', $subtotal);
-        $set('total', $subtotal + $impuestos);
+        $valorUnitario = (float) $get('valor_unitario');
+        $total = round($cantidad * $valorUnitario, 2);
+        $desglose = Impuestos::desglosarIvaIncluido($total);
+
+        $set('subtotal', $desglose['subtotal']);
+        $set('impuestos', $desglose['iva']);
+        $set('total', $total);
+        $set('deposito', 0);
     }
 
     private static function recalculateDocumentoTotales(Get $get, Set $set): void
@@ -97,7 +140,7 @@ class CotizacionesForm
         foreach ($partidas as $partida) {
             $subtotal += (float) ($partida['subtotal'] ?? 0);
             $impuestos += (float) ($partida['impuestos'] ?? 0);
-            $total += (float) ($partida['total'] ?? 0);
+            $total += (float) ($partida['total'] ?? 0) + (float) ($partida['deposito'] ?? 0);
         }
 
         $set('../../subtotal', $subtotal);
@@ -125,6 +168,12 @@ class CotizacionesForm
                             })
                             ->searchable()
                             ->preload(),
+                        Select::make('tipo_cotizacion')
+                            ->label('Tipo de cotización')
+                            ->options(['venta' => 'Venta', 'renta' => 'Renta'])
+                            ->default('venta')
+                            ->required()
+                            ->live(),
                         TextInput::make('folio')
                             ->maxLength(50)
                             ->readOnly()
@@ -201,8 +250,9 @@ class CotizacionesForm
                             ->label('Días de renta')
                             ->numeric()
                             ->default(1)
-                            ->required()
-                            ->minValue(1),
+                            ->required(fn (Get $get) => $get('tipo_cotizacion') === 'renta')
+                            ->minValue(1)
+                            ->visible(fn (Get $get) => $get('tipo_cotizacion') === 'renta'),
                     ])
                     ->columns(5),
                 Section::make('Partidas')
@@ -221,6 +271,36 @@ class CotizacionesForm
                                 Repeater\TableColumn::make('Total'),
                             ])
                             ->schema([
+                                Select::make('tipo_nota_renta')
+                                    ->label('Concepto de renta')
+                                    ->options(TipoNotaRenta::options())
+                                    ->default('equipo')
+                                    ->live()
+                                    ->afterStateUpdated(function (Get $get, Set $set) { self::recalculatePartidaTotales($get, $set); self::recalculateDocumentoTotales($get, $set); })
+                                    ->visible(fn (Get $get) => $get('../../tipo_cotizacion') === 'renta'),
+                                Select::make('tipo_renta')
+                                    ->label('Periodo')
+                                    ->options(['dia' => 'Día', 'semana' => 'Semana', 'mes' => 'Mes'])
+                                    ->default('dia')
+                                    ->live()
+                                    ->afterStateUpdated(function (Get $get, Set $set) { self::recalculatePartidaTotales($get, $set); self::recalculateDocumentoTotales($get, $set); })
+                                    ->visible(fn (Get $get) => $get('../../tipo_cotizacion') === 'renta' && ($get('tipo_nota_renta') ?? 'equipo') === 'equipo'),
+                                TextInput::make('duracion_renta')
+                                    ->label('Duración')
+                                    ->numeric()->minValue(1)->default(1)->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set) { self::recalculatePartidaTotales($get, $set); self::recalculateDocumentoTotales($get, $set); })
+                                    ->visible(fn (Get $get) => $get('../../tipo_cotizacion') === 'renta' && ($get('tipo_nota_renta') ?? 'equipo') === 'equipo'),
+                                TextInput::make('dias_renta')
+                                    ->label('Días (madera)')
+                                    ->numeric()->minValue(1)->maxValue(30)->default(25)->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set) { self::recalculatePartidaTotales($get, $set); self::recalculateDocumentoTotales($get, $set); })
+                                    ->visible(fn (Get $get) => $get('../../tipo_cotizacion') === 'renta' && ($get('tipo_nota_renta') ?? 'equipo') === 'madera_pieza'),
+                                TextInput::make('metros_m2')
+                                    ->label('Metros cuadrados')
+                                    ->numeric()->minValue(0.01)->default(1)->live(onBlur: true)
+                                    ->afterStateUpdated(function (Get $get, Set $set) { self::recalculatePartidaTotales($get, $set); self::recalculateDocumentoTotales($get, $set); })
+                                    ->visible(fn (Get $get) => $get('../../tipo_cotizacion') === 'renta' && str_starts_with((string) $get('tipo_nota_renta'), 'madera_m2_')),
+                                Hidden::make('deposito')->default(0),
                                 TextInput::make('cantidad')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -247,7 +327,10 @@ class CotizacionesForm
                                             return;
                                         }
                                         $set('descripcion', $producto->descripcion);
-                                        $set('valor_unitario', $producto->precio_venta);
+                                        $precio = ($get('../../tipo_cotizacion') === 'renta')
+                                            ? (float) $producto->precio_renta_dia
+                                            : (float) $producto->precio_venta;
+                                        $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
                                     }),
@@ -261,11 +344,8 @@ class CotizacionesForm
                                     ->stripCharacters(',')
                                     ->required()
                                     ->default(0.0)
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Get $get, Set $set) {
-                                        self::recalculatePartidaTotales($get, $set);
-                                        self::recalculateDocumentoTotales($get, $set);
-                                    }),
+                                    ->readOnly()
+                                    ->dehydrated(),
                                 TextInput::make('subtotal')
                                     ->columnSpan(1)
                                     ->numeric()
@@ -314,6 +394,7 @@ class CotizacionesForm
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
+                            ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
@@ -326,6 +407,7 @@ class CotizacionesForm
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
+                            ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),

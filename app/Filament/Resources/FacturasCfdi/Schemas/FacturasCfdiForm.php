@@ -87,10 +87,12 @@ class FacturasCfdiForm
         $subtotal = 0.0;
         $impuestos = 0.0;
         $total = 0.0;
+        $retenido = 0.0;
 
         if (! is_array($partidas)) {
             $set('../../subtotal', 0.0);
             $set('../../impuestos_total', 0.0);
+            $set('../../impuestos_retenidos_total', 0.0);
             $set('../../total', 0.0);
 
             return;
@@ -100,28 +102,41 @@ class FacturasCfdiForm
             $subtotal += (float) ($partida['subtotal'] ?? 0);
             $impuestos += (float) ($partida['impuestos'] ?? 0);
             $total += (float) ($partida['total'] ?? 0);
+            if (($get('../../esquema_impuestos') ?? 'persona_fisica') === 'persona_moral'
+                && str_starts_with((string) ($partida['no_identificacion'] ?? ''), 'NVR:')
+                && (float) ($partida['impuestos'] ?? 0) > 0) {
+                $retenido += round((float) ($partida['subtotal'] ?? 0) * 0.106667, 2);
+            }
         }
 
         $set('../../subtotal', $subtotal);
         $set('../../impuestos_total', $impuestos);
-        $set('../../total', $total);
+        $set('../../impuestos_retenidos_total', $retenido);
+        $set('../../total', round($total - $retenido, 2));
     }
 
-    private static function recalculateFormTotales(array $partidas, Set $set): void
+    private static function recalculateFormTotales(array $partidas, Set $set, string $esquema = 'persona_fisica'): void
     {
         $subtotal = 0.0;
         $impuestos = 0.0;
         $total = 0.0;
+        $retenido = 0.0;
 
         foreach ($partidas as $partida) {
             $subtotal += (float) ($partida['subtotal'] ?? 0);
             $impuestos += (float) ($partida['impuestos'] ?? 0);
             $total += (float) ($partida['total'] ?? 0);
+            if ($esquema === 'persona_moral'
+                && str_starts_with((string) ($partida['no_identificacion'] ?? ''), 'NVR:')
+                && (float) ($partida['impuestos'] ?? 0) > 0) {
+                $retenido += round((float) ($partida['subtotal'] ?? 0) * 0.106667, 2);
+            }
         }
 
         $set('subtotal', $subtotal);
         $set('impuestos_total', $impuestos);
-        $set('total', $total);
+        $set('impuestos_retenidos_total', $retenido);
+        $set('total', round($total - $retenido, 2));
     }
 
     private static function actualizarPartidasDesdeNotas(Get $get, Set $set): void
@@ -144,6 +159,7 @@ class FacturasCfdiForm
 
                 return ! str_starts_with($identificador, 'NVV:')
                     && ! str_starts_with($identificador, 'NVR:')
+                    && ! FacturaCfdiNotasService::esConceptoDepositoGarantia($partida)
                     && $tieneProducto;
             })
             ->values()
@@ -151,7 +167,11 @@ class FacturasCfdiForm
 
         $partidas = [...$partidasNotas, ...$partidasManuales];
         $set('partidas', $partidas);
-        self::recalculateFormTotales($partidas, $set);
+        $esquema = ($get('notas_renta_ids') ?? []) !== [] && ($get('notas_venta_ids') ?? []) === []
+            ? (string) ($get('esquema_impuestos') ?? 'persona_fisica')
+            : 'persona_fisica';
+        $set('esquema_impuestos', $esquema);
+        self::recalculateFormTotales($partidas, $set, $esquema);
     }
 
     private static function limpiarNotasYPartidas(Get $get, Set $set): void
@@ -166,6 +186,8 @@ class FacturasCfdiForm
         $set('subtotal', 0);
         $set('impuestos_total', 0);
         $set('total', 0);
+        $set('impuestos_retenidos_total', 0);
+        $set('esquema_impuestos', 'persona_fisica');
     }
 
     public static function configure(Schema $schema): Schema
@@ -222,6 +244,19 @@ class FacturasCfdiForm
                             ->searchable()
                             ->preload()
                             ->visible(false),
+                        Select::make('esquema_impuestos')
+                            ->label('Esquema de impuestos')
+                            ->options([
+                                'persona_fisica' => 'Persona física · IVA trasladado 16%',
+                                'persona_moral' => 'Persona moral · IVA 16% y retención 10.6667%',
+                            ])
+                            ->default('persona_fisica')
+                            ->required()
+                            ->live()
+                            ->visible(fn (Get $get): bool => filled($get('notas_renta_ids')) && blank($get('notas_venta_ids')))
+                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
+                                self::recalculateFormTotales((array) $get('partidas'), $set, (string) $state);
+                            }),
                         Select::make('cliente_id')
                             ->label('Cliente')
                             ->relationship('cliente', 'nombre')
@@ -349,6 +384,7 @@ class FacturasCfdiForm
                                     ->searchable()
                                     ->options(function () {
                                         return Productos::select(DB::raw("CONCAT(clave,' - ',descripcion) as descripcion"), 'id')
+                                            ->where('clave', '<>', 'DEPOGARANTIA')
                                             ->pluck('descripcion', 'id');
                                     })
                                     ->live(onBlur: true)
@@ -513,14 +549,29 @@ class FacturasCfdiForm
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
                             ]),
                         TextInput::make('impuestos_total')
+                            ->label('IVA trasladado')
                             ->required()
                             ->numeric()
                             ->prefix('$')
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0.0)
+                            ->readOnly()
                             ->extraAttributes([
                                 'style' => 'background-color: #fff59d; font-weight: bold; font-size: 2rem; text-align: right;width:17rem;',
+                            ]),
+                        TextInput::make('impuestos_retenidos_total')
+                            ->label('IVA retenido (10.6667%)')
+                            ->numeric()
+                            ->prefix('$')
+                            ->mask(RawJs::make("\$money(\$input, '.', ',')"))
+                            ->stripCharacters(',')
+                            ->default(0.0)
+                            ->readOnly()
+                            ->visible(fn (Get $get): bool => $get('esquema_impuestos') === 'persona_moral'
+                                && filled($get('notas_renta_ids')) && blank($get('notas_venta_ids')))
+                            ->extraAttributes([
+                                'style' => 'background-color: #fff59d; font-weight: bold; font-size: 1.5rem; text-align: right;width:17rem;',
                             ]),
                         TextInput::make('total')
                             ->required()

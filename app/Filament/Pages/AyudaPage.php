@@ -4,6 +4,8 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\Clientes\Schemas\ClientesForm;
 use App\Filament\Resources\Productos\Schemas\ProductosForm;
+use App\Filament\Resources\NotasVentaRenta\NotasVentaRentaResource;
+use App\Filament\Resources\NotasVentaRenta\Pages\CreateNotasVentaRenta;
 use App\Models\Clientes;
 use App\Models\Configuracion;
 use App\Models\Cotizaciones;
@@ -13,6 +15,7 @@ use App\Models\Embarque;
 use App\Models\EmbarqueItem;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
+use App\Support\Impuestos;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
@@ -842,6 +845,14 @@ class AyudaPage extends Page implements HasActions
                                         })
                                         ->modalSubmitActionLabel('Guardar Nota Venta')
                                         ->extraAttributes(['style' => 'width: 200px !important;']),
+                                    Action::make('convertir_en_renta')
+                                        ->label('Convertir en Renta')
+                                        ->icon('fas-file-import')
+                                        ->color('success')
+                                        ->action(function (Get $get): void {
+                                            $this->convertirCotizacionEnCapturaRenta($get('cotizar') ?? []);
+                                        })
+                                        ->extraAttributes(['style' => 'width: 200px !important;']),
                                 ])
                             ])
                             ->columns(3),
@@ -875,6 +886,67 @@ class AyudaPage extends Page implements HasActions
         $set('../../m2_cubiertos',$m2_cubiertos);
         $set('../../importe_venta_total',$importe_venta_total);
     }
+
+    private function convertirCotizacionEnCapturaRenta(array $cotizar): void
+    {
+        $partidas = [];
+
+        foreach ($cotizar as $fila) {
+            $producto = Productos::find((int) ($fila['clave'] ?? 0));
+            $cantidad = $this->numericState($fila['cantidad'] ?? 1);
+
+            if (!$producto || $cantidad <= 0) {
+                continue;
+            }
+
+            if (floor($cantidad) !== $cantidad) {
+                Notification::make()
+                    ->title('No se pudo convertir la cotización')
+                    ->body('Las cantidades de productos para renta deben ser números enteros. Ajuste la cantidad en el cotizador e intente nuevamente.')
+                    ->warning()
+                    ->persistent()
+                    ->send();
+                return;
+            }
+
+            $precio = (float) $producto->precio_renta_dia;
+            $importe = round($precio, 2);
+            $impuestos = Impuestos::desglosarIvaIncluido($importe);
+
+            // La captura regular maneja el equipo por unidad y la duración por separado.
+            // Cada unidad cotizada se convierte en una partida independiente.
+            for ($unidad = 0; $unidad < (int) $cantidad; $unidad++) {
+                $partidas[] = [
+                    'item' => $producto->id,
+                    'descripcion' => $producto->descripcion,
+                    'tipo_nota_renta' => 'equipo',
+                    'tipo_renta' => 'dia',
+                    'duracion_renta' => 1,
+                    'dias_renta' => 1,
+                    'cantidad' => 1,
+                    'metros_m2' => null,
+                    'valor_unitario' => $precio,
+                    'subtotal' => $impuestos['subtotal'],
+                    'impuestos' => $impuestos['iva'],
+                    'deposito' => 0,
+                    'total' => $importe,
+                ];
+            }
+        }
+
+        if ($partidas === []) {
+            Notification::make()
+                ->title('No hay conceptos para convertir')
+                ->body('Agregue al menos un producto con cantidad válida en la cotización.')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        session()->flash(CreateNotasVentaRenta::SESSION_PARTIDAS_COTIZADOR, $partidas);
+        $this->redirect(NotasVentaRentaResource::getUrl('create'), navigate: false);
+    }
+
     public function calcula(Get $get,Set $set): void
     {
         $precioM2ConIva = 130.0;
@@ -982,6 +1054,8 @@ class AyudaPage extends Page implements HasActions
                 'total' => $total,
                 'estatus' => 'Activa',
                 'dias_renta' => $diasRenta,
+                'tipo_cotizacion' => 'renta',
+                'deposito' => $importeDeposito,
             ]);
 
             // Crear partida para RENTA

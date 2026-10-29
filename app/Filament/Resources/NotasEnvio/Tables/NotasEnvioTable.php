@@ -373,6 +373,7 @@ class NotasEnvioTable
                                 $nota->direccion_entrega_id,
                                 $data['observaciones'] ?? null,
                                 Auth::id(),
+                                sucursalId: $nota->sucursal_id,
                             )
                             : $servicioCierre->cerrar($nota, $data['observaciones'] ?? null, Auth::id());
 
