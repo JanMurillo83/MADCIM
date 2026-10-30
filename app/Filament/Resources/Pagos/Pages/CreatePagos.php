@@ -7,6 +7,7 @@ use App\Models\Caja;
 use App\Models\FacturasCfdi;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -26,8 +27,7 @@ class CreatePagos extends CreateRecord
 
         $data['caja_id'] = Caja::query()
             ->where('estatus', 'Abierta')
-            ->where('usuario_apertura_id', Auth::id())
-            ->when($documento?->sucursal_id, fn ($query, $sucursalId) => $query->where('sucursal_id', $sucursalId))
+            ->where('sucursal_id', $documento?->sucursal_id)
             ->value('id');
 
         return $data;
@@ -38,7 +38,7 @@ class CreatePagos extends CreateRecord
         return $this->getResource()::getUrl('index');
     }
 
-    protected function getCreateAnotherFormAction(): \Filament\Actions\Action
+    protected function getCreateAnotherFormAction(): Action
     {
         return parent::getCreateAnotherFormAction()->hidden();
     }

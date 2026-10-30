@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\TipoNotaRenta;
 use App\Models\Caja;
+use App\Models\CierreDevolucionRenta;
 use App\Models\Configuracion;
 use App\Models\DevolucionesRenta;
-use App\Models\CierreDevolucionRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
@@ -67,7 +67,7 @@ class NotaVentaRentaPdfController extends Controller
             ->orderBy('id')
             ->get(['id', 'serie', 'folio', 'fecha_emision']);
         $resumen = null;
-        if (!$resumen && $notaVenta->direccion_entrega_id) {
+        if (! $resumen && $notaVenta->direccion_entrega_id) {
             $cierre = CierreDevolucionRenta::query()
                 ->where('cliente_id', $notaVenta->cliente_id)
                 ->where('direccion_entrega_id', $notaVenta->direccion_entrega_id)
@@ -77,7 +77,7 @@ class NotaVentaRentaPdfController extends Controller
                 $resumen = app(CierreDevolucionRentaService::class)->resumenDesdeCierre($cierre);
             }
         }
-        $resumen ??= session('cierre_devolucion_resumen_nvr_' . $notaVenta->id);
+        $resumen ??= session('cierre_devolucion_resumen_nvr_'.$notaVenta->id);
         $resumen ??= app(CierreDevolucionRentaService::class)->obtenerResumen($notaVenta);
 
         $notaVentaVenta = NotasVentaVenta::query()
@@ -90,7 +90,7 @@ class NotaVentaRentaPdfController extends Controller
             ->latest()
             ->first();
 
-        $observaciones = session('cierre_devolucion_observaciones_nvr_' . $notaVenta->id, null);
+        $observaciones = session('cierre_devolucion_observaciones_nvr_'.$notaVenta->id, null);
 
         return view('notas-venta-renta.cierre-devolucion-ticket', [
             'notaVenta' => $notaVenta,
@@ -199,7 +199,6 @@ class NotaVentaRentaPdfController extends Controller
         $cajaId = null;
         if ($formaPago === '01') {
             $caja = Caja::where('estatus', 'Abierta')
-                ->where('usuario_apertura_id', $userId)
                 ->where('sucursal_id', $notaVenta->sucursal_id)
                 ->first();
             $cajaId = $caja?->id;
@@ -266,7 +265,7 @@ class NotaVentaRentaPdfController extends Controller
                 $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? 'equipo');
                 $etiqueta = $tipo?->label();
 
-                return (string) $partida->descripcion . ($etiqueta ? ' (' . $etiqueta . ')' : '');
+                return (string) $partida->descripcion.($etiqueta ? ' ('.$etiqueta.')' : '');
             },
         );
     }
@@ -275,6 +274,7 @@ class NotaVentaRentaPdfController extends Controller
     {
         $partidasM2 = $notaVenta->partidas->filter(function ($partida) use ($notaVenta): bool {
             $tipo = TipoNotaRenta::tryFrom($partida->tipo_nota_renta ?? $notaVenta->tipo_nota_renta ?? '');
+
             return $tipo?->esMaderaM2() ?? false;
         });
 

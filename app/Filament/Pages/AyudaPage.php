@@ -456,13 +456,12 @@ class AyudaPage extends Page implements HasActions
                                             $cajaId = null;
                                             if ($metodo === 'Efectivo') {
                                                 $cajaId = \App\Models\Caja::where('estatus', 'Abierta')
-                                                    ->where('usuario_apertura_id', $userId)
                                                     ->where('sucursal_id', $nota->sucursal_id)
                                                     ->value('id');
                                                 if (!$cajaId) {
                                                     Notification::make()
                                                         ->title('Caja no disponible')
-                                                        ->body('La nota se guardó, pero no tienes una caja abierta. Abre una caja para registrar pagos en efectivo.')
+                                                        ->body('La nota se guardó, pero no hay una caja abierta en su sucursal. Abre la caja de esa sucursal para registrar pagos en efectivo.')
                                                         ->danger()->send();
                                                     return; // No creamos pago sin caja en efectivo
                                                 }

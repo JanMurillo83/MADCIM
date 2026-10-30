@@ -6,8 +6,8 @@ use App\Models\Caja;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class CobroNotaService
@@ -63,13 +63,12 @@ class CobroNotaService
 
             $cajaId = Caja::query()
                 ->where('estatus', 'Abierta')
-                ->where('usuario_apertura_id', $userId)
                 ->where('sucursal_id', $documento->sucursal_id)
                 ->lockForUpdate()
                 ->value('id');
 
-            if (!$cajaId && collect($lineas)->contains(fn (array $linea): bool => ($linea['forma_pago'] ?? null) === '01')) {
-                throw new RuntimeException('No tienes una caja abierta para recibir efectivo.');
+            if (! $cajaId && collect($lineas)->contains(fn (array $linea): bool => ($linea['forma_pago'] ?? null) === '01')) {
+                throw new RuntimeException('No hay una caja abierta en la sucursal de la nota para recibir efectivo.');
             }
 
             $primerPago = null;
@@ -106,10 +105,13 @@ class CobroNotaService
             }
 
             $documento->forceFill([
+                'condicion_pago' => 'contado',
                 'forma_pago' => $formasPago->count() === 1
                     ? $formasPago->first()
                     : $formasPago->implode(','),
             ])->saveQuietly();
+
+            $documento->cliente?->recalcularSaldo();
 
             return $primerPago;
         });

@@ -8,19 +8,20 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Services\CobroNotaService;
 use BackedEnum;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
@@ -31,14 +32,21 @@ class CobrosPendientes extends Page implements HasActions
     use InteractsWithActions;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
+
     protected static ?string $navigationLabel = 'Cobros pendientes';
+
     protected static ?string $title = 'Notas pendientes de pago';
+
     protected static string|null|\UnitEnum $navigationGroup = 'Caja';
+
     protected static ?int $navigationSort = 1;
+
     protected string $view = 'filament.pages.cobros-pendientes';
 
     public string $tipoSeleccionado = '';
+
     public ?int $notaSeleccionada = null;
+
     public string $pestana = 'hoy';
 
     public function abrirPago(string $tipo, int $id): void
@@ -88,7 +96,7 @@ class CobrosPendientes extends Page implements HasActions
                 'tipo' => 'notas_venta_renta',
                 'tipo_label' => 'Renta',
                 'id' => $nota->id,
-                'folio' => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')),
+                'folio' => trim(($nota->serie ?? '').'-'.($nota->folio ?? '')),
                 'condicion_pago' => ($nota->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado',
                 'credito_confirmado' => $nota->cobro_credito_confirmado_en !== null,
                 'fecha' => optional($nota->fecha_emision)->format('d/m/Y'),
@@ -106,7 +114,7 @@ class CobrosPendientes extends Page implements HasActions
                 'tipo' => 'notas_venta_venta',
                 'tipo_label' => 'Venta',
                 'id' => $nota->id,
-                'folio' => trim(($nota->serie ?? '') . '-' . ($nota->folio ?? '')),
+                'folio' => trim(($nota->serie ?? '').'-'.($nota->folio ?? '')),
                 'condicion_pago' => ($nota->condicion_pago ?? 'contado') === 'credito' ? 'Crédito' : 'Contado',
                 'credito_confirmado' => $nota->cobro_credito_confirmado_en !== null,
                 'fecha' => optional($nota->fecha_emision)->format('d/m/Y'),
@@ -154,11 +162,11 @@ class CobrosPendientes extends Page implements HasActions
         $hoy = now()->toDateString();
 
         return $this->notasPendientes->filter(function (array $nota) use ($hoy): bool {
-            $fecha = \Carbon\Carbon::createFromFormat('d/m/Y', $nota['fecha'])->toDateString();
+            $fecha = Carbon::createFromFormat('d/m/Y', $nota['fecha'])->toDateString();
             $creditoConfirmado = (bool) ($nota['credito_confirmado'] ?? false);
 
             return $this->pestana === 'hoy'
-                ? !$creditoConfirmado && $fecha === $hoy
+                ? ! $creditoConfirmado && $fecha === $hoy
                 : $creditoConfirmado || $fecha < $hoy;
         })->values();
     }
@@ -177,14 +185,25 @@ class CobrosPendientes extends Page implements HasActions
         return $this->condicionPagoSeleccionada() === 'Crédito';
     }
 
+    public function requiereConfirmacionCredito(): bool
+    {
+        $nota = $this->notasPendientes->first(
+            fn (array $nota): bool => $nota['tipo'] === $this->tipoSeleccionado && $nota['id'] === $this->notaSeleccionada,
+        );
+
+        return $this->esCreditoSeleccionado()
+            && ! ($nota['credito_confirmado'] ?? false)
+            && ($nota['fecha'] ?? null) === now()->format('d/m/Y');
+    }
+
     public function pagarAction(): Action
     {
         return Action::make('pagar')
             ->label('Registrar pago')
-            ->modalHeading(fn (): string => $this->esCreditoSeleccionado() ? 'Confirmar pago de crédito' : 'Registrar pago')
+            ->modalHeading(fn (): string => $this->requiereConfirmacionCredito() ? 'Confirmar pago de crédito' : 'Registrar pago')
             ->modalSubmitActionLabel('Guardar e imprimir ticket')
             ->modalWidth('5xl')
-            ->form(fn (): array => $this->esCreditoSeleccionado()
+            ->form(fn (): array => $this->requiereConfirmacionCredito()
                 ? [
                     Placeholder::make('confirmacion_credito')
                         ->label('Confirmación')
@@ -194,7 +213,7 @@ class CobrosPendientes extends Page implements HasActions
                 : $this->formularioPagoContado())
             ->action(function (array $data): void {
                 try {
-                    if ($this->esCreditoSeleccionado()) {
+                    if ($this->requiereConfirmacionCredito()) {
                         app(CobroNotaService::class)->confirmarCredito(
                             $this->tipoSeleccionado,
                             (int) $this->notaSeleccionada,
@@ -205,6 +224,8 @@ class CobrosPendientes extends Page implements HasActions
                             : route('notas-venta-venta.pdf.ticket', $this->notaSeleccionada);
 
                         $this->dispatch('abrir-ticket-pago', url: $ticketUrl);
+                        unset($this->notasPendientes);
+                        $this->dispatch('$refresh');
                         Notification::make()
                             ->title('Crédito confirmado')
                             ->body('La nota permanece en Cuentas por Cobrar.')
@@ -246,56 +267,56 @@ class CobrosPendientes extends Page implements HasActions
     private function formularioPagoContado(): array
     {
         return [
-                Section::make('Datos del pago')->schema([
-                    DatePicker::make('fecha_pago')
-                        ->label('Fecha de pago')
-                        ->default(now())
-                        ->required(),
-                    Repeater::make('pagos')
-                        ->label('Formas de pago')
-                        ->schema([
-                            Select::make('forma_pago')
-                                ->label('Forma')
-                                ->options([
-                                    '01' => 'Efectivo',
-                                    '02' => 'Cheque nominativo',
-                                    '03' => 'Transferencia electrónica',
-                                    '04' => 'Tarjeta de crédito',
-                                    '28' => 'Tarjeta de débito',
-                                ])
-                                ->default('01')
-                                ->live()
-                                ->required(),
-                            TextInput::make('importe')
-                                ->label('Importe aplicado')
-                                ->prefix('$')
-                                ->numeric()
-                                ->minValue(0.01)
-                                ->required(),
-                            TextInput::make('importe_recibido')
-                                ->label('Efectivo recibido')
-                                ->prefix('$')
-                                ->numeric()
-                                ->minValue(0)
-                                ->visible(fn (Get $get): bool => $get('forma_pago') === '01')
-                                ->required(fn (Get $get): bool => $get('forma_pago') === '01'),
-                        ])
-                        ->default(fn (): array => [[
-                            'forma_pago' => '01',
-                            'importe' => $this->saldoSeleccionado(),
-                            'importe_recibido' => $this->saldoSeleccionado(),
-                        ]])
-                        ->addActionLabel('Agregar otra forma de pago')
-                        ->columns(3)
-                        ->columnSpanFull(),
-                    TextInput::make('referencia')
-                        ->label('Referencia')
-                        ->maxLength(255),
-                    Textarea::make('observaciones')
-                        ->label('Observaciones')
-                        ->rows(2)
-                        ->columnSpanFull(),
-                ])->columns(2),
+            Section::make('Datos del pago')->schema([
+                DatePicker::make('fecha_pago')
+                    ->label('Fecha de pago')
+                    ->default(now())
+                    ->required(),
+                Repeater::make('pagos')
+                    ->label('Formas de pago')
+                    ->schema([
+                        Select::make('forma_pago')
+                            ->label('Forma')
+                            ->options([
+                                '01' => 'Efectivo',
+                                '02' => 'Cheque nominativo',
+                                '03' => 'Transferencia electrónica',
+                                '04' => 'Tarjeta de crédito',
+                                '28' => 'Tarjeta de débito',
+                            ])
+                            ->default('01')
+                            ->live()
+                            ->required(),
+                        TextInput::make('importe')
+                            ->label('Importe aplicado')
+                            ->prefix('$')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required(),
+                        TextInput::make('importe_recibido')
+                            ->label('Efectivo recibido')
+                            ->prefix('$')
+                            ->numeric()
+                            ->minValue(0)
+                            ->visible(fn (Get $get): bool => $get('forma_pago') === '01')
+                            ->required(fn (Get $get): bool => $get('forma_pago') === '01'),
+                    ])
+                    ->default(fn (): array => [[
+                        'forma_pago' => '01',
+                        'importe' => $this->saldoSeleccionado(),
+                        'importe_recibido' => $this->saldoSeleccionado(),
+                    ]])
+                    ->addActionLabel('Agregar otra forma de pago')
+                    ->columns(3)
+                    ->columnSpanFull(),
+                TextInput::make('referencia')
+                    ->label('Referencia')
+                    ->maxLength(255),
+                Textarea::make('observaciones')
+                    ->label('Observaciones')
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ])->columns(2),
         ];
     }
 }
