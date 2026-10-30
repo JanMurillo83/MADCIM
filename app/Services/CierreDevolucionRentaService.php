@@ -215,6 +215,16 @@ class CierreDevolucionRentaService
         ?int $sucursalId = null,
     ): array
     {
+        $usuario = auth()->user();
+        if ($usuario && ! $usuario->isAdmin()) {
+            if (! $usuario->sucursal_id) {
+                throw new \DomainException('Tu usuario necesita una sucursal asignada para cerrar la obra.');
+            }
+
+            // La sucursal se determina en el servidor; nunca se confía en el valor enviado por Livewire.
+            $sucursalId = (int) $usuario->sucursal_id;
+        }
+
         return DB::transaction(function () use ($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno, $sucursalId): array {
             if ($direccionEntregaId > 0) {
                 ClienteDireccionEntrega::query()

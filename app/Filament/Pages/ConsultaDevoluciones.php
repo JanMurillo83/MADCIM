@@ -100,6 +100,11 @@ class ConsultaDevoluciones extends Page implements HasActions
 
     public function cerrarObra(int $clienteId, int $direccionEntregaId, int $sucursalId): void
     {
+        $usuario = Auth::user();
+        if ($usuario && ! $usuario->isAdmin()) {
+            $sucursalId = (int) ($usuario->sucursal_id ?? 0);
+        }
+
         $this->clienteCierreId = $clienteId;
         $this->direccionCierreId = $direccionEntregaId;
         $this->sucursalCierreId = $sucursalId;
@@ -231,6 +236,8 @@ class ConsultaDevoluciones extends Page implements HasActions
                         'direccion_entrega_id' => $this->direccionCierreId,
                         'sucursal_id' => $this->sucursalCierreId,
                         'user_id' => Auth::id(),
+                        'user_role' => Auth::user()?->role,
+                        'user_sucursal_id' => Auth::user()?->sucursal_id,
                         'exception_class' => $exception::class,
                         'exception_message' => $exception->getMessage(),
                     ]);
