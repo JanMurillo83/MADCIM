@@ -2,16 +2,13 @@
 
 namespace App\Filament\Resources\NotasEnvio\Tables;
 
-use App\Models\Caja;
-use App\Models\CajaMovimiento;
 use App\Models\NotaEnvio;
 use App\Models\MovimientoInventario;
 use App\Models\NotaEnvioPartida;
-use App\Models\NotasVentaRenta;
-use App\Models\NotaVentaRentaPartidas;
 use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use App\Services\CierreDevolucionRentaService;
+use App\Services\RenovacionRentaService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -22,6 +19,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
@@ -485,190 +483,74 @@ class NotasEnvioTable
                             ->send();
                     }),
                 Action::make('renovar')
-                    ->label('Renovar')
-                    ->icon('heroicon-o-arrow-path')
+                    ->label('Extender renta')
+                    ->icon('heroicon-o-calendar-days')
                     ->color('info')
-                    ->visible(function (NotaEnvio $record) {
+                    ->visible(function (NotaEnvio $record): bool {
                         $nota = $record->notaVentaRenta;
-                        if (!$nota) return false;
-                        return $nota->estatus !== 'Devuelta';
+
+                        return $nota?->estatus === 'Activa'
+                            && $record->estatus !== 'Cancelada'
+                            && $record->partidas()->whereHas('registroRenta', fn ($query) => $query
+                                ->where('estado', 'Activo')
+                                ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)'))
+                                ->exists();
                     })
-                    ->requiresConfirmation()
-                    ->modalHeading(fn (NotaEnvio $record) => 'Renovar Renta - Envío Folio ' . $record->folio)
-                    ->modalDescription(function (NotaEnvio $record) {
-                        $nota = $record->notaVentaRenta;
-                        $deposito = $nota ? (float)$nota->deposito : 0;
-                        return 'Se marcará la nota actual como Devuelta y se generará una nueva nota con los mismos datos. Depósito: $' . number_format($deposito, 2);
-                    })
-                    ->modalSubmitActionLabel('Renovar Renta')
-                    ->action(function (NotaEnvio $record) {
-                        $nota = $record->notaVentaRenta;
-                        if (!$nota) return;
-                        $deposito = (float)$nota->deposito;
-                        $fechaInicioVigencia = Carbon::today();
+                    ->modalHeading(fn (NotaEnvio $record): string => 'Extender renta - Envío ' . $record->folio)
+                    ->modalDescription('Capture los días adicionales y confirme el importe del cobro. Se actualizará el vencimiento; no se agregará depósito ni se moverá inventario.')
+                    ->modalSubmitActionLabel('Extender renta')
+                    ->form(fn (NotaEnvio $record): array => [
+                        TextInput::make('dias')
+                            ->label('Días a extender')
+                            ->integer()
+                            ->minValue(1)
+                            ->default(1)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, Set $set, NotaEnvio $record): void {
+                                $set('importe', app(RenovacionRentaService::class)->importeSugerido($record, max(1, (int) $state)));
+                            })
+                            ->required(),
+                        TextInput::make('importe')
+                            ->label('Importe del cobro pendiente')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->step(0.01)
+                            ->prefix('$')
+                            ->default(fn (): float => app(RenovacionRentaService::class)->importeSugerido($record, 1))
+                            ->required()
+                            ->helperText('Importe sugerido según tarifa y días. Puede corregirlo; incluye IVA cuando corresponda y no agrega depósito.'),
+                    ])
+                    ->action(function (NotaEnvio $record, array $data): void {
+                        try {
+                            $cobro = app(RenovacionRentaService::class)->renovar(
+                                $record,
+                                (int) $data['dias'],
+                                (float) $data['importe'],
+                                Auth::id(),
+                            );
 
-                        // 1. Marcar registros de renta originales como Devueltos
-                        RegistroRenta::where('nota_venta_renta_id', $nota->id)
-                            ->update(['estado' => 'Devuelto']);
-
-                        // 2. Marcar nota original como Devuelta
-                        $nota->update(['estatus' => 'Devuelta']);
-
-                        // 3. Crear nueva nota con los mismos datos
-                        $nuevaNota = NotasVentaRenta::create([
-                            'cliente_id' => $nota->cliente_id,
-                            'direccion_entrega_id' => $nota->direccion_entrega_id,
-                            'serie' => $nota->serie,
-                            'fecha_emision' => now(),
-                            'dias_renta' => $nota->dias_renta,
-                            'fecha_vencimiento' => $fechaInicioVigencia->copy()->addDays(max(1, (int) ($nota->dias_renta ?? 30))),
-                            'moneda' => $nota->moneda ?? 'MXN',
-                            'tipo_cambio' => $nota->tipo_cambio ?? 1,
-                            'deposito' => $nota->deposito,
-                            'subtotal' => $nota->subtotal,
-                            'impuestos_total' => $nota->impuestos_total,
-                            'total' => $nota->total,
-                            'saldo_pendiente' => $nota->saldo_pendiente,
-                            'estatus' => 'Activa',
-                            'uso_cfdi' => $nota->uso_cfdi,
-                            'forma_pago' => $nota->forma_pago,
-                            'metodo_pago' => $nota->metodo_pago,
-                            'regimen_fiscal_receptor' => $nota->regimen_fiscal_receptor,
-                            'rfc_emisor' => $nota->rfc_emisor,
-                            'rfc_receptor' => $nota->rfc_receptor,
-                            'razon_social_receptor' => $nota->razon_social_receptor,
-                            'documento_origen_id' => $nota->id,
-                        ]);
-
-                        // 4. Copiar partidas de la nota original
-                        foreach ($nota->partidas as $partida) {
-                            NotaVentaRentaPartidas::create([
-                                'nota_venta_renta_id' => $nuevaNota->id,
-                                'cantidad' => $partida->cantidad,
-                                'item' => $partida->item,
-                                'tipo_nota_renta' => $partida->tipo_nota_renta,
-                                'tipo_renta' => $partida->tipo_renta,
-                                'duracion_renta' => $partida->duracion_renta,
-                                'dias_renta' => $partida->dias_renta,
-                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
-                                    ->addDays(max(1, (int) ($partida->dias_renta ?? $nota->dias_renta ?? 1))),
-                                'metros_m2' => $partida->metros_m2,
-                                'descripcion' => $partida->descripcion,
-                                'valor_unitario' => $partida->valor_unitario,
-                                'subtotal' => $partida->subtotal,
-                                'impuestos' => $partida->impuestos,
-                                'total' => $partida->total,
-                                'producto_id' => $partida->producto_id,
-                            ]);
+                            Notification::make()
+                                ->title('Renta extendida')
+                                ->body('Se actualizó el vencimiento y se generó el cobro pendiente ' . $cobro->serie . '-' . $cobro->folio . ' por $' . number_format((float) $cobro->total, 2) . '.')
+                                ->success()
+                                ->persistent()
+                                ->send();
+                        } catch (\Illuminate\Validation\ValidationException $exception) {
+                            Notification::make()
+                                ->title('No se pudo extender la renta')
+                                ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        } catch (\Throwable $exception) {
+                            report($exception);
+                            Notification::make()
+                                ->title('No se pudo extender la renta')
+                                ->body('La operación se revirtió. Revise el registro de errores antes de reintentar.')
+                                ->danger()
+                                ->persistent()
+                                ->send();
                         }
-
-                        // 5. Copiar registros de renta a la nueva nota
-                        $registrosOriginales = RegistroRenta::where('nota_venta_renta_id', $nota->id)->get();
-                        $cliente = $nota->cliente;
-
-                        foreach ($registrosOriginales as $reg) {
-                            RegistroRenta::create([
-                                'nota_venta_renta_id' => $nuevaNota->id,
-                                'cliente_id' => $reg->cliente_id,
-                                'cliente_nombre' => $reg->cliente_nombre,
-                                'cliente_contacto' => $reg->cliente_contacto,
-                                'cliente_telefono' => $reg->cliente_telefono,
-                                'cliente_direccion' => $reg->cliente_direccion,
-                                'producto_id' => $reg->producto_id,
-                                'cantidad' => $reg->cantidad,
-                                'dias_renta' => $reg->dias_renta,
-                                'fecha_renta' => $fechaInicioVigencia->toDateString(),
-                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
-                                    ->addDays(max(1, (int) ($reg->dias_renta ?? 30))),
-                                'importe_renta' => $reg->importe_renta,
-                                'importe_deposito' => $reg->importe_deposito,
-                                'estado' => 'Activo',
-                                'observaciones' => $reg->observaciones,
-                            ]);
-                        }
-
-                        // 6. Crear nueva nota de envío vinculada a la nueva nota
-                        $nuevaNotaEnvio = NotaEnvio::create([
-                            'serie' => $record->serie ?? 'NE',
-                            'nota_venta_renta_id' => $nuevaNota->id,
-                            'cliente_id' => $record->cliente_id,
-                            'direccion_entrega_id' => $record->direccion_entrega_id,
-                            'fecha_emision' => now(),
-                            'inicio_vigencia' => $fechaInicioVigencia->toDateString(),
-                            'observaciones' => $record->observaciones,
-                            'estatus' => 'Pendiente',
-                            'user_id' => Auth::id(),
-                        ]);
-
-                        // Copiar partidas de envío
-                        foreach ($record->partidas as $partida) {
-                            NotaEnvioPartida::create([
-                                'nota_envio_id' => $nuevaNotaEnvio->id,
-                                'nota_venta_renta_partida_id' => $partida->nota_venta_renta_partida_id,
-                                'producto_id' => $partida->producto_id,
-                                'descripcion' => $partida->descripcion,
-                                'cantidad' => $partida->cantidad,
-                                'dias_renta' => $partida->dias_renta,
-                                'fecha_vencimiento' => $fechaInicioVigencia->copy()
-                                    ->addDays(max(1, (int) ($partida->dias_renta ?? 1)))
-                                    ->toDateString(),
-                                'observaciones' => $partida->observaciones,
-                            ]);
-                        }
-
-                        // 7. Movimientos en caja (efecto 0)
-                        $cajaAbierta = Caja::where('estatus', 'Abierta')
-                            ->where('sucursal_id', $nota->sucursal_id)
-                            ->first();
-                        $sinCaja = false;
-
-                        if ($cajaAbierta && $deposito > 0) {
-                            // Egreso: devolución depósito original
-                            CajaMovimiento::create([
-                                'caja_id' => $cajaAbierta->id,
-                                'tipo' => 'Egreso',
-                                'fuente' => 'Devolución depósito renta',
-                                'metodo_pago' => 'Efectivo',
-                                'importe' => $deposito,
-                                'referencia' => 'Renovación Envío ' . $record->folio . ' - Devolución depósito NVR ' . $nota->serie . '-' . $nota->folio,
-                                'user_id' => Auth::id(),
-                                'fecha' => now(),
-                                'movimentable_type' => NotasVentaRenta::class,
-                                'movimentable_id' => $nota->id,
-                            ]);
-
-                            // Ingreso: depósito nueva nota
-                            CajaMovimiento::create([
-                                'caja_id' => $cajaAbierta->id,
-                                'tipo' => 'Ingreso',
-                                'fuente' => 'Depósito renta renovación',
-                                'metodo_pago' => 'Efectivo',
-                                'importe' => $deposito,
-                                'referencia' => 'Renovación Envío ' . $nuevaNotaEnvio->folio . ' - Depósito NVR ' . $nuevaNota->serie . '-' . $nuevaNota->folio,
-                                'user_id' => Auth::id(),
-                                'fecha' => now(),
-                                'movimentable_type' => NotasVentaRenta::class,
-                                'movimentable_id' => $nuevaNota->id,
-                            ]);
-
-                            // Actualizar totales de caja
-                            $eg = $cajaAbierta->movimientos()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe');
-                            $cajaAbierta->update(['total_egresos_cash' => $eg]);
-                        } elseif ($deposito > 0) {
-                            $sinCaja = true;
-                        }
-
-                        $mensaje = 'Renta renovada. Nueva nota: ' . $nuevaNota->serie . '-' . $nuevaNota->folio . '. Nueva nota envío: ' . $nuevaNotaEnvio->folio;
-                        if ($sinCaja) {
-                            $mensaje .= ' (⚠ No se encontró caja abierta para registrar movimientos)';
-                        }
-
-                        Notification::make()
-                            ->title('Renta renovada exitosamente')
-                            ->body($mensaje)
-                            ->success()
-                            ->persistent()
-                            ->send();
                     }),
                 ])
             ],RecordActionsPosition::BeforeColumns);
