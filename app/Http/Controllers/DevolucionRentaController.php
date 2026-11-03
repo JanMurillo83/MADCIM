@@ -6,6 +6,8 @@ use App\Models\NotasVentaRenta;
 use App\Models\NotaDevolucionRenta;
 use App\Models\NotaDevolucionRentaPartida;
 use App\Models\RegistroRenta;
+use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +21,12 @@ class DevolucionRentaController extends Controller
         $itemsRentados = $this->obtenerItemsPendientes($nota);
 
         if ($itemsRentados->isEmpty()) {
+            Notification::make()
+                ->warning()
+                ->title('No hay productos pendientes de devolución')
+                ->body('Actualice la consulta y revise la sucursal, la obra y las devoluciones registradas.')
+                ->send();
+
             return redirect()->back()->with('error', 'No hay productos activos para devolver en esta nota.');
         }
 
@@ -39,20 +47,13 @@ class DevolucionRentaController extends Controller
         try {
             $totalDevueltoAhora = 0;
             $itemsDevolucion = [];
-            $notaEnvioOrigenId = null;
+            $notaEnvioOrigenIds = [];
+            $notaIdsObra = $this->notasDeObra($nota)->pluck('id');
 
             foreach ($request->items as $registroId => $item) {
                 $registro = RegistroRenta::with('producto')
                     ->whereKey($registroId)
-                    ->when(
-                        $nota->direccion_entrega_id,
-                        fn ($query) => $query
-                            ->where('cliente_id', $nota->cliente_id)
-                            ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery
-                                ->where('direccion_entrega_id', $nota->direccion_entrega_id)
-                                ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']))),
-                        fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
-                    )
+                    ->whereIn('nota_venta_renta_id', $notaIdsObra)
                     ->lockForUpdate()
                     ->firstOrFail();
                 $cantidadActual = (float) ($registro->cantidad_devuelta ?? 0);
@@ -72,11 +73,7 @@ class DevolucionRentaController extends Controller
                     ?? null;
 
                 if ($notaEnvioId) {
-                    if ($notaEnvioOrigenId !== null && (int) $notaEnvioOrigenId !== (int) $notaEnvioId) {
-                        throw new \RuntimeException('Los productos seleccionados pertenecen a envíos distintos; procesa cada envío por separado.');
-                    }
-
-                    $notaEnvioOrigenId = (int) $notaEnvioId;
+                    $notaEnvioOrigenIds[] = (int) $notaEnvioId;
                 }
 
                 $nuevaCantidadDevuelta = $cantidadActual + $cantidadAhora;
@@ -103,7 +100,7 @@ class DevolucionRentaController extends Controller
             $notaDevolucion = NotaDevolucionRenta::create([
                 'serie' => 'NDR',
                 'folio_interno' => $request->string('folio_interno')->trim()->toString(),
-                'nota_envio_id' => $notaEnvioOrigenId,
+                'nota_envio_id' => count(array_unique($notaEnvioOrigenIds)) === 1 ? $notaEnvioOrigenIds[0] : null,
                 'nota_venta_renta_id' => $nota->id,
                 'cliente_id' => $nota->cliente_id,
                 'direccion_entrega_id' => $nota->direccion_entrega_id,
@@ -171,18 +168,24 @@ class DevolucionRentaController extends Controller
     {
         return RegistroRenta::query()
             ->with('producto')
-            ->when(
-                $nota->direccion_entrega_id,
-                fn ($query) => $query
-                    ->where('cliente_id', $nota->cliente_id)
-                    ->whereHas('notaVentaRenta', fn ($notaQuery) => $notaQuery
-                        ->where('direccion_entrega_id', $nota->direccion_entrega_id)
-                        ->whereHas('notasEnvio', fn ($envioQuery) => $envioQuery->whereIn('estatus', ['Enviada', 'Entregada']))),
-                fn ($query) => $query->where('nota_venta_renta_id', $nota->id),
-            )
+            ->whereIn('nota_venta_renta_id', $this->notasDeObra($nota)->select('id'))
             ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
             ->orderBy('id')
             ->get();
+    }
+
+    private function notasDeObra(NotasVentaRenta $nota): Builder
+    {
+        return NotasVentaRenta::query()
+            ->where('cliente_id', $nota->cliente_id)
+            ->where('sucursal_id', $nota->sucursal_id)
+            ->when(
+                $nota->direccion_entrega_id,
+                fn (Builder $query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id),
+                fn (Builder $query) => $query->whereNull('direccion_entrega_id'),
+            )
+            ->where('estatus', '!=', 'Cancelada')
+            ->whereHas('notasEnvio', fn (Builder $query) => $query->whereIn('estatus', ['Enviada', 'Entregada']));
     }
 
 }

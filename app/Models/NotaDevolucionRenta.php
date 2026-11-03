@@ -165,12 +165,18 @@ class NotaDevolucionRenta extends Model
             $registros = $partida->registro_renta_id
                 ? RegistroRenta::query()
                     ->whereKey($partida->registro_renta_id)
+                    ->where('cliente_id', $this->cliente_id)
+                    ->whereHas('notaVentaRenta', fn ($query) => $query
+                        ->where('direccion_entrega_id', $this->direccion_entrega_id)
+                        ->where('sucursal_id', $this->sucursal_id))
                     ->lockForUpdate()
                     ->get()
                 : RegistroRenta::query()
                     ->where('cliente_id', $this->cliente_id)
                     ->where('producto_id', $partida->producto_id)
-                    ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
+                    ->whereHas('notaVentaRenta', fn ($query) => $query
+                        ->where('direccion_entrega_id', $this->direccion_entrega_id)
+                        ->where('sucursal_id', $this->sucursal_id))
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get();
@@ -239,7 +245,9 @@ class NotaDevolucionRenta extends Model
     {
         $notaIds = RegistroRenta::withoutGlobalScopes()
             ->where('cliente_id', $this->cliente_id)
-            ->whereHas('notaVentaRenta', fn ($query) => $query->where('direccion_entrega_id', $this->direccion_entrega_id))
+            ->whereHas('notaVentaRenta', fn ($query) => $query
+                ->where('direccion_entrega_id', $this->direccion_entrega_id)
+                ->where('sucursal_id', $this->sucursal_id))
             ->pluck('nota_venta_renta_id')
             ->unique();
 

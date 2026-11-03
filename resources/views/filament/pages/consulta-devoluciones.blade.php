@@ -74,8 +74,7 @@
                                     tag="a"
                                     href="{{ route('notas-venta-renta.devolucion', $notaRenta->id) }}"
                                     icon="heroicon-o-arrow-uturn-left"
-                                    color="warning"
-                                    target="_blank">
+                                    color="warning">
                                     Devolución
                                 </x-filament::button>
                                 <x-filament::button
