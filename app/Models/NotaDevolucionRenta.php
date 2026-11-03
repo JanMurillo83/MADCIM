@@ -142,7 +142,10 @@ class NotaDevolucionRenta extends Model
         $this->loadMissing(['partidas']);
 
         DB::transaction(function () {
-            if ($this->cliente_id && $this->direccion_entrega_id) {
+            // Las rentas sin dirección también se consolidan por cliente y sucursal.
+            // No deben caer al flujo por envío: puede haber registros históricos sin
+            // nota_envio_partida_id, aunque sí tengan registro_renta_id.
+            if ($this->cliente_id && $this->nota_venta_renta_id) {
                 $this->aplicarCantidadesPorClienteObra();
                 return;
             }
@@ -203,6 +206,13 @@ class NotaDevolucionRenta extends Model
             }
 
             $cantidadMovida = abs($delta) - $pendiente;
+            if ($pendiente > 0.00001) {
+                throw new \DomainException(
+                    "No se pudo aplicar la devolución completa del producto {$partida->descripcion}. "
+                    . 'La cantidad pendiente no coincide con los registros de renta activos de la misma sucursal.'
+                );
+            }
+
             if ($cantidadMovida > 0.00001) {
                 $producto = Productos::find($partida->producto_id);
                 if ($producto) {
@@ -270,7 +280,10 @@ class NotaDevolucionRenta extends Model
 
             foreach ($this->partidas as $partida) {
                 if (!$partida->nota_envio_partida_id) {
-                    continue;
+                    throw new \DomainException(
+                        "La partida {$partida->descripcion} no tiene un vínculo con el envío. "
+                        . 'No se aplicó la devolución para evitar un registro incompleto.'
+                    );
                 }
 
                 $partidaEnvio = NotaEnvioPartida::query()
@@ -279,7 +292,10 @@ class NotaDevolucionRenta extends Model
                     ->first();
 
                 if (!$partidaEnvio) {
-                    continue;
+                    throw new \DomainException(
+                        "No se encontró la partida de envío {$partida->nota_envio_partida_id} "
+                        . "para {$partida->descripcion}. No se aplicó la devolución."
+                    );
                 }
 
                 $cantidadObjetivo = (float) $partida->cantidad_recogida;
@@ -349,6 +365,11 @@ class NotaDevolucionRenta extends Model
                         'cantidad_devuelta' => $cantidadDevuelta,
                         'estado' => $cantidadDevuelta >= (float) $registro->cantidad ? 'Devuelto' : 'Activo',
                     ]);
+                } else {
+                    throw new \DomainException(
+                        "No se encontró el registro de renta de {$partida->descripcion}. "
+                        . 'No se aplicó la devolución.'
+                    );
                 }
 
                 $partida->update([
@@ -434,7 +455,7 @@ class NotaDevolucionRenta extends Model
                 return;
             }
 
-            if ($this->cliente_id && $this->direccion_entrega_id) {
+            if ($this->cliente_id && $this->nota_venta_renta_id) {
                 $this->partidas->each(function (NotaDevolucionRentaPartida $partida): void {
                     $partida->update(['cantidad_a_devolver' => 0]);
                 });

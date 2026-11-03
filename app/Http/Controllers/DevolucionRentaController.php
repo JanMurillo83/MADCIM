@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class DevolucionRentaController extends Controller
 {
@@ -145,9 +147,27 @@ class DevolucionRentaController extends Controller
 
             return redirect()->route('notas-venta-renta.devolucion.pdf', $id);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
-            return redirect()->back()->with('error', 'Error al procesar la devolución: ' . $e->getMessage());
+            $referenciaError = (string) Str::uuid();
+            Log::error('Falló el procesamiento de una devolución de renta.', [
+                'referencia_error' => $referenciaError,
+                'nota_venta_renta_id' => $nota->id,
+                'cliente_id' => $nota->cliente_id,
+                'direccion_entrega_id' => $nota->direccion_entrega_id,
+                'sucursal_id' => $nota->sucursal_id,
+                'user_id' => Auth::id(),
+                'folio_interno' => $request->input('folio_interno'),
+                'items' => $request->input('items'),
+                'exception_class' => $e::class,
+                'exception_message' => $e->getMessage(),
+            ]);
+
+            $mensaje = $e instanceof \DomainException
+                ? $e->getMessage()
+                : "No se pudo aplicar la devolución. Referencia de error: {$referenciaError}.";
+
+            return redirect()->back()->with('error', $mensaje);
         }
     }
 
