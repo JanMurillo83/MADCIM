@@ -153,7 +153,9 @@ class NotasEnvioForm
             ->pluck('id');
 
         $partidasEnviadas = \App\Models\NotaEnvioPartida::query()
-            ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+            ->whereHas('notaEnvio', fn ($query) => $query
+                ->where('nota_venta_renta_id', $nota->id)
+                ->where('estatus', '!=', 'Cancelada'))
             ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
             ->filter(function ($partida) use ($partidasM2): bool {
                 $producto = Productos::find($partida->producto_id);
@@ -174,7 +176,9 @@ class NotasEnvioForm
             ->pluck('id');
 
         return \App\Models\NotaEnvioPartida::query()
-            ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+            ->whereHas('notaEnvio', fn ($query) => $query
+                ->where('nota_venta_renta_id', $nota->id)
+                ->where('estatus', '!=', 'Cancelada'))
             ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
             ->filter(function ($envioPartida) use ($partidaId, $partidasM2): bool {
                 if ((int) $envioPartida->nota_venta_renta_partida_id === $partidaId) {
@@ -247,13 +251,15 @@ class NotasEnvioForm
         }
 
         $enviados = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($query) use ($nota) {
-            $query->where('nota_venta_renta_id', $nota->id);
+            $query->where('nota_venta_renta_id', $nota->id)
+                ->where('estatus', '!=', 'Cancelada');
         })->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
             ->groupBy(fn ($partida) => $partida->nota_venta_renta_partida_id . ':' . $partida->producto_id)
             ->map(fn ($partidas) => $partidas->sum(fn ($partida) => (float) $partida->cantidad));
         $objetivosPorProducto = collect($objetivos)->countBy('producto_id');
         $enviadosLegacy = \App\Models\NotaEnvioPartida::whereHas('notaEnvio', function ($query) use ($nota) {
-            $query->where('nota_venta_renta_id', $nota->id);
+            $query->where('nota_venta_renta_id', $nota->id)
+                ->where('estatus', '!=', 'Cancelada');
         })->whereNull('nota_venta_renta_partida_id')->get(['producto_id', 'cantidad'])
             ->groupBy('producto_id')
             ->map(fn ($partidas) => $partidas->sum(fn ($partida) => (float) $partida->cantidad));

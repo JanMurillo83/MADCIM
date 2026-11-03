@@ -61,7 +61,9 @@ class CreateNotasEnvio extends CreateRecord
 
         if ($nota) {
             $enviadosPorPartida = NotaEnvioPartida::query()
-                ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+                ->whereHas('notaEnvio', fn ($query) => $query
+                    ->where('nota_venta_renta_id', $nota->id)
+                    ->where('estatus', '!=', 'Cancelada'))
                 ->get(['nota_venta_renta_partida_id', 'producto_id', 'cantidad'])
                 ->groupBy('nota_venta_renta_partida_id')
                 ->map(fn ($partidas): float => $partidas->sum(fn ($partida): float => (float) $partida->cantidad));
@@ -152,7 +154,9 @@ class CreateNotasEnvio extends CreateRecord
                         return (float) ($partida['cantidad'] ?? 0) * (float) ($producto?->m2_cubre ?? 0);
                     });
                 $yaEnviadoM2 = NotaEnvioPartida::query()
-                    ->whereHas('notaEnvio', fn ($query) => $query->where('nota_venta_renta_id', $nota->id))
+                    ->whereHas('notaEnvio', fn ($query) => $query
+                        ->where('nota_venta_renta_id', $nota->id)
+                        ->where('estatus', '!=', 'Cancelada'))
                     ->get(['producto_id', 'cantidad', 'nota_venta_renta_partida_id'])
                     ->filter(function ($envioPartida) use ($partidaOrigen): bool {
                         $producto = Productos::find($envioPartida->producto_id);
