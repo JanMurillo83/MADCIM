@@ -527,7 +527,10 @@ class NotasVentaRentaForm
                         Repeater::make('partidas')
                             ->relationship()
                             ->afterStateUpdated(function (Get $get, Set $set) {
-                                self::recalculateDocumentoTotales($get, $set);
+                                // Este callback pertenece al Repeater (no a una partida).
+                                // Lee y actualiza desde el estado raíz del formulario para
+                                // que agregar o eliminar una partida recalcule los totales.
+                                self::recalculateDocumentoTotalesFromPartidas($get('partidas'), $set, false);
                             })
                             ->compact()
                             ->table([

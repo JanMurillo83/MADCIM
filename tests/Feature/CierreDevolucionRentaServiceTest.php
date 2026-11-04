@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Clientes;
 use App\Models\ClienteDireccionEntrega;
 use App\Models\CierreDevolucionRenta;
+use App\Models\DevolucionesRenta;
+use App\Models\ExistenciaSucursal;
 use App\Models\NotaEnvio;
 use App\Models\NotaEnvioPartida;
 use App\Models\NotaDevolucionRenta;
@@ -14,6 +16,7 @@ use App\Models\NotasVentaVenta;
 use App\Models\Pagos;
 use App\Models\Productos;
 use App\Models\RegistroRenta;
+use App\Models\Sucursal;
 use App\Models\User;
 use App\Services\CierreDevolucionRentaService;
 use Database\Seeders\SatCatalogsSeeder;
@@ -21,9 +24,22 @@ use Tests\TestCase;
 
 class CierreDevolucionRentaServiceTest extends TestCase
 {
+    private int $sucursalId;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->sucursalId = (int) Sucursal::create(['nombre' => 'Sucursal de pruebas'])->id;
+    }
+
     public function test_obras_completamente_devueltas_conservan_cierre_pendiente_de_caja(): void
     {
-        $usuario = User::factory()->create();
+        $usuario = User::factory()->create([
+            'role' => 'Supervisor',
+            'sucursal_id' => $this->sucursalId,
+        ]);
+        $this->actingAs($usuario);
         $cliente = Clientes::create([
             'clave' => 'CLI-CIERRE-PENDIENTE',
             'nombre' => 'Cliente cierre pendiente',
@@ -65,6 +81,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
         ]);
         $nota = NotasVentaRenta::create([
             'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
             'direccion_entrega_id' => $obra->id,
             'fecha_emision' => now(),
             'condicion_pago' => 'contado',
@@ -94,6 +111,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $nota->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Devuelta',
         ]);
@@ -138,6 +156,112 @@ class CierreDevolucionRentaServiceTest extends TestCase
         $this->assertSame(1, CierreDevolucionRenta::where('cliente_id', $cliente->id)->where('direccion_entrega_id', $obra->id)->count());
     }
 
+    public function test_usuario_de_sucursal_cierra_obra_completamente_devuelta_sin_importes(): void
+    {
+        $usuario = User::factory()->create([
+            'role' => 'Supervisor',
+            'sucursal_id' => $this->sucursalId,
+        ]);
+        $this->actingAs($usuario);
+
+        $cliente = Clientes::create([
+            'clave' => 'CLI-CIERRE-CERO',
+            'nombre' => 'Cliente cierre sin importes',
+            'rfc' => 'XAXX010101000',
+            'folio_ine' => 'INE-CIERRE-CERO',
+            'regimen' => '601',
+            'codigo' => '01000',
+            'calle' => 'Calle',
+            'exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'Oaxaca',
+            'pais' => 'MEX',
+            'telefono' => '5555555555',
+            'correo' => 'cierre-cero@example.com',
+            'contacto' => 'Contacto',
+            'saldo' => 0,
+        ]);
+        $obra = ClienteDireccionEntrega::create([
+            'cliente_id' => $cliente->id,
+            'nombre_direccion' => 'Obra sin importes',
+            'calle' => 'Obra',
+            'numero_exterior' => '1',
+            'colonia' => 'Centro',
+            'municipio' => 'Alcaldia',
+            'estado' => 'Oaxaca',
+            'codigo_postal' => '01000',
+            'pais' => 'México',
+            'activa' => true,
+        ]);
+        $producto = Productos::create([
+            'clave' => 'EQ-CIERRE-CERO',
+            'descripcion' => 'Equipo devuelto',
+            'grupo' => 'EQUIPO',
+            'linea' => 'RENTA',
+            'precio_venta' => 100,
+            'existencia' => 1,
+        ]);
+        $nota = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
+            'direccion_entrega_id' => $obra->id,
+            'fecha_emision' => now(),
+            'condicion_pago' => 'contado',
+            'subtotal' => 0,
+            'impuestos_total' => 0,
+            'total' => 0,
+            'saldo_pendiente' => 0,
+            'deposito' => 0,
+            'estatus' => 'Devuelta',
+            'tipo_nota_renta' => 'equipo',
+        ]);
+        RegistroRenta::create([
+            'nota_venta_renta_id' => $nota->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+            'cantidad_devuelta' => 1,
+            'dias_renta' => 1,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->toDateString(),
+            'importe_renta' => 0,
+            'importe_deposito' => 0,
+            'estado' => 'Devuelto',
+        ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $nota->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Devuelta',
+        ]);
+
+        $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+            $cliente->id,
+            $obra->id,
+            userId: $usuario->id,
+            sucursalId: $this->sucursalId,
+        );
+
+        $this->assertSame('Procesado', $resultado['cierre_estatus']);
+        $this->assertDatabaseHas('cierres_devolucion_renta', [
+            'id' => $resultado['cierre_id'],
+            'sucursal_id' => $this->sucursalId,
+            'estatus' => 'Procesado',
+            'total_faltantes' => 0,
+            'deposito_a_devolver' => 0,
+        ]);
+        $this->assertDatabaseHas('devoluciones_renta', [
+            'id' => $resultado['devolucion_renta_id'],
+            'sucursal_id' => $this->sucursalId,
+            'documento_origen_id' => $nota->id,
+        ]);
+        $this->assertSame(1, DevolucionesRenta::where('documento_origen_id', $nota->id)->count());
+    }
+
     public function test_faltante_de_renta_se_convierte_en_venta_aplica_deposito_y_bloquea_cliente(): void
     {
         $usuario = User::factory()->create();
@@ -175,6 +299,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
 
         $nota = NotasVentaRenta::create([
             'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
             'fecha_emision' => now(),
             'condicion_pago' => 'contado',
             'subtotal' => 0,
@@ -191,6 +316,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $nota->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);
@@ -222,7 +348,11 @@ class CierreDevolucionRentaServiceTest extends TestCase
 
     public function test_cancelar_cierre_no_afecta_notas_creadas_despues_en_la_misma_obra(): void
     {
-        $usuario = User::factory()->create();
+        $usuario = User::factory()->create([
+            'role' => 'Supervisor',
+            'sucursal_id' => $this->sucursalId,
+        ]);
+        $this->actingAs($usuario);
         $cliente = Clientes::create([
             'clave' => 'CLI-CIERRE-SNAPSHOT',
             'nombre' => 'Cliente snapshot',
@@ -261,9 +391,15 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'precio_venta' => 100,
             'existencia' => 2,
         ]);
+        ExistenciaSucursal::create([
+            'producto_id' => $producto->id,
+            'sucursal_id' => $this->sucursalId,
+            'existencia' => 1,
+        ]);
 
         $notaInicial = NotasVentaRenta::create([
             'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
             'direccion_entrega_id' => $obra->id,
             'fecha_emision' => now(),
             'condicion_pago' => 'contado',
@@ -293,6 +429,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $notaInicial->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Devuelta',
         ]);
@@ -308,6 +445,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
 
         $notaPosterior = NotasVentaRenta::create([
             'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
             'direccion_entrega_id' => $obra->id,
             'fecha_emision' => now(),
             'condicion_pago' => 'contado',
@@ -337,6 +475,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $notaPosterior->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);
@@ -363,6 +502,12 @@ class CierreDevolucionRentaServiceTest extends TestCase
 
     public function test_devolucion_aplica_la_partida_de_renta_exacta_con_producto_repetido(): void
     {
+        $usuario = User::factory()->create([
+            'role' => 'Supervisor',
+            'sucursal_id' => $this->sucursalId,
+        ]);
+        $this->actingAs($usuario);
+
         $cliente = Clientes::create([
             'clave' => 'CLI-TRACE-DEV',
             'nombre' => 'Cliente trazabilidad',
@@ -405,6 +550,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
         $crearNota = function () use ($cliente, $obra): NotasVentaRenta {
             return NotasVentaRenta::create([
                 'cliente_id' => $cliente->id,
+                'sucursal_id' => $this->sucursalId,
                 'direccion_entrega_id' => $obra->id,
                 'fecha_emision' => now(),
                 'condicion_pago' => 'contado',
@@ -448,6 +594,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $notaUno->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);
@@ -455,6 +602,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'nota_venta_renta_id' => $notaDos->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);

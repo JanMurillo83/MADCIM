@@ -225,7 +225,7 @@ trait BelongsToSucursalScope
         }
 
         if ($model instanceof \App\Models\Cotizaciones && $model->documento_origen_id) {
-            $sucursalOrigen = Cotizaciones::withoutGlobalScope('sucursal')
+            $sucursalOrigen = \App\Models\Cotizaciones::withoutGlobalScope('sucursal')
                 ->whereKey($model->documento_origen_id)
                 ->value('sucursal_id');
             if ((int) $sucursalOrigen !== $sucursalId) {
@@ -236,7 +236,7 @@ trait BelongsToSucursalScope
         }
 
         if ($model instanceof \App\Models\DevolucionesRenta && $model->documento_origen_id) {
-            $sucursalOrigen = NotasVentaRenta::withoutGlobalScope('sucursal')
+            $sucursalOrigen = \App\Models\NotasVentaRenta::withoutGlobalScope('sucursal')
                 ->whereKey($model->documento_origen_id)
                 ->value('sucursal_id');
             if ((int) $sucursalOrigen !== $sucursalId) {

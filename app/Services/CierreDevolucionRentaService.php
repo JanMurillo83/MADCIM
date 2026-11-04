@@ -57,7 +57,13 @@ class CierreDevolucionRentaService
                 foreach ($notaVenta->partidas as $partida) {
                     $productoId = (int) $partida->item;
                     if ($productoId > 0 && (float) $partida->cantidad > 0) {
-                        InventarioMovimientoService::entrada($productoId, (float) $partida->cantidad, $referencia, (string) $notaVenta->id);
+                        InventarioMovimientoService::entrada(
+                            productoId: $productoId,
+                            cantidad: (float) $partida->cantidad,
+                            motivo: $referencia,
+                            documentoReferencia: (string) $notaVenta->id,
+                            sucursalId: $cierre->sucursal_id,
+                        );
                     }
                 }
                 $notaVenta->update(['estatus' => 'Cancelada', 'saldo_pendiente' => 0]);
@@ -71,7 +77,13 @@ class CierreDevolucionRentaService
             foreach ($registros as $registro) {
                 $devuelta = (float) ($registro->cantidad_devuelta ?? 0);
                 if ($devuelta > 0) {
-                    InventarioMovimientoService::salida((int) $registro->producto_id, $devuelta, $referencia, (string) $cierre->id);
+                    InventarioMovimientoService::salida(
+                        productoId: (int) $registro->producto_id,
+                        cantidad: $devuelta,
+                        motivo: $referencia,
+                        documentoReferencia: (string) $cierre->id,
+                        sucursalId: $cierre->sucursal_id,
+                    );
                 }
                 $registro->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
             }
@@ -149,7 +161,13 @@ class CierreDevolucionRentaService
                     throw new \DomainException("La cantidad extemporánea del producto {$productoId} supera el faltante registrado.");
                 }
 
-                InventarioMovimientoService::entrada((int) $productoId, $cantidad, 'Devolución extemporánea de cierre #' . $cierre->id, (string) $cierre->id);
+                InventarioMovimientoService::entrada(
+                    productoId: (int) $productoId,
+                    cantidad: $cantidad,
+                    motivo: 'Devolución extemporánea de cierre #' . $cierre->id,
+                    documentoReferencia: (string) $cierre->id,
+                    sucursalId: $cierre->sucursal_id,
+                );
                 $partidaVenta->cantidad = $maximo - $cantidad;
                 $partidaVenta->subtotal = round((float) $partidaVenta->cantidad * (float) $partidaVenta->valor_unitario, 2);
                 $partidaVenta->impuestos = round($partidaVenta->subtotal * 0.16, 2);
@@ -660,6 +678,7 @@ class CierreDevolucionRentaService
                 cantidad: $cantidadPendienteDeRegistrar,
                 motivo: "Cierre de devolución de renta {$referencia}",
                 documentoReferencia: $referencia,
+                sucursalId: $nota->sucursal_id,
             );
         }
     }
@@ -679,6 +698,7 @@ class CierreDevolucionRentaService
                 cantidad: $cantidad,
                 motivo: "Venta por cierre de renta {$referencia}",
                 documentoReferencia: $notaVenta->serie . $notaVenta->folio,
+                sucursalId: $notaVenta->sucursal_id,
             );
         }
     }
