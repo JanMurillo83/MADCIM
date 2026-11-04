@@ -452,7 +452,8 @@ class NotasEnvioTable
                                     productoId: $movimiento->producto_id,
                                     cantidad: (float) $movimiento->cantidad,
                                     motivo: "Cancelación de envío {$referencia}",
-                                    documentoReferencia: $referencia
+                                    documentoReferencia: $referencia,
+                                    sucursalId: $movimiento->sucursal_id ?? $record->sucursal_id,
                                 );
                             }
 

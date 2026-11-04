@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\MovimientoInventario;
 use App\Models\Productos;
+use App\Models\Sucursal;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +28,10 @@ class InventarioMovimientoService
             throw new \InvalidArgumentException('Tipo de movimiento no válido.');
         }
 
+        // El inventario representa unidades físicas completas. Normalizar ambos
+        // valores evita que residuos decimales acumulados bloqueen una salida.
+        $cantidad = round($cantidad, 0, PHP_ROUND_HALF_UP);
+
         if ($cantidad <= 0) {
             throw new \InvalidArgumentException('La cantidad debe ser mayor a cero.');
         }
@@ -34,7 +39,11 @@ class InventarioMovimientoService
         return DB::transaction(function () use ($productoId, $tipo, $cantidad, $motivo, $documentoReferencia, $sucursalId) {
             $sucursalId = ExistenciaSucursalService::sucursalActual($sucursalId);
             $producto = Productos::lockForUpdate()->findOrFail($productoId);
-            $existenciaAntes = ExistenciaSucursalService::obtener($productoId, $sucursalId);
+            $existenciaAntes = round(
+                ExistenciaSucursalService::obtener($productoId, $sucursalId),
+                0,
+                PHP_ROUND_HALF_UP,
+            );
 
             $existenciaDespues = match ($tipo) {
                 'entrada' => $existenciaAntes + $cantidad,
@@ -43,7 +52,16 @@ class InventarioMovimientoService
             };
 
             if ($tipo === 'salida' && $existenciaDespues < 0) {
-                throw new \InvalidArgumentException("No hay existencia suficiente para el producto {$producto->clave}.");
+                $sucursal = Sucursal::query()->find($sucursalId);
+                $nombreSucursal = $sucursal?->nombre ?? "ID {$sucursalId}";
+
+                throw new \InvalidArgumentException(sprintf(
+                    'Existencia insuficiente de %s en la sucursal %s: disponibles %.0F, solicitados %.0F.',
+                    $producto->clave,
+                    $nombreSucursal,
+                    $existenciaAntes,
+                    $cantidad,
+                ));
             }
 
             $movimiento = MovimientoInventario::create([

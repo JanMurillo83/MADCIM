@@ -221,7 +221,8 @@ class CreateNotasEnvio extends CreateRecord
                         productoId: $producto->id,
                         cantidad: (float) $partida->cantidad,
                         motivo: "Envío de renta {$referencia}",
-                        documentoReferencia: $referencia
+                        documentoReferencia: $referencia,
+                        sucursalId: $record->sucursal_id ?? $nota->sucursal_id,
                     );
 
                     RegistroRenta::create([
@@ -263,7 +264,11 @@ class CreateNotasEnvio extends CreateRecord
                 ->body($exception->getMessage())
                 ->persistent()
                 ->send();
-            throw $exception;
+
+            throw ValidationException::withMessages([
+                'partidas' => 'El envío no se guardó y se revirtió el inventario; puedes corregir la sucursal o existencia e intentarlo otra vez. '
+                    . $exception->getMessage(),
+            ]);
         }
 
         // Abrir ticket de nota de envío en nueva pestaña
