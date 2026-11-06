@@ -59,6 +59,10 @@
                                 <x-heroicon-o-map-pin class="mr-1 inline-block h-4 w-4" />
                                 {{ $direccionNombre }}
                             </h3>
+                            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                Nota {{ $notaRenta?->serie }}-{{ $notaRenta?->folio }}
+                                · {{ \App\Enums\TipoNotaRenta::labelFor($notaRenta?->tipo_nota_renta) }}
+                            </p>
                             <p class="mt-1 text-xs font-semibold text-primary-700 dark:text-primary-300">Sucursal: {{ $sucursalNombre }}</p>
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 {{ $subtotalCantidad }} productos enviados |
@@ -78,10 +82,10 @@
                                     Devolución
                                 </x-filament::button>
                                 <x-filament::button
-                                    wire:click="cerrarObra({{ $itemReferencia->cliente_id }}, {{ $itemReferencia->notaVentaRenta?->direccion_entrega_id ?? 0 }}, {{ $itemReferencia->notaVentaRenta?->sucursal_id ?? 0 }})"
+                                    wire:click="cerrarNotaRenta({{ $itemReferencia->cliente_id }}, {{ $itemReferencia->notaVentaRenta?->direccion_entrega_id ?? 0 }}, {{ $itemReferencia->notaVentaRenta?->sucursal_id ?? 0 }}, {{ $notaRenta?->id }})"
                                     icon="heroicon-o-check-circle"
                                     color="danger">
-                                    Cerrar Obra
+                                    Cerrar Nota
                                 </x-filament::button>
                             </div>
                         @endif
@@ -122,7 +126,7 @@
                                     </tr>
                                 @endforeach
                                 <tr class="bg-gray-100 font-semibold dark:bg-gray-600">
-                                    <td colspan="3" class="px-4 py-2 text-gray-700 dark:text-gray-200">Subtotal dirección</td>
+                                    <td colspan="3" class="px-4 py-2 text-gray-700 dark:text-gray-200">Subtotal nota</td>
                                     <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ $subtotalCantidad }}</td>
                                     <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ $subtotalDevuelto }}</td>
                                     <td class="px-4 py-2 text-center text-gray-700 dark:text-gray-200">{{ $subtotalPendiente }}</td>

@@ -366,9 +366,10 @@ class NotasEnvioTable
                         if (!$nota) return;
                         $servicioCierre = app(CierreDevolucionRentaService::class);
                         $resultado = $nota->direccion_entrega_id
-                            ? $servicioCierre->cerrarPorObra(
+                            ? $servicioCierre->cerrarNotaDeObra(
                                 $nota->cliente_id,
                                 $nota->direccion_entrega_id,
+                                $nota->id,
                                 $data['observaciones'] ?? null,
                                 Auth::id(),
                                 sucursalId: $nota->sucursal_id,

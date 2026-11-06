@@ -114,6 +114,11 @@ class NotaDevolucionRenta extends Model
 
     public function notaOrigen(): BelongsTo
     {
+        return $this->notaVentaRenta();
+    }
+
+    public function notaVentaRenta(): BelongsTo
+    {
         return $this->belongsTo(NotasVentaRenta::class, 'nota_venta_renta_id');
     }
 
@@ -253,13 +258,45 @@ class NotaDevolucionRenta extends Model
 
     private function actualizarEstatusNotasRenta(): void
     {
-        $notaIds = RegistroRenta::withoutGlobalScopes()
+        $registros = RegistroRenta::withoutGlobalScopes()
             ->where('cliente_id', $this->cliente_id)
             ->whereHas('notaVentaRenta', fn ($query) => $query
                 ->where('direccion_entrega_id', $this->direccion_entrega_id)
                 ->where('sucursal_id', $this->sucursal_id))
-            ->pluck('nota_venta_renta_id')
+            ->get(['id', 'nota_venta_renta_id', 'nota_envio_partida_id', 'cantidad', 'cantidad_devuelta']);
+
+        $notaIds = $registros->pluck('nota_venta_renta_id')->unique();
+
+        foreach ($registros->filter(fn (RegistroRenta $registro): bool => $registro->nota_envio_partida_id !== null)
+            ->groupBy('nota_envio_partida_id') as $partidaEnvioId => $registrosEnvio) {
+            $partidaEnvio = NotaEnvioPartida::query()->lockForUpdate()->find($partidaEnvioId);
+            if (! $partidaEnvio) {
+                continue;
+            }
+
+            $cantidad = min((float) $partidaEnvio->cantidad, (float) $registrosEnvio->sum('cantidad'));
+            $cantidadDevuelta = min($cantidad, (float) $registrosEnvio->sum('cantidad_devuelta'));
+
+            $partidaEnvio->update([
+                'cantidad_devuelta' => $cantidadDevuelta,
+                'estado' => $cantidadDevuelta >= $cantidad ? 'Devuelto' : 'Activo',
+            ]);
+        }
+
+        $envioIds = NotaEnvioPartida::query()
+            ->whereIn('id', $registros->pluck('nota_envio_partida_id')->filter()->unique())
+            ->pluck('nota_envio_id')
             ->unique();
+
+        foreach (NotaEnvio::query()->whereIn('id', $envioIds)->with('partidas')->get() as $notaEnvio) {
+            $cantidadProgramada = (float) $notaEnvio->partidas->sum('cantidad');
+            $cantidadDevuelta = (float) $notaEnvio->partidas->sum('cantidad_devuelta');
+            $estadoRenta = $cantidadProgramada <= 0 || $cantidadDevuelta <= 0
+                ? 'Pendiente'
+                : ($cantidadDevuelta >= $cantidadProgramada ? 'Devuelta' : 'Parcial');
+
+            $notaEnvio->update(['estado_renta' => $estadoRenta]);
+        }
 
         foreach ($notaIds as $notaId) {
             $tienePendientes = RegistroRenta::withoutGlobalScopes()

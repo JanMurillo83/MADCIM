@@ -116,9 +116,10 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estado_renta' => 'Devuelta',
         ]);
 
-        $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+        $resultado = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra(
             $cliente->id,
             $obra->id,
+            $nota->id,
             userId: $usuario->id,
         );
 
@@ -150,7 +151,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'INE-VALIDO-001',
         ));
 
-        $segundoIntento = app(CierreDevolucionRentaService::class)->cerrarPorObra($cliente->id, $obra->id, userId: $usuario->id);
+        $segundoIntento = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra($cliente->id, $obra->id, $nota->id, userId: $usuario->id);
 
         $this->assertSame('PendienteCaja', $segundoIntento['cierre_estatus']);
         $this->assertSame(1, CierreDevolucionRenta::where('cliente_id', $cliente->id)->where('direccion_entrega_id', $obra->id)->count());
@@ -239,9 +240,55 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estado_renta' => 'Devuelta',
         ]);
 
-        $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+        $productoMadera = Productos::create([
+            'clave' => 'MAD-CIERRE-PENDIENTE',
+            'descripcion' => 'Madera todavía rentada',
+            'grupo' => 'MADERA',
+            'linea' => 'RENTA',
+            'precio_venta' => 100,
+            'existencia' => 0,
+        ]);
+        $notaMadera = NotasVentaRenta::create([
+            'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
+            'direccion_entrega_id' => $obra->id,
+            'fecha_emision' => now(),
+            'condicion_pago' => 'contado',
+            'subtotal' => 0,
+            'impuestos_total' => 0,
+            'total' => 50,
+            'saldo_pendiente' => 50,
+            'deposito' => 50,
+            'estatus' => 'Activa',
+            'tipo_nota_renta' => 'madera_pieza',
+        ]);
+        RegistroRenta::create([
+            'nota_venta_renta_id' => $notaMadera->id,
+            'cliente_id' => $cliente->id,
+            'cliente_nombre' => $cliente->nombre,
+            'producto_id' => $productoMadera->id,
+            'cantidad' => 3,
+            'cantidad_devuelta' => 0,
+            'dias_renta' => 30,
+            'fecha_renta' => now()->toDateString(),
+            'fecha_vencimiento' => now()->addDays(30)->toDateString(),
+            'importe_renta' => 50,
+            'importe_deposito' => 50,
+            'estado' => 'Activo',
+        ]);
+        NotaEnvio::create([
+            'nota_venta_renta_id' => $notaMadera->id,
+            'cliente_id' => $cliente->id,
+            'fecha_emision' => now()->toDateString(),
+            'inicio_vigencia' => now()->toDateString(),
+            'estatus' => 'Entregada',
+            'estado_renta' => 'Vigente',
+        ]);
+
+        $resultado = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra(
             $cliente->id,
             $obra->id,
+            $nota->id,
             userId: $usuario->id,
             sucursalId: $this->sucursalId,
         );
@@ -260,6 +307,10 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'documento_origen_id' => $nota->id,
         ]);
         $this->assertSame(1, DevolucionesRenta::where('documento_origen_id', $nota->id)->count());
+        $this->assertSame('Activa', $notaMadera->fresh()->estatus);
+        $this->assertSame(0.0, (float) $notaMadera->registrosRenta()->firstOrFail()->cantidad_devuelta);
+        $this->assertSame(50.0, (float) $notaMadera->fresh()->deposito);
+        $this->assertSame([$nota->id], CierreDevolucionRenta::findOrFail($resultado['cierre_id'])->nota_ids);
     }
 
     public function test_faltante_de_renta_se_convierte_en_venta_aplica_deposito_y_bloquea_cliente(): void
@@ -434,9 +485,10 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estado_renta' => 'Devuelta',
         ]);
 
-        $resultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+        $resultado = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra(
             $cliente->id,
             $obra->id,
+            $notaInicial->id,
             userId: $usuario->id,
         );
 
@@ -480,9 +532,10 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estado_renta' => 'Vigente',
         ]);
 
-        $segundoResultado = app(CierreDevolucionRentaService::class)->cerrarPorObra(
+        $segundoResultado = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra(
             $cliente->id,
             $obra->id,
+            $notaPosterior->id,
             userId: $usuario->id,
         );
 
@@ -598,7 +651,7 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);
-        NotaEnvio::create([
+        $envioDos = NotaEnvio::create([
             'nota_venta_renta_id' => $notaDos->id,
             'cliente_id' => $cliente->id,
             'fecha_emision' => now()->toDateString(),
@@ -606,6 +659,17 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'estatus' => 'Entregada',
             'estado_renta' => 'Vigente',
         ]);
+        $partidaEnvioDos = NotaEnvioPartida::create([
+            'nota_envio_id' => $envioDos->id,
+            'producto_id' => $producto->id,
+            'descripcion' => $producto->descripcion,
+            'cantidad' => 1,
+            'dias_renta' => 1,
+            'fecha_vencimiento' => now()->addDays(10)->toDateString(),
+            'cantidad_devuelta' => 0,
+            'estado' => 'Activo',
+        ]);
+        $registroDos->update(['nota_envio_partida_id' => $partidaEnvioDos->id]);
         $devolucion = NotaDevolucionRenta::create([
             'serie' => 'NDR',
             'folio_interno' => 'TRACE-001',
@@ -615,9 +679,11 @@ class CierreDevolucionRentaServiceTest extends TestCase
             'fecha_emision' => now()->toDateString(),
             'estatus' => 'Borrador',
         ]);
+        $this->assertTrue(NotaDevolucionRenta::whereKey($devolucion->id)->exists());
         NotaDevolucionRentaPartida::create([
             'nota_devolucion_renta_id' => $devolucion->id,
             'registro_renta_id' => $registroDos->id,
+            'nota_envio_partida_id' => $partidaEnvioDos->id,
             'producto_id' => $producto->id,
             'descripcion' => $producto->descripcion,
             'cantidad_enviada' => 1,
@@ -632,5 +698,24 @@ class CierreDevolucionRentaServiceTest extends TestCase
         $this->assertSame(1.0, (float) $registroDos->fresh()->cantidad_devuelta);
         $this->assertSame('Activo', $registroUno->fresh()->estado);
         $this->assertSame('Devuelto', $registroDos->fresh()->estado);
+        $this->assertSame(1.0, (float) $partidaEnvioDos->fresh()->cantidad_devuelta);
+        $this->assertSame('Devuelto', $partidaEnvioDos->fresh()->estado);
+        $this->assertSame('Devuelta', $envioDos->fresh()->estado_renta);
+
+        $resultadoCierre = app(CierreDevolucionRentaService::class)->cerrarNotaDeObra(
+            $cliente->id,
+            $obra->id,
+            $notaDos->id,
+            userId: auth()->id(),
+            sucursalId: $this->sucursalId,
+        );
+        $cierre = CierreDevolucionRenta::findOrFail($resultadoCierre['cierre_id']);
+        app(CierreDevolucionRentaService::class)->cancelar($cierre, auth()->id());
+
+        $this->assertSame(1.0, (float) $registroDos->fresh()->cantidad_devuelta);
+        $this->assertSame('Devuelto', $registroDos->fresh()->estado);
+        $this->assertSame(1.0, (float) $partidaEnvioDos->fresh()->cantidad_devuelta);
+        $this->assertSame('Devuelta', $notaDos->fresh()->estatus);
+        $this->assertSame('Devuelta', $envioDos->fresh()->estado_renta);
     }
 }

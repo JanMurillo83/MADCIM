@@ -74,6 +74,22 @@ class CierreDevolucionRentaService
                 ->with('producto')
                 ->get();
 
+            $devolucionesAplicadas = NotaDevolucionRentaPartida::query()
+                ->where('cantidad_aplicada', '>', 0)
+                ->whereHas('notaDevolucionRenta', fn ($query) => $query
+                    ->whereIn('nota_venta_renta_id', $notaIds)
+                    ->where('estatus', '!=', 'Cancelada'))
+                ->get(['registro_renta_id', 'nota_envio_partida_id', 'cantidad_aplicada']);
+            $cantidadesAplicadasPorRegistro = $devolucionesAplicadas
+                ->filter(fn ($partida) => $partida->registro_renta_id)
+                ->groupBy('registro_renta_id')
+                ->map(fn ($partidas) => $partidas->sum(fn ($partida) => (float) $partida->cantidad_aplicada));
+            $cantidadesAplicadasPorEnvio = $devolucionesAplicadas
+                ->filter(fn ($partida) => $partida->nota_envio_partida_id)
+                ->groupBy('nota_envio_partida_id')
+                ->map(fn ($partidas) => $partidas->sum(fn ($partida) => (float) $partida->cantidad_aplicada));
+            $registrosPorEnvio = [];
+
             foreach ($registros as $registro) {
                 $devuelta = (float) ($registro->cantidad_devuelta ?? 0);
                 if ($devuelta > 0) {
@@ -85,16 +101,53 @@ class CierreDevolucionRentaService
                         sucursalId: $cierre->sucursal_id,
                     );
                 }
-                $registro->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
+
+                $cantidadDevueltaReal = min(
+                    (float) $registro->cantidad,
+                    max(0, (float) ($cantidadesAplicadasPorRegistro->get($registro->id)
+                        ?? $cantidadesAplicadasPorEnvio->get($registro->nota_envio_partida_id)
+                        ?? 0)),
+                );
+                $registro->update([
+                    'cantidad_devuelta' => $cantidadDevueltaReal,
+                    'estado' => $cantidadDevueltaReal >= (float) $registro->cantidad ? 'Devuelto' : 'Activo',
+                ]);
+
+                if ($registro->nota_envio_partida_id) {
+                    $registrosPorEnvio[$registro->nota_envio_partida_id] = $cantidadDevueltaReal;
+                }
             }
 
-            NotaEnvioPartida::query()
+            $partidasEnvio = NotaEnvioPartida::query()
                 ->whereHas('notaEnvio', fn ($query) => $query->whereIn('nota_venta_renta_id', $notaIds))
-                ->update(['cantidad_devuelta' => 0, 'estado' => 'Activo']);
+                ->get();
 
-            NotaEnvio::query()
+            foreach ($partidasEnvio as $partidaEnvio) {
+                $cantidadDevueltaReal = min(
+                    (float) $partidaEnvio->cantidad,
+                    max(0, (float) ($registrosPorEnvio[$partidaEnvio->id]
+                        ?? $cantidadesAplicadasPorEnvio->get($partidaEnvio->id)
+                        ?? 0)),
+                );
+                $partidaEnvio->update([
+                    'cantidad_devuelta' => $cantidadDevueltaReal,
+                    'estado' => $cantidadDevueltaReal >= (float) $partidaEnvio->cantidad ? 'Devuelto' : 'Activo',
+                ]);
+            }
+
+            $notasEnvio = NotaEnvio::query()
                 ->whereIn('nota_venta_renta_id', $notaIds)
-                ->update(['estado_renta' => 'Vigente']);
+                ->with('partidas')
+                ->get();
+
+            foreach ($notasEnvio as $notaEnvio) {
+                $cantidadProgramada = (float) $notaEnvio->partidas->sum('cantidad');
+                $cantidadDevuelta = (float) $notaEnvio->partidas->sum('cantidad_devuelta');
+                $estadoRenta = $cantidadProgramada <= 0 || $cantidadDevuelta <= 0
+                    ? 'Pendiente'
+                    : ($cantidadDevuelta >= $cantidadProgramada ? 'Devuelta' : 'Parcial');
+                $notaEnvio->update(['estado_renta' => $estadoRenta]);
+            }
 
             if ($cierre->caja_movimiento_id) {
                 $movimiento = CajaMovimiento::find($cierre->caja_movimiento_id);
@@ -115,9 +168,14 @@ class CierreDevolucionRentaService
                 }
             }
 
-            NotasVentaRenta::query()
-                ->whereIn('id', $notaIds)
-                ->update(['estatus' => 'Activa']);
+            foreach ($registros->groupBy('nota_venta_renta_id') as $notaId => $registrosNota) {
+                $tienePendientes = $registrosNota->contains(
+                    fn (RegistroRenta $registro): bool => (float) ($registro->cantidad_devuelta ?? 0) < (float) $registro->cantidad,
+                );
+                NotasVentaRenta::query()
+                    ->whereKey($notaId)
+                    ->update(['estatus' => $tienePendientes ? 'Activa' : 'Devuelta']);
+            }
 
             $cierre->update([
                 'estatus' => 'Cancelado',
@@ -223,9 +281,17 @@ class CierreDevolucionRentaService
         });
     }
 
-    public function cerrarPorObra(
+    /**
+     * Cierra una nota y sus envíos. Las notas distintas del mismo domicilio
+     * se mantienen independientes para evitar devolver inventario o depósitos
+     * que siguen vinculados a otra renta.
+     *
+     * @return array<string, mixed>
+     */
+    public function cerrarNotaDeObra(
         int $clienteId,
         int $direccionEntregaId,
+        int $notaId,
         ?string $observaciones = null,
         ?int $userId = null,
         string $modo = 'devolucion',
@@ -236,14 +302,14 @@ class CierreDevolucionRentaService
         $usuario = auth()->user();
         if ($usuario && ! $usuario->isAdmin()) {
             if (! $usuario->sucursal_id) {
-                throw new \DomainException('Tu usuario necesita una sucursal asignada para cerrar la obra.');
+                throw new \DomainException('Tu usuario necesita una sucursal asignada para cerrar la Nota de Renta.');
             }
 
             // La sucursal se determina en el servidor; nunca se confía en el valor enviado por Livewire.
             $sucursalId = (int) $usuario->sucursal_id;
         }
 
-        return DB::transaction(function () use ($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno, $sucursalId): array {
+        return DB::transaction(function () use ($clienteId, $direccionEntregaId, $notaId, $observaciones, $userId, $modo, $folioInterno, $sucursalId): array {
             if ($direccionEntregaId > 0) {
                 ClienteDireccionEntrega::query()
                     ->whereKey($direccionEntregaId)
@@ -254,16 +320,17 @@ class CierreDevolucionRentaService
                 Clientes::query()->lockForUpdate()->findOrFail($clienteId);
             }
 
-            return $this->cerrarObraBloqueada($clienteId, $direccionEntregaId, $observaciones, $userId, $modo, $folioInterno, $sucursalId);
+            return $this->cerrarNotaBloqueada($clienteId, $direccionEntregaId, $notaId, $observaciones, $userId, $modo, $folioInterno, $sucursalId);
         }, attempts: 3);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function cerrarObraBloqueada(
+    private function cerrarNotaBloqueada(
         int $clienteId,
         int $direccionEntregaId,
+        int $notaId,
         ?string $observaciones,
         ?int $userId,
         string $modo,
@@ -276,13 +343,13 @@ class CierreDevolucionRentaService
                 fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
                 fn ($query) => $query->whereNull('direccion_entrega_id'))
             ->when($sucursalId, fn ($query) => $query->where('sucursal_id', $sucursalId))
+            ->whereJsonContains('nota_ids', $notaId)
             ->whereIn('estatus', ['Pendiente', 'PendienteCaja'])
             ->latest('id')
             ->lockForUpdate()
             ->first();
 
         if ($cierrePendiente) {
-            $notaId = collect($cierrePendiente->nota_ids)->first();
             $nota = NotasVentaRenta::query()->findOrFail($notaId);
             $cajaUsada = $cierrePendiente->estatus === 'PendienteCaja'
                 ? $this->registrarDepositoPendiente($cierrePendiente, $nota, $observaciones, $userId)
@@ -291,7 +358,7 @@ class CierreDevolucionRentaService
             return [
                 'already_closed' => false,
                 'resumen' => $this->resumenDesdeCierre($cierrePendiente->fresh()),
-                'nota_id' => $nota->id,
+                'nota_id' => $notaId,
                 'cierre_id' => $cierrePendiente->id,
                 'cierre_estatus' => $cierrePendiente->fresh()->estatus,
                 'caja_usada' => $cajaUsada,
@@ -299,6 +366,7 @@ class CierreDevolucionRentaService
         }
 
         $notas = NotasVentaRenta::query()
+            ->whereKey($notaId)
             ->where('cliente_id', $clienteId)
             ->when($direccionEntregaId > 0,
                 fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
@@ -317,6 +385,7 @@ class CierreDevolucionRentaService
                     fn ($query) => $query->where('direccion_entrega_id', $direccionEntregaId),
                     fn ($query) => $query->whereNull('direccion_entrega_id'))
                 ->when($sucursalId, fn ($query) => $query->where('sucursal_id', $sucursalId))
+                ->whereJsonContains('nota_ids', $notaId)
                 ->where('estatus', 'Procesado')
                 ->latest('id')
                 ->first();
@@ -335,19 +404,15 @@ class CierreDevolucionRentaService
             return [
                 'already_closed' => true,
                 'resumen' => $this->resumenDesdeCierre($cierreProcesado),
-                'nota_id' => collect($cierreProcesado->nota_ids)->first(),
+                'nota_id' => $notaId,
                 'cierre_id' => $cierreProcesado->id,
                 'cierre_estatus' => $cierreProcesado->estatus,
             ];
         }
 
         $nota = $notas->first();
-        $notaIds = $notas->pluck('id')->all();
-
-        // El depósito pertenece al conjunto de rentas de la obra, no a una sola nota.
-        $nota->deposito = (float) NotasVentaRenta::query()
-            ->whereIn('id', $notaIds)
-            ->sum('deposito');
+        $notaIds = [$nota->id];
+        $nota->deposito = (float) $nota->deposito;
 
         $resultado = $this->cerrar($nota, $observaciones, $userId, $modo, true, $folioInterno, (float) $nota->deposito, $notaIds);
 
