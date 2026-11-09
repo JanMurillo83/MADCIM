@@ -222,7 +222,9 @@ class CreateNotasVentaRenta extends CreateRecord
         foreach ($data['partidas'] ?? [] as $partida) {
             $tipo = TipoNotaRenta::tryFrom($partida['tipo_nota_renta'] ?? $data['tipo_nota_renta'] ?? 'equipo')
                 ?? TipoNotaRenta::Equipo;
-            $cantidad = $tipo === TipoNotaRenta::Equipo ? 1.0 : max(0.0, (float) ($partida['cantidad'] ?? 0));
+            $cantidad = $tipo === TipoNotaRenta::Equipo
+                ? max(1.0, (float) ($partida['cantidad'] ?? 1))
+                : max(0.0, (float) ($partida['cantidad'] ?? 0));
             $tipoRenta = $partida['tipo_renta'] ?? 'dia';
             $duracion = max(1, (int) ($partida['duracion_renta'] ?? 1));
             $dias = $tipo->esMadera()

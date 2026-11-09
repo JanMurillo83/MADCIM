@@ -101,7 +101,7 @@ class NotasVentaRentaForm
             $duracionPartida = max(1, (float) ($partida['duracion_renta'] ?? $duracion));
             $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRentaPartida, $tipoNotaRenta);
             $valorUnitario = $precioBase;
-            $cantidad = $tipoNotaRenta->esEquipo() ? 1.0 : (float) ($partida['cantidad'] ?? 1);
+            $cantidad = (float) ($partida['cantidad'] ?? 1);
             $totalConIva = round($cantidad * $valorUnitario * ($tipoNotaRenta->esEquipo() ? $duracionPartida : 1), 2);
             $desglose = Impuestos::desglosarIvaIncluido($totalConIva);
 
@@ -164,7 +164,6 @@ class NotasVentaRentaForm
         $tipoRenta = $get('tipo_renta') ?? 'dia';
         $duracion = self::resolverDuracionRenta($get);
         $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipo);
-        $set('cantidad', $tipo->esEquipo() ? 1 : $get('cantidad'));
         $set('valor_unitario', $precioBase);
         self::recalculatePartidaTotales($get, $set);
     }
@@ -612,7 +611,10 @@ class NotasVentaRentaForm
                                     ->numeric()
                                     ->required()
                                     ->default(1)
-                                    ->readOnly(fn (Get $get): bool => self::esMaderaM2($get) || self::esEquipo($get))
+                                    ->minValue(1)
+                                    ->step(1)
+                                    ->rules(fn (Get $get): array => self::esEquipo($get) ? ['integer'] : [])
+                                    ->readOnly(fn (Get $get): bool => self::esMaderaM2($get))
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function (Get $get, Set $set) {
                                         self::recalculatePartidaTotales($get, $set);
@@ -689,9 +691,6 @@ class NotasVentaRentaForm
                                         $duracion = max(1, (float) ($get('duracion_renta') ?? 1));
                                         $precioBase = self::resolverPrecioBaseRenta($producto, $tipoRenta, $tipoNotaRenta);
                                         $precio = $precioBase;
-                                        if ($tipoNotaRenta?->esEquipo()) {
-                                            $set('cantidad', 1);
-                                        }
                                         $set('valor_unitario', $precio);
                                         self::recalculatePartidaTotales($get, $set);
                                         self::recalculateDocumentoTotales($get, $set);
