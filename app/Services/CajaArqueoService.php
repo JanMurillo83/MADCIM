@@ -36,6 +36,7 @@ class CajaArqueoService
     public function resumen(Caja $caja): array
     {
         $movimientos = $caja->movimientos()
+            ->visibleEnCaja()
             ->when(
                 $caja->corte_id,
                 fn ($query) => $query->where(function ($query) use ($caja): void {

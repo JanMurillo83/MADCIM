@@ -20,6 +20,7 @@ use App\Models\Pagos;
 use App\Models\RegistroRenta;
 use App\Services\InventarioMovimientoService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class CierreDevolucionRentaService
 {
@@ -264,12 +265,7 @@ class CierreDevolucionRentaService
             }
 
             $cliente = $cierre->cliente()->first();
-            if (!$cliente || !hash_equals(
-                mb_strtoupper(trim((string) $cliente->folio_ine)),
-                mb_strtoupper(trim((string) $folioIne)),
-            )) {
-                throw new \DomainException('El folio de INE no coincide con el capturado en el cliente.');
-            }
+            $this->validarIdentidadCliente($cliente, $folioIne);
 
             $nota = NotasVentaRenta::query()
                 ->whereIn('id', $cierre->nota_ids ?? [])
@@ -279,6 +275,56 @@ class CierreDevolucionRentaService
 
             return $this->registrarDepositoPendiente($cierre, $nota, $cierre->observaciones, $userId);
         });
+    }
+
+    public function procesarMovimientoDepositoPendiente(int $movimientoId, ?int $userId = null, ?string $folioIne = null): bool
+    {
+        return DB::transaction(function () use ($movimientoId, $userId, $folioIne): bool {
+            $movimiento = CajaMovimiento::query()->lockForUpdate()->findOrFail($movimientoId);
+            if ($movimiento->aplicado_a_caja) {
+                return true;
+            }
+            if ($movimiento->tipo !== 'Egreso' || $movimiento->fuente !== 'Devolución depósito renta') {
+                throw new \DomainException('El movimiento ya no es una devolución de depósito pendiente.');
+            }
+
+            $origen = $movimiento->movimentable;
+            $cliente = match (true) {
+                $origen instanceof CierreDevolucionRenta => $origen->cliente,
+                $origen instanceof DevolucionesRenta => $origen->documentoOrigen?->cliente,
+                $origen instanceof NotasVentaRenta => $origen->cliente,
+                default => null,
+            };
+
+            $this->validarIdentidadCliente($cliente, $folioIne);
+
+            $caja = Caja::query()->lockForUpdate()->findOrFail($movimiento->caja_id);
+            if ($caja->estatus !== 'Abierta') {
+                throw new \DomainException('La caja de este movimiento ya está cerrada. Solicite a un administrador revisar el corte antes de aplicarlo.');
+            }
+
+            $movimiento->update(['aplicado_a_caja' => true]);
+            $caja->update([
+                'total_ingresos_cash' => $caja->movimientos()->visibleEnCaja()->where('tipo', 'Ingreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+                'total_egresos_cash' => $caja->movimientos()->visibleEnCaja()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+            ]);
+
+            return true;
+        });
+    }
+
+    private function validarIdentidadCliente(?Clientes $cliente, ?string $folioIne): void
+    {
+        if (! $cliente || blank($cliente->ine) || ! Storage::disk('local')->exists($cliente->ine)) {
+            throw new \DomainException('El cliente no tiene una imagen de INE disponible. Registre la imagen antes de aplicar la devolución.');
+        }
+
+        if (! hash_equals(
+            mb_strtoupper(trim((string) $cliente->folio_ine)),
+            mb_strtoupper(trim((string) $folioIne)),
+        )) {
+            throw new \DomainException('El folio de INE no coincide con el capturado en el cliente.');
+        }
     }
 
     /**
@@ -350,18 +396,13 @@ class CierreDevolucionRentaService
             ->first();
 
         if ($cierrePendiente) {
-            $nota = NotasVentaRenta::query()->findOrFail($notaId);
-            $cajaUsada = $cierrePendiente->estatus === 'PendienteCaja'
-                ? $this->registrarDepositoPendiente($cierrePendiente, $nota, $observaciones, $userId)
-                : false;
-
             return [
                 'already_closed' => false,
                 'resumen' => $this->resumenDesdeCierre($cierrePendiente->fresh()),
                 'nota_id' => $notaId,
                 'cierre_id' => $cierrePendiente->id,
                 'cierre_estatus' => $cierrePendiente->fresh()->estatus,
-                'caja_usada' => $cajaUsada,
+                'caja_usada' => false,
             ];
         }
 
@@ -426,9 +467,7 @@ class CierreDevolucionRentaService
             'cliente_id' => $clienteId,
             'direccion_entrega_id' => $direccionEntregaId > 0 ? $direccionEntregaId : null,
             'nota_ids' => $notaIds,
-            'estatus' => $totales['deposito_devolver'] > 0 && empty($resultado['caja_usada'])
-                ? 'PendienteCaja'
-                : 'Procesado',
+            'estatus' => (float) $totales['deposito_devolver'] > 0 ? 'PendienteCaja' : 'Procesado',
             'deposito_acumulado' => $totales['deposito'],
             'deposito_aplicado' => $totales['deposito_aplicado'],
             'deposito_a_devolver' => $totales['deposito_devolver'],
@@ -626,34 +665,6 @@ class CierreDevolucionRentaService
 
             $cajaUsada = false;
             $cajaMovimientoId = null;
-            if ((float) $resumen['totales']['deposito_devolver'] > 0) {
-                $cajaAbierta = $this->cajaAbiertaParaSucursal($nota->sucursal_id, $userId);
-
-                if ($cajaAbierta) {
-                    $cajaMovimiento = CajaMovimiento::create([
-                        'caja_id' => $cajaAbierta->id,
-                        'tipo' => 'Egreso',
-                        'fuente' => 'Devolución depósito renta',
-                        'metodo_pago' => 'Efectivo',
-                        'importe' => $resumen['totales']['deposito_devolver'],
-                        'referencia' => 'Cierre devolución NVR ' . ($nota->serie ?? '') . '-' . ($nota->folio ?? ''),
-                        'observaciones' => $observaciones,
-                        'user_id' => $userId,
-                        'fecha' => now(),
-                        'movimentable_type' => DevolucionesRenta::class,
-                        'movimentable_id' => $devolucion->id,
-                    ]);
-                    $cajaMovimientoId = $cajaMovimiento->id;
-
-                    $eg = $cajaAbierta->movimientos()
-                        ->where('tipo', 'Egreso')
-                        ->where('metodo_pago', 'Efectivo')
-                        ->sum('importe');
-
-                    $cajaAbierta->update(['total_egresos_cash' => $eg]);
-                    $cajaUsada = true;
-                }
-            }
 
             if ($this->tieneRegistrosAcumulados($nota, $notaIds)) {
                 RegistroRenta::query()
@@ -835,9 +846,11 @@ class CierreDevolucionRentaService
             'fecha' => now(),
             'movimentable_type' => CierreDevolucionRenta::class,
             'movimentable_id' => $cierre->id,
+            'aplicado_a_caja' => true,
         ]);
 
         $egresos = $cajaAbierta->movimientos()
+            ->visibleEnCaja()
             ->where('tipo', 'Egreso')
             ->where('metodo_pago', 'Efectivo')
             ->sum('importe');

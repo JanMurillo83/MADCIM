@@ -3,7 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Concerns\HasRolePageAccess;
+use App\Models\CierreDevolucionRenta;
 use App\Models\CajaMovimiento;
+use App\Models\DevolucionesRenta;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
 use App\Services\CobroNotaService;
@@ -24,6 +26,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 
 class CobrosPendientes extends Page implements HasActions
@@ -49,6 +52,12 @@ class CobrosPendientes extends Page implements HasActions
 
     public string $pestana = 'hoy';
 
+    public ?int $cierreDepositoSeleccionado = null;
+
+    public ?string $tipoDepositoSeleccionado = null;
+
+    public string $folioIne = '';
+
     public function abrirPago(string $tipo, int $id): void
     {
         $this->tipoSeleccionado = $tipo;
@@ -56,32 +65,131 @@ class CobrosPendientes extends Page implements HasActions
         $this->mountAction('pagar');
     }
 
-    public function registrarDevolucionEnCaja(int $movimientoId): void
+    public function abrirConfirmacionDeposito(string $tipo, int $id): void
     {
-        $movimiento = CajaMovimiento::query()
-            ->where('tipo', 'Egreso')
-            ->where('fuente', 'Devolución depósito renta')
-            ->where('aplicado_a_caja', false)
-            ->findOrFail($movimientoId);
+        if ($tipo === 'cierre') {
+            CierreDevolucionRenta::query()->where('estatus', 'PendienteCaja')->findOrFail($id);
+        } elseif ($tipo === 'movimiento') {
+            CajaMovimiento::query()->where('tipo', 'Egreso')->where('fuente', 'Devolución depósito renta')->where('aplicado_a_caja', false)->findOrFail($id);
+        } else {
+            abort(404);
+        }
 
-        $this->dispatch(
-            'abrir-ticket-pago',
-            url: route('caja-movimientos.devolucion-deposito.ticket', $movimiento->id),
-        );
+        $this->tipoDepositoSeleccionado = $tipo;
+        $this->cierreDepositoSeleccionado = $id;
+        $this->folioIne = '';
+        $this->resetValidation('folioIne');
+    }
 
-        $caja = $movimiento->caja;
-        $caja->update([
-            'total_ingresos_cash' => $caja->movimientos()->where('tipo', 'Ingreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
-            'total_egresos_cash' => $caja->movimientos()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+    public function cancelarConfirmacionDeposito(): void
+    {
+        $this->cierreDepositoSeleccionado = null;
+        $this->tipoDepositoSeleccionado = null;
+        $this->folioIne = '';
+        $this->resetValidation('folioIne');
+    }
+
+    public function depositoSeleccionado(): ?array
+    {
+        if (! $this->cierreDepositoSeleccionado) {
+            return null;
+        }
+
+        if ($this->tipoDepositoSeleccionado === 'cierre') {
+            $cierre = CierreDevolucionRenta::query()->with('cliente')->where('estatus', 'PendienteCaja')->find($this->cierreDepositoSeleccionado);
+            return $cierre ? ['cliente' => $cierre->cliente, 'importe' => (float) $cierre->deposito_a_devolver, 'folio' => 'Cierre #' . $cierre->id] : null;
+        }
+
+        if ($this->tipoDepositoSeleccionado === 'movimiento') {
+            $movimiento = CajaMovimiento::query()->with('movimentable')->where('tipo', 'Egreso')->where('fuente', 'Devolución depósito renta')->where('aplicado_a_caja', false)->find($this->cierreDepositoSeleccionado);
+            $origen = $movimiento?->movimentable;
+            $cliente = match (true) {
+                $origen instanceof CierreDevolucionRenta => $origen->cliente,
+                $origen instanceof DevolucionesRenta => $origen->documentoOrigen?->cliente,
+                $origen instanceof NotasVentaRenta => $origen->cliente,
+                default => null,
+            };
+            return $movimiento ? ['cliente' => $cliente, 'importe' => (float) $movimiento->importe, 'folio' => $movimiento->referencia ?: 'Movimiento #' . $movimiento->id] : null;
+        }
+
+        return null;
+    }
+
+    public function imagenIneSeleccionada(): ?string
+    {
+        $deposito = $this->depositoSeleccionado();
+        $path = data_get($deposito, 'cliente.ine');
+
+        if (blank($path) || ! Storage::disk('local')->exists($path)) {
+            return null;
+        }
+
+        try {
+            return Storage::disk('local')->temporaryUrl($path, now()->addMinutes(20));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function procesarDevolucionDeposito(): void
+    {
+        $this->validate([
+            'folioIne' => ['required', 'string', 'max:100'],
+        ], [
+            'folioIne.required' => 'Capture el Folio de INE para continuar.',
         ]);
 
-        $movimiento->update(['aplicado_a_caja' => true]);
+        if (! $this->cierreDepositoSeleccionado) {
+            return;
+        }
 
-        Notification::make()
-            ->title('Devolución aplicada a caja')
-            ->body('El egreso quedó incluido en los saldos y en el corte de caja.')
-            ->success()
-            ->send();
+        try {
+            $service = app(\App\Services\CierreDevolucionRentaService::class);
+            $procesado = $this->tipoDepositoSeleccionado === 'cierre'
+                ? $service->procesarDepositoPendiente($this->cierreDepositoSeleccionado, (int) Auth::id(), $this->folioIne)
+                : $service->procesarMovimientoDepositoPendiente($this->cierreDepositoSeleccionado, (int) Auth::id(), $this->folioIne);
+
+            if (! $procesado) {
+                Notification::make()
+                    ->title('Caja no disponible')
+                    ->body('Abra una caja de la sucursal para registrar el egreso. La devolución permanece pendiente.')
+                    ->warning()
+                    ->send();
+                return;
+            }
+
+            $movimientoId = $this->tipoDepositoSeleccionado === 'cierre'
+                ? CierreDevolucionRenta::query()->whereKey($this->cierreDepositoSeleccionado)->value('caja_movimiento_id')
+                : $this->cierreDepositoSeleccionado;
+            if ($movimientoId) {
+                $this->dispatch('abrir-ticket-pago', url: route('caja-movimientos.devolucion-deposito.ticket', $movimientoId));
+            }
+
+            $this->cancelarConfirmacionDeposito();
+            unset($this->notasPendientes, $this->depositosPendientes);
+            Notification::make()
+                ->title('Devolución aplicada a caja')
+                ->body('El egreso quedó registrado y se incluye en los movimientos del día y el corte de caja.')
+                ->success()
+                ->send();
+        } catch (\DomainException $exception) {
+            if (str_contains(mb_strtolower($exception->getMessage()), 'folio de ine no coincide')) {
+                $this->addError('folioIne', $exception->getMessage());
+            } else {
+                Notification::make()
+                    ->title('No se pudo aplicar la devolución')
+                    ->body($exception->getMessage())
+                    ->danger()
+                    ->send();
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            Notification::make()
+                ->title('No se pudo aplicar la devolución')
+                ->body('Revise los datos del cierre y vuelva a intentarlo.')
+                ->danger()
+                ->send();
+        }
     }
 
     #[Computed]
@@ -123,29 +231,57 @@ class CobrosPendientes extends Page implements HasActions
                 'saldo' => (float) $nota->saldo_pendiente,
             ]);
 
-        $devolucionesDeposito = CajaMovimiento::query()
-            ->with('movimentable.documentoOrigen.cliente')
+        return $rentas
+            ->concat($ventas)
+            ->sortByDesc(fn (array $nota): string => $nota['fecha'] ?? '')
+            ->values();
+    }
+
+    #[Computed]
+    public function depositosPendientes(): Collection
+    {
+        $cierres = CierreDevolucionRenta::query()
+            ->with(['cliente', 'direccionEntrega'])
+            ->where('estatus', 'PendienteCaja')
+            ->where('deposito_a_devolver', '>', 0)
+            ->latest('created_at')
+            ->get()
+            ->map(fn (CierreDevolucionRenta $cierre): array => [
+                'tipo' => 'cierre',
+                'id' => $cierre->id,
+                'fecha' => optional($cierre->created_at)->format('d/m/Y'),
+                'cliente' => $cierre->cliente?->nombre ?? 'N/A',
+                'direccion' => $cierre->direccionEntrega?->direccion_completa ?? '—',
+                'importe' => (float) $cierre->deposito_a_devolver,
+            ]);
+
+        $movimientos = CajaMovimiento::query()
+            ->with('movimentable')
             ->where('tipo', 'Egreso')
             ->where('fuente', 'Devolución depósito renta')
             ->where('aplicado_a_caja', false)
+            ->latest('fecha')
             ->get()
-            ->map(fn (CajaMovimiento $movimiento): array => [
-                'tipo' => 'devolucion_deposito',
-                'tipo_label' => 'Devolución depósito',
-                'id' => $movimiento->id,
-                'folio' => $movimiento->referencia ?: 'Movimiento de caja',
-                'fecha' => optional($movimiento->fecha)->format('d/m/Y'),
-                'cliente' => $movimiento->movimentable?->documentoOrigen?->cliente?->nombre ?? 'N/A',
-                'total' => -1 * (float) $movimiento->importe,
-                'saldo' => -1 * (float) $movimiento->importe,
-                'es_movimiento' => true,
-            ]);
+            ->map(function (CajaMovimiento $movimiento): array {
+                $origen = $movimiento->movimentable;
+                $cliente = match (true) {
+                    $origen instanceof CierreDevolucionRenta => $origen->cliente,
+                    $origen instanceof DevolucionesRenta => $origen->documentoOrigen?->cliente,
+                    $origen instanceof NotasVentaRenta => $origen->cliente,
+                    default => null,
+                };
 
-        return $rentas
-            ->concat($ventas)
-            ->concat($devolucionesDeposito)
-            ->sortByDesc(fn (array $nota): string => $nota['fecha'] ?? '')
-            ->values();
+                return [
+                    'tipo' => 'movimiento',
+                    'id' => $movimiento->id,
+                    'fecha' => optional($movimiento->fecha)->format('d/m/Y'),
+                    'cliente' => $cliente?->nombre ?? 'N/A',
+                    'direccion' => '—',
+                    'importe' => (float) $movimiento->importe,
+                ];
+            });
+
+        return $cierres->concat($movimientos)->sortByDesc('fecha')->values();
     }
 
     public function saldoSeleccionado(): float

@@ -61,6 +61,7 @@ class CajaDiaria extends Page
     public function resumen(): Collection
     {
         $query = CajaMovimiento::query()
+            ->visibleEnCaja()
             ->with(['caja', 'user'])
             ->when($this->caja_id, fn ($q) => $q->where('caja_id', $this->caja_id))
             ->when($this->usuario_id, fn ($q) => $q->where('user_id', $this->usuario_id))

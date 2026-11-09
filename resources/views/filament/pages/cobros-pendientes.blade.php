@@ -26,6 +26,7 @@
         .cobros-table th:nth-child(8), .cobros-table td:nth-child(8) { width: 14%; text-align: right; }
         .cobros-actions { display: flex; justify-content: flex-end; gap: 7px; }
         .cobros-empty { color: #6b7280 !important; padding: 32px !important; text-align: center !important; }
+        .deposito-ine-preview { display: block; max-height: 380px; max-width: 100%; object-fit: contain; margin: 16px auto; border: 1px solid #d1d5db; border-radius: 8px; }
         @media (max-width: 900px) { .cobros-heading { align-items: start; flex-direction: column; } .cobros-card { overflow-x: auto; } .cobros-table { min-width: 850px; } }
     </style>
 
@@ -36,20 +37,53 @@
     >
         <div class="cobros-heading">
             <div>
-                <h2>Notas pendientes de pago</h2>
-                <p>Registra pagos de renta y venta desde una sola consulta.</p>
+                <h2>{{ $pestana === 'depositos' ? 'Devoluciones de depósito pendientes' : 'Notas pendientes de pago' }}</h2>
+                <p>{{ $pestana === 'depositos' ? 'Confirma el Folio de INE del cliente para aplicar el reembolso a Caja.' : 'Registra pagos de renta y venta desde una sola consulta.' }}</p>
             </div>
             <div class="cobros-total">
-                <span>Saldo pendiente visible</span>
-                <strong>${{ number_format($this->notasDeLaPestana()->sum('saldo'), 2) }}</strong>
+                @if ($pestana === 'depositos')
+                    <span>Depósitos por aplicar</span>
+                    <strong>${{ number_format($this->depositosPendientes->sum('importe'), 2) }}</strong>
+                @else
+                    <span>Saldo pendiente visible</span>
+                    <strong>${{ number_format($this->notasDeLaPestana()->sum('saldo'), 2) }}</strong>
+                @endif
             </div>
         </div>
 
         <div class="cobros-tabs">
             <button type="button" class="cobros-tab {{ $pestana === 'hoy' ? 'active' : '' }}" wire:click="$set('pestana', 'hoy')">Trabajo de hoy</button>
             <button type="button" class="cobros-tab {{ $pestana === 'anteriores' ? 'active' : '' }}" wire:click="$set('pestana', 'anteriores')">Cuentas por cobrar</button>
+            <button type="button" class="cobros-tab {{ $pestana === 'depositos' ? 'active' : '' }}" wire:click="$set('pestana', 'depositos')">Devoluciones de depósitos</button>
         </div>
 
+        @if ($pestana === 'depositos')
+            <div class="cobros-card">
+                <div class="overflow-x-auto">
+                    <table class="cobros-table">
+                        <thead><tr><th>Cierre</th><th>Fecha</th><th>Cliente</th><th>Dirección</th><th style="text-align:right">Depósito a devolver</th><th style="text-align:right">Acciones</th></tr></thead>
+                        <tbody>
+                            @forelse ($this->depositosPendientes as $deposito)
+                                <tr>
+                                    <td><strong>{{ $deposito['tipo'] === 'cierre' ? 'Cierre #'.$deposito['id'] : 'Movimiento #'.$deposito['id'] }}</strong></td>
+                                    <td>{{ $deposito['fecha'] }}</td>
+                                    <td>{{ $deposito['cliente'] }}</td>
+                                    <td>{{ $deposito['direccion'] }}</td>
+                                    <td style="text-align:right"><strong>${{ number_format($deposito['importe'], 2) }}</strong></td>
+                                    <td style="text-align:right">
+                                        <x-filament::button size="sm" color="warning" icon="heroicon-o-identification" wire:click="abrirConfirmacionDeposito('{{ $deposito['tipo'] }}', {{ $deposito['id'] }})">
+                                            Verificar INE y aplicar
+                                        </x-filament::button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="cobros-empty">No hay devoluciones de depósito pendientes.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @else
         <div class="cobros-card">
             <div class="overflow-x-auto">
                 <table class="cobros-table">
@@ -84,49 +118,10 @@
                                 <td>${{ number_format($nota['total'], 2) }}</td>
                                 <td><strong>${{ number_format($nota['saldo'], 2) }}</strong></td>
                                 <td>
-                                    @if ($nota['es_movimiento'] ?? false)
-                                        <div class="cobros-actions">
-                                            <x-filament::button
-                                                size="sm"
-                                                color="warning"
-                                                icon="heroicon-o-arrow-down-circle"
-                                                wire:click="registrarDevolucionEnCaja({{ $nota['id'] }})"
-                                            >
-                                                Aplicar a caja
-                                            </x-filament::button>
-                                            <x-filament::button
-                                                tag="a"
-                                                size="sm"
-                                                color="gray"
-                                                icon="heroicon-o-printer"
-                                                href="{{ route('caja-movimientos.devolucion-deposito.ticket', $nota['id']) }}"
-                                                target="_blank"
-                                            >
-                                                Imprimir
-                                            </x-filament::button>
-                                        </div>
-                                    @else
-                                        <div class="cobros-actions">
-                                            <x-filament::button
-                                                size="sm"
-                                                color="success"
-                                                icon="heroicon-o-banknotes"
-                                                wire:click="abrirPago('{{ $nota['tipo'] }}', {{ $nota['id'] }})"
-                                            >
-                                                Pagar
-                                            </x-filament::button>
-                                            <x-filament::button
-                                                tag="a"
-                                                size="sm"
-                                                color="gray"
-                                                icon="heroicon-o-printer"
-                                                href="{{ $nota['tipo'] === 'notas_venta_renta' ? route('notas-venta-renta.pdf.ticket', $nota['id']) : route('notas-venta-venta.pdf.ticket', $nota['id']) }}"
-                                                target="_blank"
-                                            >
-                                                Imprimir
-                                            </x-filament::button>
-                                        </div>
-                                    @endif
+                                    <div class="cobros-actions">
+                                        <x-filament::button size="sm" color="success" icon="heroicon-o-banknotes" wire:click="abrirPago('{{ $nota['tipo'] }}', {{ $nota['id'] }})">Pagar</x-filament::button>
+                                        <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-o-printer" href="{{ $nota['tipo'] === 'notas_venta_renta' ? route('notas-venta-renta.pdf.ticket', $nota['id']) : route('notas-venta-venta.pdf.ticket', $nota['id']) }}" target="_blank">Imprimir</x-filament::button>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -136,6 +131,29 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+        @endif
+
+        @php($depositoSeleccionado = $this->depositoSeleccionado())
+        <div x-data x-show="$wire.cierreDepositoSeleccionado !== null" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+            <div class="my-6 w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl" @click.outside="$wire.cancelarConfirmacionDeposito()">
+                <h2 class="text-lg font-semibold text-gray-900">Confirmar devolución del depósito</h2>
+                @if ($depositoSeleccionado)
+                    <p class="mt-2 text-sm text-gray-600">{{ $depositoSeleccionado['folio'] }} · {{ $depositoSeleccionado['cliente']?->nombre ?? 'Cliente sin nombre' }} · Importe: <strong>${{ number_format($depositoSeleccionado['importe'], 2) }}</strong></p>
+                    @if ($this->imagenIneSeleccionada())
+                        <img class="deposito-ine-preview" src="{{ $this->imagenIneSeleccionada() }}" alt="INE de {{ $depositoSeleccionado['cliente']?->nombre }}">
+                    @else
+                        <div class="my-4 rounded-lg border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700">El cliente no tiene una imagen de INE disponible. Cargue la imagen en su expediente para poder aplicar esta devolución.</div>
+                    @endif
+                    <label class="mt-4 block text-sm font-medium text-gray-700" for="folio-ine-deposito-cobros">Folio de INE del cliente</label>
+                    <input id="folio-ine-deposito-cobros" type="text" wire:model.defer="folioIne" wire:keydown.enter="procesarDevolucionDeposito" class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" autocomplete="off">
+                    @error('folioIne')<p class="mt-1 text-sm text-danger-600">{{ $message }}</p>@enderror
+                    <div class="mt-5 flex justify-end gap-2">
+                        <x-filament::button wire:click="cancelarConfirmacionDeposito" color="gray">Cancelar</x-filament::button>
+                        <x-filament::button wire:click="procesarDevolucionDeposito" color="warning" :disabled="! $this->imagenIneSeleccionada()">Confirmar y aplicar</x-filament::button>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

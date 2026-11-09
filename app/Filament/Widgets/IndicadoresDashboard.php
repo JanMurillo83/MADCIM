@@ -208,6 +208,7 @@ class IndicadoresDashboard extends Widget
             ->where('estatus', '!=', 'Cancelada')
             ->sum('deposito');
         $devueltos = (float) $this->scope(CajaMovimiento::query())
+            ->visibleEnCaja()
             ->whereBetween('fecha', [$inicio, $fin])
             ->where('tipo', 'Egreso')
             ->where('fuente', 'Devolución depósito renta')
@@ -388,7 +389,7 @@ class IndicadoresDashboard extends Widget
 
     private function movimientosRecientes(): Collection
     {
-        return $this->scope(CajaMovimiento::query())->with('caja.sucursal')->latest('fecha')->limit(6)->get();
+        return $this->scope(CajaMovimiento::query())->visibleEnCaja()->with('caja.sucursal')->latest('fecha')->limit(6)->get();
     }
 
     private function scope(Builder $query): Builder

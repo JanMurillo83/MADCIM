@@ -14,6 +14,7 @@ use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use App\Services\CierreDevolucionRentaService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use App\Filament\Concerns\HasRolePageAccess;
@@ -86,6 +87,23 @@ class ControlDepositos extends Page
         $this->cierreVerificacionId = null;
         $this->folioIne = '';
         $this->resetValidation('folioIne');
+    }
+
+    public function imagenIneDeposito(): ?string
+    {
+        $path = $this->cierreVerificacionId
+            ? CierreDevolucionRenta::query()->with('cliente')->find($this->cierreVerificacionId)?->cliente?->ine
+            : null;
+
+        if (blank($path) || ! Storage::disk('local')->exists($path)) {
+            return null;
+        }
+
+        try {
+            return Storage::disk('local')->temporaryUrl($path, now()->addMinutes(20));
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function procesarDeposito(): void
@@ -203,6 +221,7 @@ class ControlDepositos extends Page
         }
 
         $movimientos = CajaMovimiento::query()
+            ->visibleEnCaja()
             ->where('tipo', 'Egreso')
             ->where('fuente', 'Devolución depósito renta')
             ->whereIn('movimentable_type', [

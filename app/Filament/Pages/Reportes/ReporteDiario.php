@@ -223,6 +223,7 @@ class ReporteDiario extends Page
     private function egresos(): Collection
     {
         return CajaMovimiento::query()
+            ->visibleEnCaja()
             ->with(['caja', 'user'])
             ->where('tipo', 'Egreso')
             ->whereDate('fecha', $this->fecha)

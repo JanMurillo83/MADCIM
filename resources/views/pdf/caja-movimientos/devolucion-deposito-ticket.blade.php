@@ -18,8 +18,8 @@
 
     <div class="block">
         <div class="row"><span class="label">Fecha:</span> {{ optional($movimiento->fecha)->format('d/m/Y H:i') }}</div>
-        <div class="row"><span class="label">Cliente:</span> {{ $devolucion->documentoOrigen?->cliente?->nombre ?? 'N/A' }}</div>
-        <div class="row"><span class="label">Nota de renta:</span> {{ trim(($devolucion->documentoOrigen?->serie ?? '') . '-' . ($devolucion->documentoOrigen?->folio ?? '')) }}</div>
+        <div class="row"><span class="label">Cliente:</span> {{ $cliente?->nombre ?? 'N/A' }}</div>
+        <div class="row"><span class="label">Nota de renta:</span> {{ trim(($nota?->serie ?? '') . '-' . ($nota?->folio ?? '')) }}</div>
         <div class="row"><span class="label">Referencia:</span> {{ $movimiento->referencia ?? 'N/A' }}</div>
         <div class="row"><span class="label">Caja:</span> {{ $movimiento->caja?->nombre ?? 'N/A' }}</div>
         <div class="row"><span class="label">Entregado por:</span> {{ $movimiento->user?->name ?? 'N/A' }}</div>

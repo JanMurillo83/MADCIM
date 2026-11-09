@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToSucursalScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Builder;
 
 class CajaMovimiento extends Model
 {
@@ -61,5 +62,14 @@ class CajaMovimiento extends Model
     public function movimentable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function scopeVisibleEnCaja(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->whereNull('fuente')
+                ->orWhere('fuente', '!=', 'Devolución depósito renta')
+                ->orWhere('aplicado_a_caja', true);
+        });
     }
 }

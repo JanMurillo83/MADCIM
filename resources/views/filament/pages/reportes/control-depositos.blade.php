@@ -124,6 +124,11 @@
                 <p class="mt-2 text-sm text-gray-600">
                     Capture el Folio de INE del cliente para autorizar el depósito a devolver.
                 </p>
+                @if ($this->imagenIneDeposito())
+                    <img src="{{ $this->imagenIneDeposito() }}" alt="INE del cliente" class="mx-auto my-4 max-h-80 max-w-full rounded-lg border border-gray-300 object-contain">
+                @else
+                    <p class="mt-4 rounded-lg border border-danger-300 bg-danger-50 p-3 text-sm text-danger-700">El cliente no tiene una imagen de INE disponible. Cargue la imagen en su expediente para continuar.</p>
+                @endif
                 <label class="mt-4 block text-sm font-medium text-gray-700" for="folio-ine-deposito">Folio de INE</label>
                 <input
                     id="folio-ine-deposito"
@@ -138,7 +143,7 @@
                 @enderror
                 <div class="mt-5 flex justify-end gap-2">
                     <x-filament::button wire:click="cancelarVerificacionDeposito" color="gray">Cancelar</x-filament::button>
-                    <x-filament::button wire:click="procesarDeposito" color="warning">Verificar y procesar</x-filament::button>
+                    <x-filament::button wire:click="procesarDeposito" color="warning" :disabled="! $this->imagenIneDeposito()">Verificar y procesar</x-filament::button>
                 </div>
             </div>
         </div>
