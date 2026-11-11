@@ -485,22 +485,13 @@ class NotasEnvioTable
                             ->send();
                     }),
                 Action::make('renovar')
-                    ->label('Extender renta')
+                    ->label('Renovar renta')
                     ->icon('heroicon-o-calendar-days')
                     ->color('info')
-                    ->visible(function (NotaEnvio $record): bool {
-                        $nota = $record->notaVentaRenta;
-
-                        return $nota?->estatus === 'Activa'
-                            && $record->estatus !== 'Cancelada'
-                            && $record->partidas()->whereHas('registroRenta', fn ($query) => $query
-                                ->where('estado', 'Activo')
-                                ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)'))
-                                ->exists();
-                    })
-                    ->modalHeading(fn (NotaEnvio $record): string => 'Extender renta - Envío ' . $record->folio)
+                    ->visible(fn (NotaEnvio $record): bool => app(RenovacionRentaService::class)->puedeRenovarseEnvio($record))
+                    ->modalHeading(fn (NotaEnvio $record): string => 'Renovar renta - Envío ' . $record->folio)
                     ->modalDescription('Capture los días adicionales y confirme el importe del cobro. Se actualizará el vencimiento; no se agregará depósito ni se moverá inventario.')
-                    ->modalSubmitActionLabel('Extender renta')
+                    ->modalSubmitActionLabel('Renovar renta')
                     ->form(fn (NotaEnvio $record): array => [
                         TextInput::make('dias')
                             ->label('Días a extender')

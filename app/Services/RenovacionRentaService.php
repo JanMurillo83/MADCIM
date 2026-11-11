@@ -17,6 +17,67 @@ use Illuminate\Validation\ValidationException;
 
 class RenovacionRentaService
 {
+    public function puedeRenovarseNota(NotasVentaRenta $nota): bool
+    {
+        return in_array($this->estadoRentaNota($nota), ['Vigente', 'Vencida'], true)
+            && RegistroRenta::query()
+                ->where('nota_venta_renta_id', $nota->id)
+                ->where('estado', 'Activo')
+                ->whereNotNull('fecha_vencimiento')
+                ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                ->whereHas('notaEnvioPartida.notaEnvio', fn ($query) => $query->where('estatus', '!=', 'Cancelada'))
+                ->exists();
+    }
+
+    public function estadoRentaNota(NotasVentaRenta $nota): string
+    {
+        if (in_array($nota->estatus, ['Cancelada', 'Devuelta', 'Vendida'], true)) {
+            return $nota->estatus;
+        }
+
+        $tieneRentaVencida = RegistroRenta::query()
+            ->where('nota_venta_renta_id', $nota->id)
+            ->where('estado', 'Activo')
+            ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+            ->whereDate('fecha_vencimiento', '<', now()->toDateString())
+            ->exists();
+
+        if ($tieneRentaVencida) {
+            return 'Vencida';
+        }
+
+        $envios = $nota->notasEnvio()->get(['id', 'estado_renta']);
+        if ($envios->isNotEmpty() && $envios->every(fn (NotaEnvio $envio): bool => $envio->estado_renta === 'Devuelta')) {
+            return 'Devuelta';
+        }
+
+        return 'Vigente';
+    }
+
+    public function puedeRenovarseEnvio(NotaEnvio $notaEnvio): bool
+    {
+        $nota = $notaEnvio->notaVentaRenta;
+
+        return $notaEnvio->estatus !== 'Cancelada'
+            && $nota !== null
+            && $this->puedeRenovarseNota($nota)
+            && RegistroRenta::query()
+                ->whereHas('notaEnvioPartida', fn ($query) => $query->where('nota_envio_id', $notaEnvio->id))
+                ->where('estado', 'Activo')
+                ->whereNotNull('fecha_vencimiento')
+                ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                ->exists();
+    }
+
+    public function importeSugeridoParaNota(NotasVentaRenta $nota, int $dias): float
+    {
+        return round(NotaEnvio::query()
+            ->where('nota_venta_renta_id', $nota->id)
+            ->where('estatus', '!=', 'Cancelada')
+            ->get()
+            ->sum(fn (NotaEnvio $envio): float => $this->importeSugerido($envio, $dias)), 2);
+    }
+
     public function importeSugerido(NotaEnvio $notaEnvio, int $dias): float
     {
         $envio = NotaEnvio::query()
@@ -87,7 +148,7 @@ class RenovacionRentaService
                 ->findOrFail($notaEnvio->id);
             $nota = $envio->notaVentaRenta;
 
-            if (! $nota || $nota->estatus !== 'Activa' || $envio->estatus === 'Cancelada') {
+            if (! $nota || ! $this->puedeRenovarseEnvio($envio)) {
                 throw ValidationException::withMessages(['dias' => 'Solo se puede renovar un envío de una renta activa.']);
             }
 
@@ -177,6 +238,113 @@ class RenovacionRentaService
             if ($vencimientoNota) {
                 $fechaFin = Carbon::parse($vencimientoNota);
                 $nota->update(['fecha_vencimiento' => $fechaFin->toDateString()]);
+            }
+
+            return $this->crearCobroPendiente($nota, $partidasCobro, $dias, $importe, $userId ?? Auth::id());
+        });
+    }
+
+    public function renovarNota(NotasVentaRenta $nota, int $dias, float $importe, ?int $userId = null): NotasVentaVenta
+    {
+        if ($dias < 1) {
+            throw ValidationException::withMessages(['dias' => 'Capture al menos un día para extender la renta.']);
+        }
+        if ($importe <= 0) {
+            throw ValidationException::withMessages(['importe' => 'Capture un importe mayor a cero para el cobro pendiente.']);
+        }
+
+        return DB::transaction(function () use ($nota, $dias, $importe, $userId): NotasVentaVenta {
+            $nota = NotasVentaRenta::query()
+                ->with('cliente')
+                ->lockForUpdate()
+                ->findOrFail($nota->id);
+
+            if (! $this->puedeRenovarseNota($nota)) {
+                throw ValidationException::withMessages(['dias' => 'La Nota de Renta no tiene partidas vigentes o vencidas disponibles para renovar.']);
+            }
+
+            $envios = NotaEnvio::query()
+                ->where('nota_venta_renta_id', $nota->id)
+                ->where('estatus', '!=', 'Cancelada')
+                ->with(['partidas.partidaRenta.producto', 'partidas.producto'])
+                ->lockForUpdate()
+                ->get();
+            $partidasCobro = [];
+            $vencimientosNota = [];
+
+            foreach ($envios as $envio) {
+                $vencimientosEnvio = [];
+
+                foreach ($envio->partidas as $partidaEnvio) {
+                    $registros = RegistroRenta::query()
+                        ->where('nota_envio_partida_id', $partidaEnvio->id)
+                        ->where('estado', 'Activo')
+                        ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                        ->lockForUpdate()
+                        ->get();
+
+                    if ($registros->isEmpty()) {
+                        continue;
+                    }
+
+                    $partidaRenta = $partidaEnvio->partidaRenta;
+                    if (! $partidaRenta) {
+                        throw ValidationException::withMessages(['dias' => 'No se encontró la partida de renta vinculada al envío.']);
+                    }
+
+                    $vencimientoPartida = null;
+                    foreach ($registros as $registro) {
+                        $fechaBase = $registro->fecha_vencimiento
+                            ?? $partidaEnvio->fecha_vencimiento
+                            ?? $partidaRenta->fecha_vencimiento
+                            ?? $nota->fecha_vencimiento
+                            ?? Carbon::today();
+                        $nuevoVencimiento = Carbon::parse($fechaBase)->addDays($dias);
+                        $registro->update(['fecha_vencimiento' => $nuevoVencimiento->toDateString()]);
+                        $vencimientoPartida = $this->maxFecha($vencimientoPartida, $nuevoVencimiento);
+                    }
+
+                    if ($vencimientoPartida) {
+                        $partidaEnvio->update(['fecha_vencimiento' => $vencimientoPartida->toDateString()]);
+                        $vencimientosEnvio[] = $vencimientoPartida;
+                        $vencimientoContrato = RegistroRenta::query()
+                            ->where('nota_venta_renta_id', $nota->id)
+                            ->where('estado', 'Activo')
+                            ->whereRaw('cantidad > COALESCE(cantidad_devuelta, 0)')
+                            ->whereHas('notaEnvioPartida', fn ($query) => $query->where('nota_venta_renta_partida_id', $partidaRenta->id))
+                            ->max('fecha_vencimiento');
+                        if ($vencimientoContrato) {
+                            $partidaRenta->update(['fecha_vencimiento' => $vencimientoContrato]);
+                        }
+                    }
+
+                    $tipo = TipoNotaRenta::tryFrom($partidaRenta->tipo_nota_renta ?? $nota->tipo_nota_renta ?? 'equipo')
+                        ?? TipoNotaRenta::Equipo;
+                    $partidasCobro[] = [
+                        'item' => (string) $partidaRenta->item,
+                        'descripcion' => (string) ($partidaRenta->descripcion ?: $partidaEnvio->descripcion),
+                        'tipo_nota_renta' => $tipo->value,
+                    ];
+                }
+
+                $vencimientoEnvio = collect($vencimientosEnvio)->reduce(
+                    fn ($maximo, Carbon $fecha) => $this->maxFecha($maximo, $fecha),
+                );
+                if ($vencimientoEnvio) {
+                    $envio->update(['fecha_vencimiento' => $vencimientoEnvio->toDateString()]);
+                    $vencimientosNota[] = $vencimientoEnvio;
+                }
+            }
+
+            if ($partidasCobro === []) {
+                throw ValidationException::withMessages(['dias' => 'No hay partidas activas para renovar en esta Nota de Renta.']);
+            }
+
+            $vencimientoNota = collect($vencimientosNota)->reduce(
+                fn ($maximo, Carbon $fecha) => $this->maxFecha($maximo, $fecha),
+            );
+            if ($vencimientoNota) {
+                $nota->update(['fecha_vencimiento' => $vencimientoNota->toDateString()]);
             }
 
             return $this->crearCobroPendiente($nota, $partidasCobro, $dias, $importe, $userId ?? Auth::id());

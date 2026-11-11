@@ -6,6 +6,7 @@ use App\Models\NotaEnvioPartida;
 use App\Models\NotasVentaRenta;
 use App\Models\RegistroRenta;
 use App\Services\AmpliacionVigenciaRentaService;
+use App\Services\RenovacionRentaService;
 use App\Enums\TipoNotaRenta;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -166,35 +167,7 @@ class NotasVentaRentaTable
                 TextColumn::make('estatus_renta')
                     ->label('Estatus Renta')
                     ->badge()
-                    ->getStateUsing(function (NotasVentaRenta $record) {
-                        if ($record->estatus === 'Cancelada') {
-                            return 'Cancelada';
-                        }
-
-                        if ($record->estatus === 'Devuelta') {
-                            return 'Devuelta';
-                        }
-
-                        if ($record->estatus === 'Vendida') {
-                            return 'Vendida';
-                        }
-
-                        $tieneRentaVencida = RegistroRenta::query()
-                            ->where('nota_venta_renta_id', $record->id)
-                            ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
-                            ->whereDate('fecha_vencimiento', '<', now()->toDateString())
-                            ->exists();
-
-                        if ($tieneRentaVencida) {
-                            return 'Vencida';
-                        }
-
-                        $envios = NotaEnvio::where('nota_venta_renta_id', $record->id)->get();
-                        if ($envios->isEmpty()) return 'Vigente';
-
-                        $todasDevueltas = $envios->every(fn ($e) => $e->estado_renta === 'Devuelta');
-                        return $todasDevueltas ? 'Devuelta' : 'Vigente';
-                    })
+                    ->getStateUsing(fn (NotasVentaRenta $record): string => app(RenovacionRentaService::class)->estadoRentaNota($record))
                     ->color(function (NotasVentaRenta $record, string $state): string {
                         if ($record->estatus === 'Cancelada') {
                             return 'danger';
@@ -328,11 +301,72 @@ class NotasVentaRentaTable
                         })
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar'),
+                    Action::make('renovar_renta')
+                        ->label('Renovar renta')
+                        ->icon('heroicon-o-calendar-days')
+                        ->color('warning')
+                        ->visible(fn (NotasVentaRenta $record): bool => app(RenovacionRentaService::class)->puedeRenovarseNota($record))
+                        ->modalHeading(fn (NotasVentaRenta $record): string => 'Renovar renta - Nota ' . $record->serie . '-' . $record->folio)
+                        ->modalDescription('Capture los días adicionales y confirme el importe. Se actualizará el vencimiento y quedará un cobro pendiente; no se agregará depósito ni se moverá inventario.')
+                        ->modalSubmitActionLabel('Renovar renta')
+                        ->form(fn (NotasVentaRenta $record): array => [
+                            TextInput::make('dias')
+                                ->label('Días a extender')
+                                ->integer()
+                                ->minValue(1)
+                                ->default(1)
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(function ($state, \Filament\Schemas\Components\Utilities\Set $set, NotasVentaRenta $record): void {
+                                    $set('importe', app(RenovacionRentaService::class)->importeSugeridoParaNota($record, max(1, (int) $state)));
+                                })
+                                ->required(),
+                            TextInput::make('importe')
+                                ->label('Importe del cobro pendiente')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->step(0.01)
+                                ->prefix('$')
+                                ->default(fn (): float => app(RenovacionRentaService::class)->importeSugeridoParaNota($record, 1))
+                                ->required()
+                                ->helperText('Confirme o ajuste el importe. No se agregará un depósito.'),
+                        ])
+                        ->action(function (NotasVentaRenta $record, array $data): void {
+                            try {
+                                $cobro = app(RenovacionRentaService::class)->renovarNota(
+                                    $record,
+                                    (int) $data['dias'],
+                                    (float) $data['importe'],
+                                    Auth::id(),
+                                );
+
+                                Notification::make()
+                                    ->title('Renta renovada')
+                                    ->body('Se actualizó el vencimiento y se generó el cobro pendiente ' . $cobro->serie . '-' . $cobro->folio . ' por $' . number_format((float) $cobro->total, 2) . '.')
+                                    ->success()
+                                    ->persistent()
+                                    ->send();
+                            } catch (\Illuminate\Validation\ValidationException $exception) {
+                                Notification::make()
+                                    ->title('No se pudo renovar la renta')
+                                    ->body(collect($exception->errors())->flatten()->unique()->implode(' '))
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            } catch (\Throwable $exception) {
+                                report($exception);
+                                Notification::make()
+                                    ->title('No se pudo renovar la renta')
+                                    ->body('Ocurrió un error al registrar la renovación.')
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+                        }),
                     Action::make('ampliar_vigencia')
                         ->label('Ampliar Vigencia')
                         ->icon('heroicon-o-calendar-days')
                         ->color('warning')
-                        ->visible(fn (NotasVentaRenta $record): bool => $record->estatus === 'Activa')
+                        ->visible(false)
                         ->modalHeading(fn (NotasVentaRenta $record): string => 'Ampliar vigencia - Nota ' . $record->serie . '-' . $record->folio)
                         ->modalDescription('La renovación generará una Nota de Venta a crédito. Para madera puede aplicar tarifa 0%, 50% o regular; no se agrega depósito.')
                         ->modalWidth('5xl')
