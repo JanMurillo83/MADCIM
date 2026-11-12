@@ -62,7 +62,7 @@ class CortesCaja extends Page
     public function cortes(): Collection
     {
         return CajaCorte::query()
-            ->with(['caja', 'sucursal', 'usuarioCierre', 'movimientos' => fn (Builder $query) => $query->visibleEnCaja()])
+            ->with(['caja', 'sucursal', 'usuarioCierre'])
             ->whereBetween('fecha_cierre', [
                 $this->fecha_inicio . ' 00:00:00',
                 $this->fecha_fin . ' 23:59:59',

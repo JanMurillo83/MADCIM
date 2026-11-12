@@ -43,7 +43,8 @@
             <table>
                 <thead><tr><th>Forma de pago</th><th class="text-right">Ingresos</th><th class="text-right">Egresos</th></tr></thead>
                 <tbody>
-                    @forelse($corte->movimientos->groupBy(fn ($movimiento) => $movimiento->metodo_pago ?: 'Sin especificar') as $metodo => $movimientos)
+                    @php($movimientosVisibles = $corte->movimientos->filter(fn ($movimiento) => $movimiento->fuente !== 'Devolución depósito renta' || $movimiento->aplicado_a_caja))
+                    @forelse($movimientosVisibles->groupBy(fn ($movimiento) => $movimiento->metodo_pago ?: 'Sin especificar') as $metodo => $movimientos)
                         <tr><td>{{ $metodo }}</td><td class="text-right">${{ number_format((float) $movimientos->where('tipo', 'Ingreso')->sum('importe'), 2) }}</td><td class="text-right">${{ number_format((float) $movimientos->where('tipo', 'Egreso')->sum('importe'), 2) }}</td></tr>
                     @empty
                         <tr><td colspan="3">Sin movimientos registrados.</td></tr>
