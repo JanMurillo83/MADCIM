@@ -30,6 +30,11 @@ class DevolucionVentaPartidas extends Model
         return $this->belongsTo(DevolucionesVenta::class, 'devolucion_venta_id');
     }
 
+    public function producto(): BelongsTo
+    {
+        return $this->belongsTo(Productos::class, 'item');
+    }
+
     public function impuestos(): MorphMany
     {
         return $this->morphMany(CfdiPartidaImpuesto::class, 'partida');

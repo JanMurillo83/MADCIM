@@ -115,6 +115,7 @@ class CajasTable
                             $data['denominaciones'] ?? [],
                             $data['observaciones_cierre'] ?? null,
                             Auth::id(),
+                            $data['depositos_banco'] ?? [],
                         );
 
                         $livewire->js("window.open('" . route('cajas.cierre.ticket', $record->id) . "', '_blank')");
@@ -134,6 +135,10 @@ class CajasTable
         $service = app(CajaArqueoService::class);
         $resumen = $service->resumen($caja);
         $denominaciones = $service->denominaciones();
+        $movimientosBanco = collect($resumen['movimientos_no_efectivo'])->map(fn (array $movimiento): array => [
+            ...$movimiento,
+            'banco' => '',
+        ])->all();
 
         $camposDenominaciones = static function (array $grupo): array {
             return collect($grupo)->map(function (float $valor, string $clave) {
@@ -168,6 +173,25 @@ class CajasTable
                                         ->content(fn (): HtmlString => self::tablaDesglose($resumen['desglose'])),
                                 ])
                                 ->columnSpanFull(),
+                            \Filament\Schemas\Components\Section::make('Depósitos en bancos')
+                                ->description('Asigna la cuenta que recibirá cada cobro con forma de pago distinta de efectivo.')
+                                ->schema([
+                                    \Filament\Forms\Components\Repeater::make('depositos_banco')
+                                        ->label('Cobros no efectivo')
+                                        ->schema([
+                                            \Filament\Forms\Components\Hidden::make('movimiento_id'),
+                                            \Filament\Forms\Components\TextInput::make('metodo_pago')->label('Tipo de cobro')->disabled()->dehydrated(),
+                                            \Filament\Forms\Components\TextInput::make('referencia')->label('Referencia')->disabled()->dehydrated(),
+                                            \Filament\Forms\Components\TextInput::make('importe')->label('Importe')->prefix('$')->disabled()->dehydrated(),
+                                            \Filament\Forms\Components\TextInput::make('banco')->label('Banco / cuenta de depósito')->required()->maxLength(120),
+                                        ])
+                                        ->default($movimientosBanco)
+                                        ->addable(false)
+                                        ->deletable(false)
+                                        ->reorderable(false)
+                                        ->columns(5)
+                                        ->columnSpanFull(),
+                                ])->columnSpanFull(),
                             \Filament\Forms\Components\Textarea::make('observaciones_cierre')
                                 ->label('Observaciones de cierre')
                                 ->rows(3)

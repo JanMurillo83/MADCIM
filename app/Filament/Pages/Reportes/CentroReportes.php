@@ -107,8 +107,8 @@ class CentroReportes extends Page
             ],
             [
                 'titulo' => 'Inventario',
-                'descripcion' => 'Reporte de costos de productos.',
-                'url' => Inventario::getUrl(),
+                'descripcion' => 'Existencias consolidadas por sucursal, disponibilidad, costos y movimientos recientes.',
+                'url' => ExistenciaPorSucursal::getUrl(),
             ],
             [
                 'titulo' => 'Existencia por sucursal',

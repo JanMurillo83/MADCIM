@@ -14,7 +14,9 @@ class CreateInventario extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $sucursalId = ExistenciaSucursalService::sucursalActual($data['sucursal_id'] ?? null);
+        $user = Auth::user();
+        $sucursalSolicitada = $user?->isAdmin() ? ($data['sucursal_id'] ?? null) : $user?->sucursal_id;
+        $sucursalId = ExistenciaSucursalService::sucursalActual($sucursalSolicitada ? (int) $sucursalSolicitada : null);
         $existenciaAntes = ExistenciaSucursalService::obtener((int) $data['producto_id'], $sucursalId);
         $cantidad = (float) ($data['cantidad'] ?? 0);
         $existenciaDespues = match ($data['tipo']) {

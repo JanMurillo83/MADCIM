@@ -29,6 +29,7 @@ class Caja extends Model
         'denominaciones_efectivo',
         'total_diferencia',
         'observaciones_cierre',
+        'reporte_cierre',
     ];
 
     protected $casts = [
@@ -40,6 +41,7 @@ class Caja extends Model
         'efectivo_teorico' => 'decimal:2',
         'efectivo_contado' => 'decimal:2',
         'denominaciones_efectivo' => 'array',
+        'reporte_cierre' => 'array',
         'total_diferencia' => 'decimal:2',
     ];
 

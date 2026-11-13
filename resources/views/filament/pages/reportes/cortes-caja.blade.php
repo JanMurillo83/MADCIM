@@ -1,8 +1,32 @@
 <x-filament-panels::page>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('pdf.cajas.cierre-estilos')
+    <style>
+        @media screen {
+            .corte-sheet { background: #fff; padding: 18px; border: 1px solid #d1d5db; border-radius: 12px; box-shadow: 0 2px 8px #0000000d; font-size: 11px; }
+            .corte-sheet .title { font-size: 26px; }
+            .corte-sheet .brand img { width: 210px !important; }
+            .corte-sheet .date { font-size: 14px; }
+            .corte-sheet .bar { font-size: 13px; padding: 7px 10px; }
+            .corte-sheet .data th { font-size: 10px; }
+            .corte-sheet .data th, .corte-sheet .data td { padding: 5px 8px; font-size: 11px; }
+            .corte-sheet .line { padding: 6px 10px; }
+            .corte-sheet .obs { height: 86px; }
+            .corte-sheet .fine { font-size: 9px; }
+        }
+        @media screen and (max-width: 900px) {
+            .corte-sheet .cols, .corte-sheet .cols tbody, .corte-sheet .cols tr, .corte-sheet .cols td { display: block; width: 100% !important; }
+            .corte-sheet .cols { border-spacing: 0; }
+        }
+        @media print {
+            .cortes-filtros, .cortes-acciones, .fi-header, .fi-sidebar { display: none !important; }
+            .corte-sheet { box-shadow: none !important; break-after: page; }
+            .corte-sheet:last-child { break-after: auto; }
+        }
+    </style>
 
     <div class="space-y-6">
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="cortes-filtros grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Fecha inicio</label>
                 <input type="date" wire:model.live="fecha_inicio" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
@@ -33,58 +57,19 @@
             </div>
         </div>
 
-        <div class="flex flex-wrap gap-3">
+        <div class="cortes-acciones flex flex-wrap items-center gap-3">
             <x-filament::button wire:click="exportPdf" color="danger" icon="heroicon-o-document-arrow-down">Exportar PDF</x-filament::button>
             <x-filament::button wire:click="exportExcel" color="success" icon="heroicon-o-table-cells">Exportar Excel (CSV)</x-filament::button>
-            <x-report-preview
-                title="Vista previa de cortes de caja"
-                subtitle="Cierres del {{ $fecha_inicio }} al {{ $fecha_fin }}"
-                :preview-view="'exports.reportes.cortes-caja-pdf'"
-                :preview-data="['cortes' => $this->cortes, 'totals' => ['ingresos' => $this->totalIngresos, 'egresos' => $this->totalEgresos, 'diferencia' => $this->totalDiferencia], 'fecha_inicio' => $fecha_inicio, 'fecha_fin' => $fecha_fin]"
-            />
+            <span class="text-sm text-gray-500">{{ $this->cortes->count() }} cortes · {{ $fecha_inicio }} al {{ $fecha_fin }}</span>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-2 text-left text-gray-600">Fecha cierre</th>
-                            <th class="px-4 py-2 text-left text-gray-600">Sucursal</th>
-                            <th class="px-4 py-2 text-left text-gray-600">Caja</th>
-                            <th class="px-4 py-2 text-left text-gray-600">Usuario</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Ingresos</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Egresos</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Teórico</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Contado</th>
-                            <th class="px-4 py-2 text-right text-gray-600">Diferencia</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        @forelse($this->cortes as $corte)
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-2">{{ $corte->fecha_cierre?->format('d/m/Y H:i') }}</td>
-                                <td class="px-4 py-2">{{ $corte->sucursal?->nombre ?? 'Global' }}</td>
-                                <td class="px-4 py-2">{{ $corte->caja?->nombre ?? 'Caja ' . $corte->caja_id }}</td>
-                                <td class="px-4 py-2">{{ $corte->usuarioCierre?->name ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format((float) $corte->total_ingresos_cash, 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format((float) $corte->total_egresos_cash, 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format((float) $corte->efectivo_teorico, 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format((float) $corte->efectivo_contado, 2) }}</td>
-                                <td class="px-4 py-2 text-right">${{ number_format((float) $corte->total_diferencia, 2) }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">No hay cortes guardados para los filtros seleccionados.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
+        @forelse($this->cortesParaPresentacion as $corte)
+            @php($caja = $this->cajaParaPresentacion($corte))
+            @include('pdf.cajas.cierre-contenido')
+        @empty
+            <div class="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-gray-500">
+                No hay cortes guardados para las fechas y filtros seleccionados.
             </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow"><p class="text-sm text-gray-500">Ingresos efectivo</p><p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalIngresos, 2) }}</p></div>
-            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow"><p class="text-sm text-gray-500">Egresos efectivo</p><p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalEgresos, 2) }}</p></div>
-            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow"><p class="text-sm text-gray-500">Diferencia acumulada</p><p class="text-2xl font-bold text-gray-800">${{ number_format($this->totalDiferencia, 2) }}</p></div>
-        </div>
+        @endforelse
     </div>
 </x-filament-panels::page>

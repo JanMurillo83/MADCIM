@@ -4,6 +4,12 @@ namespace App\Services;
 
 use App\Models\Caja;
 use App\Models\CajaCorte;
+use App\Models\NotasVentaRenta;
+use App\Models\NotasVentaVenta;
+use App\Models\DevolucionesRenta;
+use App\Models\DevolucionesVenta;
+use App\Models\Pagos;
+use App\Enums\TipoNotaRenta;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -80,7 +86,135 @@ class CajaArqueoService
             'egresos_efectivo' => $egresosEfectivo,
             'efectivo_teorico' => (float) ($caja->saldo_inicial_cash ?? 0) + $ingresosEfectivo - $egresosEfectivo,
             'desglose' => $desglose,
+            'movimientos_no_efectivo' => $movimientos
+                ->where('tipo', 'Ingreso')
+                ->reject(fn ($movimiento): bool => in_array(mb_strtolower((string) $movimiento->metodo_pago), ['efectivo', 'crédito', 'credito'], true))
+                ->map(fn ($movimiento): array => [
+                    'movimiento_id' => $movimiento->id,
+                    'metodo_pago' => $movimiento->metodo_pago ?: 'Sin especificar',
+                    'referencia' => $movimiento->referencia,
+                    'importe' => (float) $movimiento->importe,
+                ])->values()->all(),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function reporteCierre(Caja $caja, array $bancos = []): array
+    {
+        $inicio = $caja->fecha_apertura ?? $caja->created_at;
+        $fin = now();
+        $categorias = ['Madera', 'Carpintería', 'Rentas de madera', 'Renta de Equipos', 'Ferretería', 'Matto. A equipos'];
+        $empty = array_fill_keys($categorias, 0.0);
+        $ventas = $empty;
+        $credito = $empty;
+        $devoluciones = $empty;
+        $recuperados = $empty;
+
+        $ventasVenta = NotasVentaVenta::withoutGlobalScopes()->with('partidas.producto')
+            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estatus', '!=', 'Cancelada')->get();
+        foreach ($ventasVenta as $nota) {
+            $this->sumarPartidas($ventas, $nota->partidas, false);
+            if ($nota->condicion_pago === 'credito' || $nota->cobro_credito_confirmado_en) {
+                $this->sumarPartidas($credito, $nota->partidas, false);
+            }
+        }
+
+        $ventasRenta = NotasVentaRenta::withoutGlobalScopes()->with('partidas.producto')
+            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estatus', '!=', 'Cancelada')->get();
+        foreach ($ventasRenta as $nota) {
+            $this->sumarPartidas($ventas, $nota->partidas, true);
+            if ($nota->condicion_pago === 'credito' || $nota->cobro_credito_confirmado_en) {
+                $this->sumarPartidas($credito, $nota->partidas, true);
+            }
+        }
+
+        $devolucionVenta = DevolucionesVenta::withoutGlobalScopes()->with('partidas.producto')
+            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estatus', '!=', 'Cancelada')->get();
+        foreach ($devolucionVenta as $devolucion) {
+            $this->sumarPartidas($devoluciones, $devolucion->partidas, false);
+        }
+
+        $devolucionRenta = DevolucionesRenta::withoutGlobalScopes()->with('partidas.producto')
+            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estatus', '!=', 'Cancelada')->get();
+        foreach ($devolucionRenta as $devolucion) {
+            $this->sumarPartidas($devoluciones, $devolucion->partidas, true);
+        }
+
+        $pagosCredito = Pagos::query()->where('caja_id', $caja->id)
+            ->whereBetween('fecha_pago_hora', [$inicio, $fin])
+            ->whereIn('documento_tipo', ['notas_venta_venta', 'notas_venta_renta'])->get();
+        foreach ($pagosCredito as $pago) {
+            $nota = $pago->documento_tipo === 'notas_venta_renta'
+                ? NotasVentaRenta::withoutGlobalScopes()->with('partidas.producto')->find($pago->documento_id)
+                : NotasVentaVenta::withoutGlobalScopes()->with('partidas.producto')->find($pago->documento_id);
+            if (! $nota || ! $nota->cobro_credito_confirmado_en) {
+                continue;
+            }
+            $this->sumarPartidas($recuperados, $nota->partidas, $pago->documento_tipo === 'notas_venta_renta', (float) $pago->importe, (float) $nota->total);
+        }
+
+        $depositos = collect($bancos)->filter(fn (array $banco): bool => filled($banco['banco'] ?? null))
+            ->groupBy(fn (array $banco): string => ($banco['banco'] ?? '') . '|' . ($banco['metodo_pago'] ?? ''))
+            ->map(function ($filas): array {
+                $primero = $filas->first();
+                return ['banco' => $primero['banco'], 'metodo_pago' => $primero['metodo_pago'], 'importe' => round((float) $filas->sum('importe'), 2)];
+            })->values()->all();
+
+        return [
+            'ventas_totales' => $this->roundCategorias($ventas),
+            'devoluciones' => $this->roundCategorias($devoluciones),
+            'ventas_credito' => $this->roundCategorias($credito),
+            'ventas_contado' => round(array_sum($ventas) - array_sum($credito) - array_sum($devoluciones), 2),
+            'creditos_recuperados' => $this->roundCategorias($recuperados),
+            'bancos' => $depositos,
+            'bancos_total' => round(array_sum(array_column($depositos, 'importe')), 2),
+            'salidas_efectivo' => (float) $caja->movimientos()->visibleEnCaja()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+            'fondo_fijo' => (float) ($caja->saldo_inicial_cash ?? 0),
+        ];
+    }
+
+    private function sumarPartidas(array &$totales, $partidas, bool $renta, ?float $importe = null, ?float $totalDocumento = null): void
+    {
+        $lineas = [];
+        foreach ($partidas as $partida) {
+            $categoria = $this->categoria($partida, $renta);
+            if ($categoria !== null) {
+                $lineas[$categoria] = ($lineas[$categoria] ?? 0) + (float) ($partida->subtotal ?? 0) + (float) ($partida->impuestos ?? 0);
+            }
+        }
+        $factor = $importe !== null && $totalDocumento > 0 ? $importe / $totalDocumento : 1;
+        foreach ($lineas as $categoria => $valor) {
+            if (array_key_exists($categoria, $totales)) {
+                $totales[$categoria] += $valor * $factor;
+            }
+        }
+    }
+
+    private function categoria($partida, bool $renta): ?string
+    {
+        if ($renta) {
+            $tipo = TipoNotaRenta::tryFrom((string) ($partida->tipo_nota_renta ?? $partida->documento?->tipo_nota_renta ?? ''));
+            if ($tipo) {
+                return $tipo->esMadera() ? 'Rentas de madera' : 'Renta de Equipos';
+            }
+            return mb_strtolower((string) ($partida->producto?->linea ?? '')) === 'madera' ? 'Rentas de madera' : 'Renta de Equipos';
+        }
+        return match (mb_strtolower(trim((string) ($partida->producto?->linea ?? '')))) {
+            'madera' => 'Madera',
+            'carpinteria', 'carpintería' => 'Carpintería',
+            'ferreteria', 'ferretería' => 'Ferretería',
+            'mantenimiento', 'matto. a equipos', 'mantenimiento a equipos' => 'Matto. A equipos',
+            default => null,
+        };
+    }
+
+    private function roundCategorias(array $categorias): array
+    {
+        return array_map(fn ($importe): float => round((float) $importe, 2), $categorias);
     }
 
     public function abrir(Caja $caja, float|int|string $saldoInicial, ?int $usuarioId): Caja
@@ -98,6 +232,7 @@ class CajaArqueoService
                 'denominaciones_efectivo' => null,
                 'total_diferencia' => 0,
                 'observaciones_cierre' => null,
+                'reporte_cierre' => null,
                 'estatus' => 'Abierta',
                 'fecha_apertura' => now(),
                 'fecha_cierre' => null,
@@ -122,13 +257,15 @@ class CajaArqueoService
     }
 
     /** @return array{efectivo_teorico: float, efectivo_contado: float, diferencia: float} */
-    public function cerrar(Caja $caja, array $denominaciones, ?string $observaciones, ?int $usuarioId): array
+    public function cerrar(Caja $caja, array $denominaciones, ?string $observaciones, ?int $usuarioId, array $bancos = []): array
     {
-        return DB::transaction(function () use ($caja, $denominaciones, $observaciones, $usuarioId): array {
+        return DB::transaction(function () use ($caja, $denominaciones, $observaciones, $usuarioId, $bancos): array {
             $caja = Caja::query()->lockForUpdate()->findOrFail($caja->id);
             $resumen = $this->resumen($caja);
+            $bancos = $this->validarAsignacionBancos($resumen['movimientos_no_efectivo'], $bancos);
             $efectivoContado = $this->efectivoContado($denominaciones);
             $diferencia = round($efectivoContado - $resumen['efectivo_teorico'], 2);
+            $reporteCierre = $this->reporteCierre($caja, $bancos);
 
             $caja->update([
                 'total_ingresos_cash' => $resumen['ingresos_efectivo'],
@@ -138,6 +275,7 @@ class CajaArqueoService
                 'denominaciones_efectivo' => $denominaciones,
                 'total_diferencia' => $diferencia,
                 'observaciones_cierre' => $observaciones,
+                'reporte_cierre' => $reporteCierre,
                 'estatus' => 'Cerrada',
                 'fecha_cierre' => now(),
                 'usuario_cierre_id' => $usuarioId,
@@ -159,13 +297,39 @@ class CajaArqueoService
                 'total_diferencia' => $caja->total_diferencia,
                 'denominaciones_efectivo' => $caja->denominaciones_efectivo,
                 'observaciones_cierre' => $caja->observaciones_cierre,
+                'reporte_cierre' => $caja->reporte_cierre,
             ]);
 
             return [
                 ...$resumen,
                 'efectivo_contado' => $efectivoContado,
                 'diferencia' => $diferencia,
+                'reporte_cierre' => $reporteCierre,
             ];
         });
+    }
+
+    private function validarAsignacionBancos(array $movimientos, array $bancos): array
+    {
+        $asignaciones = collect($bancos)->keyBy(fn (array $fila): int => (int) ($fila['movimiento_id'] ?? 0));
+        foreach ($movimientos as $movimiento) {
+            $asignacion = $asignaciones->get((int) $movimiento['movimiento_id']);
+            if (! $asignacion || ! filled($asignacion['banco'] ?? null)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['depositos_banco' => 'Asigna el banco o cuenta de depósito a todos los cobros que no fueron en efectivo.']);
+            }
+        }
+
+        $idsEsperados = collect($movimientos)->pluck('movimiento_id')->map(fn ($id): int => (int) $id)->sort()->values();
+        $idsRecibidos = $asignaciones->keys()->map(fn ($id): int => (int) $id)->filter()->sort()->values();
+        if ($idsEsperados->all() !== $idsRecibidos->all()) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['depositos_banco' => 'Los cobros cambiaron durante el cierre. Cierra esta ventana y vuelve a abrirla para actualizar la lista.']);
+        }
+
+        return collect($movimientos)->map(function (array $movimiento) use ($asignaciones): array {
+            return [
+                ...$movimiento,
+                'banco' => trim((string) $asignaciones->get((int) $movimiento['movimiento_id'])['banco']),
+            ];
+        })->all();
     }
 }

@@ -6,6 +6,7 @@ use App\Filament\Concerns\HasRolePageAccess;
 use App\Filament\Concerns\RestringeSucursal;
 use App\Models\Caja;
 use App\Models\CajaCorte;
+use App\Models\CajaMovimiento;
 use App\Models\Sucursal;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -42,6 +43,39 @@ class CortesCaja extends Page
     public function updatedSucursal_id(): void
     {
         $this->caja_id = null;
+    }
+
+    #[Computed]
+    public function cortesParaPresentacion(): Collection
+    {
+        $cortes = $this->cortes;
+        if ($cortes->isEmpty()) {
+            return $cortes;
+        }
+
+        $movimientosPorCorte = CajaMovimiento::query()
+            ->whereIn('corte_id', $cortes->pluck('corte_id'))
+            ->visibleEnCaja()
+            ->get()
+            ->groupBy('corte_id');
+
+        foreach ($cortes as $corte) {
+            $corte->setRelation('movimientos', $movimientosPorCorte->get($corte->corte_id, collect()));
+        }
+
+        return $cortes;
+    }
+
+    public function cajaParaPresentacion(CajaCorte $corte): Caja
+    {
+        $caja = $corte->caja ? clone $corte->caja : new Caja;
+        $caja->forceFill($corte->getAttributes());
+        $caja->nombre = $corte->caja?->nombre ?: 'Caja ' . $corte->caja_id;
+        $caja->setRelation('sucursal', $corte->sucursal);
+        $caja->setRelation('usuarioCierre', $corte->usuarioCierre);
+        $caja->setRelation('movimientos', $corte->movimientos ?? collect());
+
+        return $caja;
     }
 
     public function getSucursalesProperty(): Collection
@@ -93,12 +127,14 @@ class CortesCaja extends Page
 
     public function exportPdf()
     {
+        $cortes = $this->cortesParaPresentacion;
+
         $pdf = Pdf::loadView('exports.reportes.cortes-caja-pdf', [
-            'cortes' => $this->cortes,
+            'cortes' => $cortes,
             'totals' => $this->totals(),
             'fecha_inicio' => $this->fecha_inicio,
             'fecha_fin' => $this->fecha_fin,
-        ])->setPaper('letter', 'portrait');
+        ])->setPaper('letter', 'landscape');
 
         return response()->streamDownload(
             fn () => print $pdf->output(),

@@ -42,10 +42,13 @@ class InventarioForm
                                     })
                                     ->all();
                             })
+                            ->default(fn () => request()->integer('producto_id') ?: null)
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set) {
-                                $producto = Productos::find($get('producto_id'));
-                                $set('existencia_antes', $producto?->existencia ?? 0);
+                                $existencia = $get('producto_id')
+                                    ? ExistenciaSucursalService::obtener((int) $get('producto_id'), $get('sucursal_id') ? (int) $get('sucursal_id') : null)
+                                    : 0;
+                                $set('existencia_antes', $existencia);
                                 self::calcularExistenciaDespues($get, $set);
                             })
                             ->disabled(fn (?string $context) => $context === 'edit'),
@@ -53,7 +56,15 @@ class InventarioForm
                             ->label('Sucursal')
                             ->required()
                             ->options(fn () => Sucursal::query()->orderBy('nombre')->pluck('nombre', 'id'))
-                            ->default(fn () => auth()->user()?->sucursal_id)
+                            ->default(fn () => request()->integer('sucursal_id') ?: auth()->user()?->sucursal_id)
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                $existencia = $get('producto_id')
+                                    ? ExistenciaSucursalService::obtener((int) $get('producto_id'), $get('sucursal_id') ? (int) $get('sucursal_id') : null)
+                                    : 0;
+                                $set('existencia_antes', $existencia);
+                                self::calcularExistenciaDespues($get, $set);
+                            })
                             ->disabled(fn () => ! auth()->user()?->isAdmin())
                             ->dehydrated(),
                         Select::make('tipo')
@@ -64,7 +75,7 @@ class InventarioForm
                                 'salida' => 'Salida',
                                 'ajuste' => 'Ajuste',
                             ])
-                            ->default('entrada')
+                            ->default(fn () => request()->query('tipo') === 'ajuste' ? 'ajuste' : 'entrada')
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set) {
                                 self::calcularExistenciaDespues($get, $set);
@@ -85,15 +96,18 @@ class InventarioForm
                         TextInput::make('existencia_antes')
                             ->label('Existencia Antes')
                             ->numeric()
-                            ->prefix('$')
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
-                            ->default(0)
+                            ->default(fn () => request()->integer('producto_id')
+                                ? ExistenciaSucursalService::obtener(
+                                    request()->integer('producto_id'),
+                                    request()->integer('sucursal_id') ?: auth()->user()?->sucursal_id,
+                                )
+                                : 0)
                             ->readOnly(),
                         TextInput::make('existencia_despues')
                             ->label('Existencia Después')
                             ->numeric()
-                            ->prefix('$')
                             ->mask(RawJs::make("\$money(\$input, '.', ',')"))
                             ->stripCharacters(',')
                             ->default(0)

@@ -26,6 +26,7 @@ class CajaCorte extends Model
         'total_diferencia',
         'denominaciones_efectivo',
         'observaciones_cierre',
+        'reporte_cierre',
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class CajaCorte extends Model
         'efectivo_contado' => 'decimal:2',
         'total_diferencia' => 'decimal:2',
         'denominaciones_efectivo' => 'array',
+        'reporte_cierre' => 'array',
     ];
 
     public function caja(): BelongsTo
