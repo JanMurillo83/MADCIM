@@ -173,6 +173,7 @@ class NotaDevolucionRenta extends Model
             $registros = $partida->registro_renta_id
                 ? RegistroRenta::query()
                     ->whereKey($partida->registro_renta_id)
+                    ->where('nota_venta_renta_id', $this->nota_venta_renta_id)
                     ->where('cliente_id', $this->cliente_id)
                     ->whereHas('notaVentaRenta', fn ($query) => $query
                         ->where('direccion_entrega_id', $this->direccion_entrega_id)
@@ -181,6 +182,7 @@ class NotaDevolucionRenta extends Model
                     ->get()
                 : RegistroRenta::query()
                     ->where('cliente_id', $this->cliente_id)
+                    ->where('nota_venta_renta_id', $this->nota_venta_renta_id)
                     ->where('producto_id', $partida->producto_id)
                     ->whereHas('notaVentaRenta', fn ($query) => $query
                         ->where('direccion_entrega_id', $this->direccion_entrega_id)
@@ -260,6 +262,10 @@ class NotaDevolucionRenta extends Model
     {
         $registros = RegistroRenta::withoutGlobalScopes()
             ->where('cliente_id', $this->cliente_id)
+            ->when($this->nota_venta_renta_id, fn ($query) => $query->where(
+                'nota_venta_renta_id',
+                $this->nota_venta_renta_id,
+            ))
             ->whereHas('notaVentaRenta', fn ($query) => $query
                 ->where('direccion_entrega_id', $this->direccion_entrega_id)
                 ->where('sucursal_id', $this->sucursal_id))

@@ -7,7 +7,6 @@ use App\Models\NotaDevolucionRenta;
 use App\Models\NotaDevolucionRentaPartida;
 use App\Models\RegistroRenta;
 use Filament\Notifications\Notification;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -50,12 +49,12 @@ class DevolucionRentaController extends Controller
             $totalDevueltoAhora = 0;
             $itemsDevolucion = [];
             $notaEnvioOrigenIds = [];
-            $notaIdsObra = $this->notasDeObra($nota)->pluck('id');
-
             foreach ($request->items as $registroId => $item) {
                 $registro = RegistroRenta::with('producto')
                     ->whereKey($registroId)
-                    ->whereIn('nota_venta_renta_id', $notaIdsObra)
+                    // Una devolución puede reunir partidas de varios envíos de esta
+                    // nota, pero nunca partidas de otra Nota de Venta Renta de la obra.
+                    ->where('nota_venta_renta_id', $nota->id)
                     ->lockForUpdate()
                     ->firstOrFail();
                 $cantidadActual = (float) ($registro->cantidad_devuelta ?? 0);
@@ -188,24 +187,9 @@ class DevolucionRentaController extends Controller
     {
         return RegistroRenta::query()
             ->with('producto')
-            ->whereIn('nota_venta_renta_id', $this->notasDeObra($nota)->select('id'))
+            ->where('nota_venta_renta_id', $nota->id)
             ->whereRaw('COALESCE(cantidad_devuelta, 0) < cantidad')
             ->orderBy('id')
             ->get();
     }
-
-    private function notasDeObra(NotasVentaRenta $nota): Builder
-    {
-        return NotasVentaRenta::query()
-            ->where('cliente_id', $nota->cliente_id)
-            ->where('sucursal_id', $nota->sucursal_id)
-            ->when(
-                $nota->direccion_entrega_id,
-                fn (Builder $query) => $query->where('direccion_entrega_id', $nota->direccion_entrega_id),
-                fn (Builder $query) => $query->whereNull('direccion_entrega_id'),
-            )
-            ->where('estatus', '!=', 'Cancelada')
-            ->whereHas('notasEnvio', fn (Builder $query) => $query->whereIn('estatus', ['Enviada', 'Entregada']));
-    }
-
 }
