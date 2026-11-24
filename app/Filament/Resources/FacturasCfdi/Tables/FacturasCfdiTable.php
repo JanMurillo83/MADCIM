@@ -15,6 +15,7 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Tables\Actions\HeaderActionsPosition;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
@@ -195,6 +196,56 @@ class FacturasCfdiTable
                     ->tooltip('Acciones de la factura'),
             ], RecordActionsPosition::BeforeColumns)
             ->headerActions([
+                Action::make('exportar_cfdi')
+                    ->label('Exportar CFDI (CSV)')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->action(function (HasTable $livewire) {
+                        $query = $livewire->getTableQueryForExport()
+                            ->whereNotNull('cfdi_uuid')
+                            ->orderBy('id');
+
+                        if (! (clone $query)->exists()) {
+                            Notification::make()
+                                ->warning()
+                                ->title('No hay CFDI para exportar')
+                                ->body('La consulta actual no contiene facturas timbradas.')
+                                ->send();
+
+                            return null;
+                        }
+
+                        $filename = 'facturas_cfdi_' . now()->format('Ymd_His') . '.csv';
+
+                        return response()->streamDownload(function () use ($query): void {
+                            $handle = fopen('php://output', 'w');
+                            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+                            fputcsv($handle, [
+                                'UUIDD',
+                                'FECHA DE ELABORACION',
+                                'FECHA DE CANCELACION',
+                                'TOTAL',
+                                'SUBTOTAL',
+                                'IMPUESTOS',
+                                'METODO DE PAGO',
+                            ]);
+
+                            foreach ($query->cursor() as $factura) {
+                                fputcsv($handle, [
+                                    $factura->cfdi_uuid,
+                                    ($factura->cfdi_fecha_timbrado ?? $factura->fecha_emision)?->format('Y-m-d H:i:s'),
+                                    $factura->cfdi_fecha_cancelacion?->format('Y-m-d H:i:s'),
+                                    number_format((float) $factura->total, 2, '.', ''),
+                                    number_format((float) $factura->subtotal, 2, '.', ''),
+                                    number_format((float) $factura->impuestos_total, 2, '.', ''),
+                                    $factura->metodo_pago,
+                                ]);
+                            }
+
+                            fclose($handle);
+                        }, $filename, [
+                            'Content-Type' => 'text/csv; charset=UTF-8',
+                        ]);
+                    }),
                 Action::make('nuevo')
                     ->label('Nuevo')
                     ->icon('fas-circle-plus')
