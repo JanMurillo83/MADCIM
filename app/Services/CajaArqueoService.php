@@ -11,6 +11,7 @@ use App\Models\DevolucionesVenta;
 use App\Models\Pagos;
 use App\Enums\TipoNotaRenta;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class CajaArqueoService
@@ -99,10 +100,10 @@ class CajaArqueoService
     }
 
     /** @return array<string, mixed> */
-    public function reporteCierre(Caja $caja, array $bancos = []): array
+    public function reporteCierre(Caja $caja, array $bancos = [], ?Carbon $fechaCierre = null): array
     {
         $inicio = $caja->fecha_apertura ?? $caja->created_at;
-        $fin = now();
+        $fin = $fechaCierre ?? now();
         $categorias = ['Madera', 'Carpintería', 'Rentas de madera', 'Renta de Equipos', 'Ferretería', 'Matto. A equipos'];
         $empty = array_fill_keys($categorias, 0.0);
         $ventas = $empty;
@@ -172,7 +173,10 @@ class CajaArqueoService
             'creditos_recuperados' => $this->roundCategorias($recuperados),
             'bancos' => $depositos,
             'bancos_total' => round(array_sum(array_column($depositos, 'importe')), 2),
-            'salidas_efectivo' => (float) $caja->movimientos()->visibleEnCaja()->where('tipo', 'Egreso')->where('metodo_pago', 'Efectivo')->sum('importe'),
+            'salidas_efectivo' => (float) $this->movimientosDelCorte($caja, $inicio, $fin)
+                ->where('tipo', 'Egreso')
+                ->where('metodo_pago', 'Efectivo')
+                ->sum('importe'),
             'fondo_fijo' => (float) ($caja->saldo_inicial_cash ?? 0),
         ];
     }
@@ -203,6 +207,22 @@ class CajaArqueoService
             }
             return mb_strtolower((string) ($partida->producto?->linea ?? '')) === 'madera' ? 'Rentas de madera' : 'Renta de Equipos';
         }
+
+        $descripcion = mb_strtolower(trim((string) ($partida->descripcion ?? '')));
+        $linea = mb_strtolower(trim((string) ($partida->producto?->linea ?? '')));
+        $esExtensionRenta = str_starts_with($descripcion, 'extensión de renta')
+            || str_starts_with($descripcion, 'extension de renta')
+            || str_starts_with($descripcion, 'renovación de renta')
+            || str_starts_with($descripcion, 'renovacion de renta');
+
+        if ($esExtensionRenta) {
+            return match ($linea) {
+                'madera' => 'Rentas de madera',
+                'equipo' => 'Renta de Equipos',
+                default => null,
+            };
+        }
+
         return match (mb_strtolower(trim((string) ($partida->producto?->linea ?? '')))) {
             'madera' => 'Madera',
             'carpinteria', 'carpintería' => 'Carpintería',
@@ -215,6 +235,24 @@ class CajaArqueoService
     private function roundCategorias(array $categorias): array
     {
         return array_map(fn ($importe): float => round((float) $importe, 2), $categorias);
+    }
+
+    private function movimientosDelCorte(Caja $caja, $inicio, Carbon $fin)
+    {
+        $query = $caja->movimientos()->visibleEnCaja();
+
+        if ($caja->corte_id) {
+            return $query->where(fn ($movimientos) => $movimientos
+                ->where('corte_id', $caja->corte_id)
+                ->orWhere(fn ($movimientosSinCorte) => $movimientosSinCorte
+                    ->whereNull('corte_id')
+                    ->when($inicio, fn ($rango) => $rango->where('fecha', '>=', $inicio))
+                    ->where('fecha', '<=', $fin)));
+        }
+
+        return $query
+            ->when($inicio, fn ($movimientos) => $movimientos->where('fecha', '>=', $inicio))
+            ->where('fecha', '<=', $fin);
     }
 
     public function abrir(Caja $caja, float|int|string $saldoInicial, ?int $usuarioId): Caja

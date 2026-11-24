@@ -8,6 +8,7 @@ use App\Models\Caja;
 use App\Models\CajaCorte;
 use App\Models\CajaMovimiento;
 use App\Models\Sucursal;
+use App\Services\CajaArqueoService;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
@@ -53,17 +54,95 @@ class CortesCaja extends Page
             return $cortes;
         }
 
-        $movimientosPorCorte = CajaMovimiento::query()
-            ->whereIn('corte_id', $cortes->pluck('corte_id'))
+        $movimientos = CajaMovimiento::query()
+            ->where(fn (Builder $query) => $query
+                ->whereIn('corte_id', $cortes->pluck('corte_id'))
+                ->orWhere(fn (Builder $sinCorte) => $sinCorte
+                    ->whereNull('corte_id')
+                    ->whereIn('caja_id', $cortes->pluck('caja_id')->unique())
+                    ->whereBetween('fecha', [
+                        $cortes->min('fecha_apertura'),
+                        $cortes->max('fecha_cierre'),
+                    ])))
             ->visibleEnCaja()
-            ->get()
-            ->groupBy('corte_id');
+            ->get();
+        $movimientosPorCorte = $movimientos->whereNotNull('corte_id')->groupBy('corte_id');
 
         foreach ($cortes as $corte) {
-            $corte->setRelation('movimientos', $movimientosPorCorte->get($corte->corte_id, collect()));
+            $inicio = $corte->fecha_apertura;
+            $fin = $corte->fecha_cierre;
+            $movimientosDelCorte = $movimientosPorCorte->get($corte->corte_id, collect());
+            $movimientosSinCorte = $movimientos->whereNull('corte_id')
+                ->where('caja_id', $corte->caja_id)
+                ->filter(fn (CajaMovimiento $movimiento): bool => $movimiento->fecha >= $inicio && $movimiento->fecha <= $fin);
+            $corte->setRelation('movimientos', $movimientosDelCorte->concat($movimientosSinCorte)->values());
+
+            $this->reconstruirDesgloseHistorico($corte);
         }
 
         return $cortes;
+    }
+
+    private function reconstruirDesgloseHistorico(CajaCorte $corte): void
+    {
+        $caja = $this->cajaParaPresentacion($corte);
+        $reporteGuardado = is_array($corte->reporte_cierre) ? $corte->reporte_cierre : [];
+        $categoriasGuardadas = (array) ($reporteGuardado['ventas_totales'] ?? []);
+        $necesitaReconstruccion = empty($reporteGuardado)
+            || array_sum(array_map('floatval', $categoriasGuardadas)) === 0.0;
+
+        if (! $necesitaReconstruccion) {
+            $movimientos = $corte->movimientos ?? collect();
+            $reporteGuardado['salidas_efectivo'] = (float) $movimientos
+                ->where('tipo', 'Egreso')
+                ->where('metodo_pago', 'Efectivo')
+                ->sum('importe');
+            $corte->setAttribute('reporte_cierre', $reporteGuardado);
+
+            return;
+        }
+
+        $reporteCalculado = app(CajaArqueoService::class)->reporteCierre(
+            $caja,
+            is_array($reporteGuardado['bancos'] ?? null) ? $reporteGuardado['bancos'] : [],
+            $corte->fecha_cierre,
+        );
+
+        $categoriasCalculadas = (array) $reporteCalculado['ventas_totales'];
+        $snapshotIncompleto = empty($reporteGuardado)
+            || (array_sum(array_map('floatval', $categoriasGuardadas)) === 0.0
+                && array_sum(array_map('floatval', $categoriasCalculadas)) > 0.0);
+
+        if ($snapshotIncompleto) {
+            $reporteGuardado = array_replace($reporteGuardado, $reporteCalculado);
+            $reporteGuardado['_reconstruido'] = true;
+        }
+
+        $movimientos = $corte->movimientos ?? collect();
+        $reporteGuardado['salidas_efectivo'] = (float) $movimientos
+            ->where('tipo', 'Egreso')
+            ->where('metodo_pago', 'Efectivo')
+            ->sum('importe');
+
+        if (empty($reporteGuardado['bancos'])) {
+            $bancosReconstruidos = $movimientos
+                ->filter(fn (CajaMovimiento $movimiento): bool => $movimiento->tipo === 'Ingreso'
+                    && ! in_array(mb_strtolower((string) $movimiento->metodo_pago), ['efectivo', 'crédito', 'credito'], true))
+                ->groupBy(fn (CajaMovimiento $movimiento): string => $movimiento->metodo_pago ?: 'Sin especificar')
+                ->map(fn ($items, string $metodo): array => [
+                    'banco' => 'Sin información histórica del banco',
+                    'metodo_pago' => $metodo,
+                    'importe' => round((float) $items->sum('importe'), 2),
+                ])->values()->all();
+
+            if ($bancosReconstruidos !== []) {
+                $reporteGuardado['bancos'] = $bancosReconstruidos;
+                $reporteGuardado['bancos_total'] = round((float) collect($bancosReconstruidos)->sum('importe'), 2);
+                $reporteGuardado['_bancos_reconstruidos'] = true;
+            }
+        }
+
+        $corte->setAttribute('reporte_cierre', $reporteGuardado);
     }
 
     public function cajaParaPresentacion(CajaCorte $corte): Caja

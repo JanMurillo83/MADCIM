@@ -1,6 +1,8 @@
 @php
     $reporte = $caja->reporte_cierre ?? [];
     $tieneSnapshot = is_array($reporte) && array_key_exists('ventas_totales', $reporte);
+    $datosReconstruidos = !empty($reporte['_reconstruido']);
+    $bancosReconstruidos = !empty($reporte['_bancos_reconstruidos']);
     $categorias = ['Madera', 'Carpintería', 'Rentas de madera', 'Renta de Equipos', 'Ferretería', 'Matto. A equipos'];
     $ventas = $reporte['ventas_totales'] ?? array_fill_keys($categorias, 0);
     $devoluciones = $reporte['devoluciones'] ?? array_fill_keys($categorias, 0);
@@ -18,7 +20,7 @@
     <td style="width:28%" class="brand"><img src="data:image/png;base64,{{ base64_encode(file_get_contents($logo)) }}" style="width:155px;height:auto"></td>
     <td style="width:33%" class="date">FECHA: <b>{{ optional($caja->fecha_cierre)->format('d-M-y') }}</b><br><span class="fine">Responsable: {{ $caja->usuarioCierre?->name ?? '' }}</span></td>
 </tr></table>
-@unless($tieneSnapshot)<div class="box"><div class="bar gold">CORTE HISTÓRICO: el desglose por categoría y banco no se guardaba en este cierre.</div></div>@endunless
+@if($datosReconstruidos)<div class="box"><div class="bar gold">CORTE HISTÓRICO: desglose reconstruido con documentos y movimientos disponibles.@if($bancosReconstruidos) No se conservó el banco asignado; se muestra el método de cobro.@endif</div></div>@elseif(!$tieneSnapshot)<div class="box"><div class="bar gold">CORTE HISTÓRICO: no hay datos suficientes para reconstruir el desglose por categoría y banco.</div></div>@endif
 <table class="cols">
 <tr><td>
     <div class="box"><div class="bar">VENTAS TOTALES <span class="amount">$ {{ number_format(array_sum($ventas), 2) }}</span></div><table class="data"><tr><th>Categoría</th><th class="right">Importe</th></tr>@foreach($categorias as $categoria)<tr><td>{{ $categoria }}</td><td class="right">$ {{ number_format((float)($ventas[$categoria] ?? 0),2) }}</td></tr>@endforeach</table></div>
