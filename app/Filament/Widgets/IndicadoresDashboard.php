@@ -102,10 +102,21 @@ class IndicadoresDashboard extends Widget
                 'color' => 'green',
                 'icon' => 'heroicon-o-cube',
                 'value' => $this->inventoryValue($this->sucursalId),
+                'helper' => 'Valuado a costo promedio',
                 'branches' => $sucursales->map(fn (Sucursal $branch): array => [
                     'name' => $branch->nombre,
                     'value' => $this->inventoryValue((int) $branch->id),
                 ])->values()->all(),
+                'change' => null,
+            ],
+            'woodMetric' => [
+                'label' => 'Clientes con madera vencida',
+                'color' => 'brown',
+                'icon' => 'heroicon-o-rectangle-group',
+                'value' => $this->alertValue('madera', $inicio, $fin),
+                'helper' => 'Clientes con partidas pendientes de devolución',
+                'format' => 'count',
+                'branches' => $this->branchAlertValues('madera', $inicio, $fin, $sucursales),
                 'change' => null,
             ],
             'chart' => $this->chartData($inicio, $fin, $sucursales),
@@ -115,7 +126,7 @@ class IndicadoresDashboard extends Widget
             'urls' => [
                 'rentas' => ProductosRentaVencidos::getUrl(),
                 'madera' => ProductosRentaVencidos::getUrl(['linea' => 'MADERA']),
-                'inventario' => ExistenciaPorSucursal::getUrl($this->sucursalId ? ['sucursal_id' => $this->sucursalId] : []),
+                'inventario' => ExistenciaPorSucursal::getUrl(),
                 'depositos' => ControlDepositos::getUrl(),
                 'devoluciones' => url('/consulta-devoluciones'),
                 'movimientos' => CajaMovimientosResource::getUrl('index'),
@@ -296,8 +307,6 @@ class IndicadoresDashboard extends Widget
     {
         $definitions = [
             'vencidas' => ['Rentas vencidas', 'Rentas activas fuera de fecha', 'red'],
-            'madera' => ['Clientes con madera vencida', 'Clientes con partidas de madera pendientes de devolver', 'brown'],
-            'depositos' => ['Depósitos pendientes por devolver', 'Del periodo seleccionado', 'orange'],
             'stock' => ['Productos sin existencia', 'No hay umbral de stock mínimo configurado', 'yellow'],
             'devoluciones' => ['Pendientes por cerrar', 'Obras o direcciones sin artículos pendientes de devolver', 'purple'],
         ];

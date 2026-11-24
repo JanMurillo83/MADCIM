@@ -894,7 +894,6 @@
     .mc-empty { padding: 1.5rem !important; color: #89938c; text-align: center; }
 
     /* Dashboard v2: desktop proportions mirror the operational-screen reference. */
-    .fi-page:has(.mc-dashboard) > .fi-page-header-main-ctn > .fi-header { display: none; }
     .mc-dashboard { color: #18251c; font-size: .82rem; }
     .mc-dashboard-header { padding: .1rem 1.4rem .55rem; }
     .mc-dashboard-header h1 { font-size: 1.85rem; letter-spacing: -.04em; }
@@ -904,7 +903,8 @@
     .mc-filters select { min-width: 10.6rem; height: 2.55rem; border-color: #d9ddda; border-radius: .55rem; font-weight: 600; }
     .mc-month-filter select { min-width: 11.4rem; text-transform: capitalize; }
     .mc-month-filter select:disabled { background: #f5f5f4; color: #a1a9a2; }
-    .mc-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .85rem; margin-bottom: .85rem; }
+    .mc-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .85rem; margin-bottom: .85rem; }
+    .mc-kpis-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 62rem; }
     .mc-kpi-link { display: block; min-width: 0; color: inherit; text-decoration: none; }
     .mc-kpi-link:focus-visible { border-radius: .65rem; outline: 3px solid #1f6b3d; outline-offset: 3px; }
     .mc-kpi { display: block; min-height: 10.7rem; padding: .85rem 1rem .7rem; }
@@ -938,6 +938,7 @@
 
     @media (max-width: 1100px) {
         .mc-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .mc-kpis.mc-kpis-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .mc-layout { grid-template-columns: 1fr 1fr; }.mc-alerts { grid-column: span 2; }.mc-annual-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
 
@@ -947,6 +948,7 @@
         .mc-filters label { flex: 1; flex-direction: column; align-items: stretch; }
         .mc-kpis, .mc-grid-main, .mc-grid-bottom { grid-template-columns: 1fr; }
         .mc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .mc-kpis.mc-kpis-secondary { grid-template-columns: 1fr; max-width: none; }
         .mc-layout { grid-template-columns: 1fr; }.mc-alerts { grid-column: auto; }.mc-annual-grid { grid-template-columns: 1fr; }.mc-kpi { min-height: auto; }.mc-chart { min-width: 36rem; }.mc-chart-card { overflow-x: auto; }
     }
 
