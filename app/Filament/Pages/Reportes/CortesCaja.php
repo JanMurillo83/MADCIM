@@ -149,6 +149,8 @@ class CortesCaja extends Page
     {
         $caja = $corte->caja ? clone $corte->caja : new Caja;
         $caja->forceFill($corte->getAttributes());
+        $caja->setAttribute('reporte_cierre', $corte->reporte_cierre);
+        $caja->setAttribute('denominaciones_efectivo', $corte->denominaciones_efectivo);
         $caja->nombre = $corte->caja?->nombre ?: 'Caja ' . $corte->caja_id;
         $caja->setRelation('sucursal', $corte->sucursal);
         $caja->setRelation('usuarioCierre', $corte->usuarioCierre);

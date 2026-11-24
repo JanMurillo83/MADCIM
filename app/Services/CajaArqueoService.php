@@ -102,6 +102,8 @@ class CajaArqueoService
     {
         $inicio = $caja->fecha_apertura ?? $caja->created_at;
         $fin = $fechaCierre ?? now();
+        $fechaInicio = Carbon::parse($inicio)->toDateString();
+        $fechaFin = Carbon::parse($fin)->toDateString();
         $categorias = ['Madera', 'Carpintería', 'Rentas de madera', 'Renta de Equipos', 'Ferretería', 'Matto. A equipos'];
         $empty = array_fill_keys($categorias, 0.0);
         $ventas = $empty;
@@ -110,7 +112,7 @@ class CajaArqueoService
         $recuperados = $empty;
 
         $ventasVenta = NotasVentaVenta::withoutGlobalScopes()->with('partidas.producto')
-            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('sucursal_id', $caja->sucursal_id)->whereDate('fecha_emision', '>=', $fechaInicio)->whereDate('fecha_emision', '<=', $fechaFin)
             ->where('estatus', '!=', 'Cancelada')->get();
         foreach ($ventasVenta as $nota) {
             $this->sumarPartidas($ventas, $nota->partidas, false);
@@ -120,7 +122,7 @@ class CajaArqueoService
         }
 
         $ventasRenta = NotasVentaRenta::withoutGlobalScopes()->with('partidas.producto')
-            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('sucursal_id', $caja->sucursal_id)->whereDate('fecha_emision', '>=', $fechaInicio)->whereDate('fecha_emision', '<=', $fechaFin)
             ->where('estatus', '!=', 'Cancelada')->get();
         foreach ($ventasRenta as $nota) {
             $this->sumarPartidas($ventas, $nota->partidas, true);
@@ -130,7 +132,7 @@ class CajaArqueoService
         }
 
         $devolucionVenta = DevolucionesVenta::withoutGlobalScopes()->with('partidas.producto')
-            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('sucursal_id', $caja->sucursal_id)->whereDate('fecha_emision', '>=', $fechaInicio)->whereDate('fecha_emision', '<=', $fechaFin)
             ->where('estatus', '!=', 'Cancelada')->get();
         foreach ($devolucionVenta as $devolucion) {
             $this->sumarPartidas($devoluciones, $devolucion->partidas, false);

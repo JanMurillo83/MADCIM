@@ -9,6 +9,8 @@
     @php
         $caja = clone $corte->caja;
         $caja->forceFill($corte->getAttributes());
+        $caja->setAttribute('reporte_cierre', $corte->reporte_cierre);
+        $caja->setAttribute('denominaciones_efectivo', $corte->denominaciones_efectivo);
         $caja->setRelation('sucursal', $corte->sucursal);
         $caja->setRelation('usuarioCierre', $corte->usuarioCierre);
         $caja->setRelation('movimientos', $corte->movimientos);
