@@ -6,10 +6,8 @@ use App\Models\Caja;
 use App\Models\CajaCorte;
 use App\Models\NotasVentaRenta;
 use App\Models\NotasVentaVenta;
-use App\Models\DevolucionesRenta;
 use App\Models\DevolucionesVenta;
 use App\Models\Pagos;
-use App\Enums\TipoNotaRenta;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -138,13 +136,6 @@ class CajaArqueoService
             $this->sumarPartidas($devoluciones, $devolucion->partidas, false);
         }
 
-        $devolucionRenta = DevolucionesRenta::withoutGlobalScopes()->with('partidas.producto')
-            ->where('sucursal_id', $caja->sucursal_id)->whereBetween('fecha_emision', [$inicio, $fin])
-            ->where('estatus', '!=', 'Cancelada')->get();
-        foreach ($devolucionRenta as $devolucion) {
-            $this->sumarPartidas($devoluciones, $devolucion->partidas, true);
-        }
-
         $pagosCredito = Pagos::query()->where('caja_id', $caja->id)
             ->whereBetween('fecha_pago_hora', [$inicio, $fin])
             ->whereIn('documento_tipo', ['notas_venta_venta', 'notas_venta_renta'])->get();
@@ -200,16 +191,17 @@ class CajaArqueoService
 
     private function categoria($partida, bool $renta): ?string
     {
+        $linea = mb_strtolower(trim((string) ($partida->producto?->linea ?? '')));
+
         if ($renta) {
-            $tipo = TipoNotaRenta::tryFrom((string) ($partida->tipo_nota_renta ?? $partida->documento?->tipo_nota_renta ?? ''));
-            if ($tipo) {
-                return $tipo->esMadera() ? 'Rentas de madera' : 'Renta de Equipos';
-            }
-            return mb_strtolower((string) ($partida->producto?->linea ?? '')) === 'madera' ? 'Rentas de madera' : 'Renta de Equipos';
+            return match ($linea) {
+                'madera' => 'Rentas de madera',
+                'equipo' => 'Renta de Equipos',
+                default => null,
+            };
         }
 
         $descripcion = mb_strtolower(trim((string) ($partida->descripcion ?? '')));
-        $linea = mb_strtolower(trim((string) ($partida->producto?->linea ?? '')));
         $esExtensionRenta = str_starts_with($descripcion, 'extensión de renta')
             || str_starts_with($descripcion, 'extension de renta')
             || str_starts_with($descripcion, 'renovación de renta')
