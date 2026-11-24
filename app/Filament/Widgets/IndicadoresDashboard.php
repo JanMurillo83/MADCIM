@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Pages\ProductosRentaVencidos;
+use App\Filament\Pages\Reportes\ExistenciaPorSucursal;
 use App\Filament\Pages\Reportes\ControlDepositos;
 use App\Filament\Resources\CajaMovimientos\CajaMovimientosResource;
 use App\Models\CajaMovimiento;
@@ -20,6 +21,7 @@ use App\Models\ExistenciaSucursal;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -95,12 +97,46 @@ class IndicadoresDashboard extends Widget
 
         return [
             'sucursales' => $sucursales, 'inicio' => $inicio, 'fin' => $fin, 'periodoLabel' => $this->periodoLabel($inicio), 'metrics' => $metrics,
+            'inventoryMetric' => [
+                'label' => 'Mi inventario',
+                'color' => 'green',
+                'icon' => 'heroicon-o-cube',
+                'value' => $this->inventoryValue($this->sucursalId),
+                'branches' => $sucursales->map(fn (Sucursal $branch): array => [
+                    'name' => $branch->nombre,
+                    'value' => $this->inventoryValue((int) $branch->id),
+                ])->values()->all(),
+                'change' => null,
+            ],
             'chart' => $this->chartData($inicio, $fin, $sucursales),
             'comparativo' => collect($metrics)->map(fn ($m) => ['label' => $m['label'], 'branches' => $m['branches'], 'value' => $m['value']])->values(),
             'alerts' => $this->alerts($inicio, $fin, $sucursales), 'porVencer' => $this->rentasActivas()->whereBetween('fecha_vencimiento', [now()->toDateString(), now()->copy()->addDays(7)->toDateString()])->count(),
             'cobros' => $this->cobrosPendientes($sucursales), 'annualMetrics' => $this->annualMetrics($sucursales), 'movimientos' => $this->movimientosRecientes(),
-            'urls' => ['rentas' => ProductosRentaVencidos::getUrl(), 'depositos' => ControlDepositos::getUrl(), 'devoluciones' => url('/consulta-devoluciones'), 'movimientos' => CajaMovimientosResource::getUrl('index')],
+            'urls' => [
+                'rentas' => ProductosRentaVencidos::getUrl(),
+                'madera' => ProductosRentaVencidos::getUrl(['linea' => 'MADERA']),
+                'inventario' => ExistenciaPorSucursal::getUrl($this->sucursalId ? ['sucursal_id' => $this->sucursalId] : []),
+                'depositos' => ControlDepositos::getUrl(),
+                'devoluciones' => url('/consulta-devoluciones'),
+                'movimientos' => CajaMovimientosResource::getUrl('index'),
+            ],
         ];
+    }
+
+    private function inventoryValue(?int $sucursalId): float
+    {
+        if (! auth()->user()?->isAdmin()) {
+            $sucursalId = auth()->user()?->sucursal_id ? (int) auth()->user()->sucursal_id : null;
+            if (! $sucursalId) {
+                return 0.0;
+            }
+        }
+
+        $query = DB::table('existencias_sucursal as existencia')
+            ->join('productos', 'productos.id', '=', 'existencia.producto_id')
+            ->when($sucursalId, fn ($query) => $query->where('existencia.sucursal_id', $sucursalId));
+
+        return round((float) $query->sum(DB::raw('existencia.existencia * productos.costo')), 2);
     }
 
     private function rangoPeriodo(Carbon $now): array
@@ -260,6 +296,7 @@ class IndicadoresDashboard extends Widget
     {
         $definitions = [
             'vencidas' => ['Rentas vencidas', 'Rentas activas fuera de fecha', 'red'],
+            'madera' => ['Clientes con madera vencida', 'Clientes con partidas de madera pendientes de devolver', 'brown'],
             'depositos' => ['Depósitos pendientes por devolver', 'Del periodo seleccionado', 'orange'],
             'stock' => ['Productos sin existencia', 'No hay umbral de stock mínimo configurado', 'yellow'],
             'devoluciones' => ['Pendientes por cerrar', 'Obras o direcciones sin artículos pendientes de devolver', 'purple'],
@@ -282,6 +319,12 @@ class IndicadoresDashboard extends Widget
     {
         return match ($key) {
             'vencidas' => $this->rentasActivas()->whereDate('fecha_vencimiento', '<', now()->toDateString())->count(),
+            'madera' => $this->rentasActivas()
+                ->whereDate('fecha_vencimiento', '<', now()->toDateString())
+                ->whereNotNull('cliente_id')
+                ->whereHas('producto', fn (Builder $query) => $query->whereRaw('UPPER(TRIM(linea)) = ?', ['MADERA']))
+                ->distinct()
+                ->count('cliente_id'),
             'depositos' => $this->depositosPendientes($inicio, $fin),
             'stock' => $this->sucursalId
                 ? ExistenciaSucursal::query()->where('sucursal_id', $this->sucursalId)->where('existencia', '<=', 0)->count()

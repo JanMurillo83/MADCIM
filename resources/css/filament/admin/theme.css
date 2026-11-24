@@ -894,6 +894,7 @@
     .mc-empty { padding: 1.5rem !important; color: #89938c; text-align: center; }
 
     /* Dashboard v2: desktop proportions mirror the operational-screen reference. */
+    .fi-page:has(.mc-dashboard) > .fi-page-header-main-ctn > .fi-header { display: none; }
     .mc-dashboard { color: #18251c; font-size: .82rem; }
     .mc-dashboard-header { padding: .1rem 1.4rem .55rem; }
     .mc-dashboard-header h1 { font-size: 1.85rem; letter-spacing: -.04em; }
@@ -903,7 +904,9 @@
     .mc-filters select { min-width: 10.6rem; height: 2.55rem; border-color: #d9ddda; border-radius: .55rem; font-weight: 600; }
     .mc-month-filter select { min-width: 11.4rem; text-transform: capitalize; }
     .mc-month-filter select:disabled { background: #f5f5f4; color: #a1a9a2; }
-    .mc-kpis { gap: .85rem; margin-bottom: .85rem; }
+    .mc-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .85rem; margin-bottom: .85rem; }
+    .mc-kpi-link { display: block; min-width: 0; color: inherit; text-decoration: none; }
+    .mc-kpi-link:focus-visible { border-radius: .65rem; outline: 3px solid #1f6b3d; outline-offset: 3px; }
     .mc-kpi { display: block; min-height: 10.7rem; padding: .85rem 1rem .7rem; }
     .mc-kpi-top { display: flex; align-items: flex-start; gap: .75rem; }
     .mc-kpi-top > div { display: grid; gap: .1rem; min-width: 0; }
@@ -929,7 +932,7 @@
     .mc-chart-card { margin-top: .85rem; }
     .mc-table { font-size: .72rem; table-layout: fixed; }.mc-table th, .mc-table td { padding: .55rem .52rem; border: 1px solid #e5e9e5; overflow-wrap: anywhere; white-space: normal; }.mc-table th { background: #e9edea; color: #1d2820; }.mc-global-cell { background: #e3f2e7; color: #075b33 !important; }.mc-table-scroll { min-width: 0; overflow-x: auto; }
     .mc-comparison .mc-table th, .mc-comparison .mc-table td { text-align: right; }.mc-comparison .mc-table th:first-child, .mc-comparison .mc-table td:first-child { text-align: left; }
-    .mc-alerts { padding: .85rem; }.mc-alerts a { min-height: 3.85rem; margin: 0 0 .48rem; border: 0; border-radius: .55rem; background: #fff4f4; padding: .48rem .58rem; }.mc-alerts a:nth-of-type(3) { background: #fff7e8; }.mc-alerts a:nth-of-type(4) { background: #fff6ed; }.mc-alerts a:nth-of-type(5) { background: #fff0f2; }.mc-alerts a:nth-of-type(6) { background: #eef0ff; }.mc-alerts a > span:nth-child(2) { display: grid; gap: .16rem; line-height: 1.1; }.mc-alerts small { color: #6e706e; font-size: .65rem; }.mc-alerts a > svg { width: .85rem; color: #9a464c; }.mc-alert-icon.yellow { background: #ffe9b2; color: #b16900; }.mc-alert-icon.purple { background: #e3e4ff; color: #414aa2; }
+    .mc-alerts { padding: .85rem; }.mc-alerts a { min-height: 3.85rem; margin: 0 0 .48rem; border: 0; border-radius: .55rem; background: #fff4f4; padding: .48rem .58rem; }.mc-alerts a.mc-alert-brown { background: #fbf3eb; }.mc-alerts a.mc-alert-orange { background: #fff7e8; }.mc-alerts a.mc-alert-yellow { background: #fff6ed; }.mc-alerts a.mc-alert-purple { background: #eef0ff; }.mc-alerts a > span:nth-child(2) { display: grid; gap: .16rem; line-height: 1.1; }.mc-alerts small { color: #6e706e; font-size: .65rem; }.mc-alerts a > svg { width: .85rem; color: #9a464c; }.mc-alert-icon.yellow { background: #ffe9b2; color: #b16900; }.mc-alert-icon.purple { background: #e3e4ff; color: #414aa2; }.mc-alert-icon.brown { background: #f5e8db; color: #9a6237; }
     .mc-annual { margin-top: .85rem; }.mc-annual-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .7rem; }.mc-annual-item { display: grid; gap: .42rem; min-height: 8.45rem; padding: .95rem; border-radius: .55rem; background: #f0f8f2; }.mc-annual-item.mc-brown { background: #fff7ed; }.mc-annual-item.mc-orange { background: #fff3e5; }.mc-annual-item.mc-blue { background: #eaf6fd; }.mc-annual-item.mc-red { background: #fff0f2; }.mc-annual-item > span { display: flex; gap: .38rem; align-items: center; font-weight: 800; }.mc-annual-item svg { width: 1.25rem; color: #176d3e; }.mc-annual-item strong { font-size: 1.28rem; letter-spacing: -.035em; }.mc-annual-item small { display: flex; justify-content: space-between; gap: .4rem; }
     .mc-movements { margin-top: .85rem; }.mc-chart-card { margin-top: 1.5rem !important; }.mc-total-row td { background: #08723e !important; color: white !important; font-weight: 800 !important; }.mc-is-loading { opacity: .65; transition: opacity .15s; }
 

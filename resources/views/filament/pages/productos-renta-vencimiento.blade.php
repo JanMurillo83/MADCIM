@@ -30,11 +30,17 @@
 @endif
         </div>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 {{ strtoupper((string) $linea) === 'MADERA' ? 'md:grid-cols-3' : 'md:grid-cols-2' }}">
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow">
                 <p class="text-sm text-gray-500">Registros encontrados</p>
                 <p class="text-2xl font-bold text-primary-600">{{ $this->productos->count() }}</p>
             </div>
+            @if(strtoupper((string) $linea) === 'MADERA')
+                <div class="rounded-xl border border-gray-200 bg-white p-4 shadow">
+                    <p class="text-sm text-gray-500">Clientes con madera vencida</p>
+                    <p class="text-2xl font-bold text-primary-600">{{ $this->clientesConPendiente }}</p>
+                </div>
+            @endif
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow">
                 <p class="text-sm text-gray-500">Cantidad pendiente de devolución</p>
                 <p class="text-2xl font-bold text-warning-600">{{ number_format($this->totalPendiente, 2) }}</p>
