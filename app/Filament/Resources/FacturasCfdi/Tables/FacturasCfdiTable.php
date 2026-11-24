@@ -76,12 +76,12 @@ class FacturasCfdiTable
                 TextColumn::make('rfc_emisor')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('rfc_receptor')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('razon_social_receptor')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->label('Nombre del receptor')
+                    ->searchable(),
+                TextColumn::make('rfc_receptor')
+                    ->label('RFC receptor')
+                    ->searchable(),
                 TextColumn::make('cfdi_uuid')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -201,14 +201,18 @@ class FacturasCfdiTable
                     ->icon('heroicon-o-arrow-down-tray')
                     ->action(function (HasTable $livewire) {
                         $query = $livewire->getTableQueryForExport()
-                            ->whereNotNull('cfdi_uuid')
+                            ->where(function ($query): void {
+                                $query->whereNotNull('cfdi_uuid')
+                                    ->orWhere('estatus', 'Cancelada')
+                                    ->orWhereNotNull('cfdi_fecha_cancelacion');
+                            })
                             ->orderBy('id');
 
                         if (! (clone $query)->exists()) {
                             Notification::make()
                                 ->warning()
-                                ->title('No hay CFDI para exportar')
-                                ->body('La consulta actual no contiene facturas timbradas.')
+                                ->title('No hay facturas para exportar')
+                                ->body('La consulta actual no contiene CFDI timbrados ni facturas canceladas.')
                                 ->send();
 
                             return null;
@@ -221,6 +225,8 @@ class FacturasCfdiTable
                             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
                             fputcsv($handle, [
                                 'UUIDD',
+                                'NOMBRE DEL RECEPTOR',
+                                'RFC DEL RECEPTOR',
                                 'FECHA DE ELABORACION',
                                 'FECHA DE CANCELACION',
                                 'TOTAL',
@@ -232,6 +238,8 @@ class FacturasCfdiTable
                             foreach ($query->cursor() as $factura) {
                                 fputcsv($handle, [
                                     $factura->cfdi_uuid,
+                                    $factura->razon_social_receptor,
+                                    $factura->rfc_receptor,
                                     ($factura->cfdi_fecha_timbrado ?? $factura->fecha_emision)?->format('Y-m-d H:i:s'),
                                     $factura->cfdi_fecha_cancelacion?->format('Y-m-d H:i:s'),
                                     number_format((float) $factura->total, 2, '.', ''),
