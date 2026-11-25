@@ -65,7 +65,9 @@ class PagosForm
                                                 return [$nota->id => $nota->folio . ' - $' . number_format($nota->saldo_pendiente, 2)];
                                             });
                                     case 'facturas_cfdi':
-                                        return FacturasCfdi::where('estatus', '!=', 'Cancelada')
+                                        return FacturasCfdi::query()
+                                            ->cuentaIndependiente()
+                                            ->where('estatus', '!=', 'Cancelada')
                                             ->where('saldo_pendiente', '>', 0)
                                             ->get()
                                             ->mapWithKeys(function ($factura) {

@@ -59,6 +59,7 @@ class Clientes extends Model
             ->sum('total');
 
         $totalFacturas = (float) FacturasCfdi::query()
+            ->cuentaIndependiente()
             ->where('cliente_id', $this->id)
             ->where('estatus', '!=', 'Cancelada')
             ->sum('total');
@@ -97,6 +98,7 @@ class Clientes extends Model
         }
 
         return FacturasCfdi::query()
+            ->cuentaIndependiente()
             ->where('cliente_id', $this->id)
             ->where('estatus', '!=', 'Cancelada')
             ->where('saldo_pendiente', '>', 0)

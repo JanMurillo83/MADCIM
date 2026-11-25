@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToSucursalScope;
 use App\Models\Concerns\HasDocumentoSerieFolio;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -89,6 +90,23 @@ class FacturasCfdi extends Model
     public function partidas(): HasMany
     {
         return $this->hasMany(FacturaCfdiPartidas::class, 'factura_cfdi_id');
+    }
+
+    public function scopeCuentaIndependiente(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('partidas', fn (Builder $partidas) => $partidas
+            ->where(fn (Builder $partidasDeNotas) => $partidasDeNotas
+                ->where('no_identificacion', 'like', 'NVV:%')
+                ->orWhere('no_identificacion', 'like', 'NVR:%')));
+    }
+
+    public function esGeneradaDesdeNotas(): bool
+    {
+        return $this->partidas()
+            ->where(fn (Builder $query) => $query
+                ->where('no_identificacion', 'like', 'NVV:%')
+                ->orWhere('no_identificacion', 'like', 'NVR:%'))
+            ->exists();
     }
 
     public function documentoOrigen(): BelongsTo

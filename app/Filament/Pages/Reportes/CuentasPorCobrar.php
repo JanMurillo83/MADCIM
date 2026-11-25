@@ -156,6 +156,7 @@ class CuentasPorCobrar extends Page
         $facturas = collect();
         if (!$this->tipo || $this->tipo === 'facturas_cfdi') {
             $facturas = FacturasCfdi::query()
+                ->cuentaIndependiente()
                 ->with('cliente')
                 ->where('saldo_pendiente', '>', 0)
                 ->when($this->cliente_id, fn ($q) => $q->where('cliente_id', $this->cliente_id))
