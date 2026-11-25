@@ -24,6 +24,7 @@ class CortesCaja extends Page
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
     protected static ?string $navigationLabel = 'Cortes de Caja';
     protected static ?string $title = 'Cortes de Caja';
+    protected ?string $heading = '';
     protected static string|null|\UnitEnum $navigationGroup = 'Reportes';
     protected static ?int $navigationSort = 5;
 

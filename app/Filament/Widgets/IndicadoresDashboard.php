@@ -174,7 +174,7 @@ class IndicadoresDashboard extends Widget
     {
         return match ($key) {
             'ventas' => $this->ventas($inicio, $fin), 'madera' => $this->rentaPorLinea($inicio, $fin, 'MADERA'), 'equipo' => $this->rentaPorLinea($inicio, $fin, 'EQUIPO'),
-            'depositos' => $this->depositosNetos($inicio, $fin),
+            'depositos' => $this->depositosCobrados($inicio, $fin),
             'pendientes' => $this->depositosPendientes($inicio, $fin),
         };
     }
@@ -242,26 +242,35 @@ class IndicadoresDashboard extends Widget
 
     private function depositosPendientes(Carbon $inicio, Carbon $fin): float
     {
-        $cobrados = $this->metric('depositos', $inicio, $fin);
-        $aplicados = (float) $this->scope(CierreDevolucionRenta::query())->whereBetween('cerrada_en', [$inicio, $fin])->where('estatus', '!=', 'Cancelado')->sum('deposito_aplicado');
+        $cierres = $this->scope(CierreDevolucionRenta::query())
+            ->where('estatus', 'PendienteCaja')
+            ->where('deposito_a_devolver', '>', 0)
+            ->whereBetween('created_at', [$inicio, $fin])
+            ->get(['id', 'deposito_a_devolver']);
 
-        return max(0, $cobrados - $aplicados);
+        $movimientos = $this->scope(CajaMovimiento::query())
+            ->where('tipo', 'Egreso')
+            ->where('fuente', 'Devolución depósito renta')
+            ->where('aplicado_a_caja', false)
+            ->whereBetween('fecha', [$inicio, $fin])
+            ->where(function (Builder $query) use ($cierres): void {
+                $query->whereNull('movimentable_type')
+                    ->orWhere('movimentable_type', '!=', CierreDevolucionRenta::class)
+                    ->orWhere(fn (Builder $query) => $query
+                        ->where('movimentable_type', CierreDevolucionRenta::class)
+                        ->whereNotIn('movimentable_id', $cierres->pluck('id')));
+            })
+            ->sum('importe');
+
+        return (float) $cierres->sum('deposito_a_devolver') + (float) $movimientos;
     }
 
-    private function depositosNetos(Carbon $inicio, Carbon $fin): float
+    private function depositosCobrados(Carbon $inicio, Carbon $fin): float
     {
-        $cobrados = (float) $this->scope(NotasVentaRenta::query())
+        return (float) $this->scope(NotasVentaRenta::query())
             ->whereBetween('fecha_emision', [$inicio, $fin])
             ->where('estatus', '!=', 'Cancelada')
             ->sum('deposito');
-        $devueltos = (float) $this->scope(CajaMovimiento::query())
-            ->visibleEnCaja()
-            ->whereBetween('fecha', [$inicio, $fin])
-            ->where('tipo', 'Egreso')
-            ->where('fuente', 'Devolución depósito renta')
-            ->sum('importe');
-
-        return max(0, $cobrados - $devueltos);
     }
 
     private function chartData(Carbon $inicio, Carbon $fin, Collection $sucursales): array

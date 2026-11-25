@@ -1,7 +1,8 @@
-<x-filament-panels::page>
+<x-filament-panels::page class="cortes-caja-page">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('pdf.cajas.cierre-estilos')
     <style>
+        .fi-page.cortes-caja-page .fi-page-header-main-ctn { gap: 0; padding-block: 0; }
         @media screen {
             .corte-sheet { background: #fff; padding: 18px; border: 1px solid #d1d5db; border-radius: 12px; box-shadow: 0 2px 8px #0000000d; font-size: 11px; }
             .corte-sheet .title { font-size: 26px; }

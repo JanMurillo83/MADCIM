@@ -1,7 +1,8 @@
-<x-filament-panels::page>
+<x-filament-panels::page class="cobros-page">
     <x-filament-actions::modals />
 
     <style>
+        .fi-page.cobros-page .fi-page-header-main-ctn { gap: 0; padding-block: 0; }
         .cobros-shell { display: grid; gap: 20px; }
         .cobros-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; }
         .cobros-heading h2 { margin: 0; font-size: 22px; font-weight: 700; color: #111827; }

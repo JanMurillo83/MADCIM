@@ -40,6 +40,8 @@ class CobrosPendientes extends Page implements HasActions
 
     protected static ?string $title = 'Notas pendientes de pago';
 
+    protected ?string $heading = '';
+
     protected static string|null|\UnitEnum $navigationGroup = 'Caja';
 
     protected static ?int $navigationSort = 1;
